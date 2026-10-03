@@ -33,7 +33,7 @@ function walk(dir) {
   return results;
 }
 
-const files = walk('./src').concat(walk('./docs')).concat(['./package.json']);
+const files = walk('./src').concat(walk('./docs')).concat(['./package.json']).concat(fs.readdirSync('.').filter(f => f.endsWith('.md')).map(f => './' + f));
 
 files.forEach(file => {
   let content = fs.readFileSync(file, 'utf8');
