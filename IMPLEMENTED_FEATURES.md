@@ -15,7 +15,7 @@ This document outlines the key features implemented to transform axoniz into a s
     *   **Dynamic Context Size**: Users can adjust `n_ctx` (context window size) and `n_gpu_layers` directly from the settings panel, with changes dynamically applied to the loaded model via a new API endpoint (`/api/config/update_model_params`).
     *   **Improved Model Discovery**: The system now correctly detects and utilizes local GGUF models stored in the `~/.axoniz/models` directory, and the model registry has been updated to reflect user's local model versions.
 
-## Advanced Intelligence & Sovereignty
+## Advanced Intelligence & Autonomousty
 
 *   **Goal Pursuit Engine (Phase 11)**:
     *   **OKR-style Tracking**: Implemented a SQLite-backed goal pursuit engine.
@@ -28,9 +28,9 @@ This document outlines the key features implemented to transform axoniz into a s
 
 *   **Continuous Awareness (Phase 10)**:
     *   **Environment Monitoring**: Background monitoring of active windows, clipboard, and system metrics.
-    *   **Proactive Suggestions**: Rule-based engine that allows BERU to suggest actions based on user's current context.
+    *   **Proactive Suggestions**: Rule-based engine that allows AXONIZ to suggest actions based on user's current context.
 
-*   **Sovereign Infrastructure Hardening**:
+*   **Autonomous Infrastructure Hardening**:
     *   **Local JWT Authentication**: Zero-cost, 100% offline authentication integrated into the web server.
     *   **Prometheus Metrics**: Built-in observability for tracking requests, agent performance, and hardware usage.
     *   **In-memory Rate Limiting**: Protection against API flooding.

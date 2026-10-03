@@ -1,46 +1,46 @@
-# AXONIZ-ZERO — BERU (The Ant King)
-### Sovereign Local Agentic Intelligence
+# AXONIZ
+### Autonomous Local Agentic System
 
-AXONIZ-ZERO is the definitive evolution of local agentic intelligence. Embodying the persona of **BERU (The Ant King)**, it is a high-performance, 100% offline system designed to command million-line codebases using small-parameter local models (3B-8B).
+AXONIZ is a high-performance, 100% offline agentic framework designed to comprehend and orchestrate large-scale codebases using small-parameter local models (3B-8B).
 
 By moving intelligence into the **Code Graph** and the **System Architecture**, Axoniz-Zero enables a 3B model to outperform cloud-based 70B models in precision, speed, and architectural depth.
 
 ## ⚔️ Absolute Super-Powers
 
-### 1. Sovereign Inference Engine
-- **Llama-Native:** Zero overhead. No Ollama, no LM Studio. Pure `llama.cpp` sovereignty.
+### 1. Autonomous Inference Engine
+- **Llama-Native:** Zero overhead. No Ollama, no LM Studio. Pure `llama.cpp` autonomousty.
 - **Prompt Caching:** Instant responses via permanent KV-cache management.
-- **Sovereign Vault:** Centralized GGUF management in `~/.axoniz/models`.
+- **Autonomous Vault:** Centralized GGUF management in `~/.axoniz/models`.
 - **The Forge:** Built-in HuggingFace downloader to acquire new weights directly.
 
-### 2. The Eye of the Marshal (Axodex Graph)
+### 2. Axodex Graph (Code Intelligence)
 - **Graph-Native Awareness:** Axoniz-Zero doesn't just read text; it queries a static code graph.
 - **Project Atlas:** Automatic architectural scanning of million-line repos.
 - **Intelligence Slices:** Surgical retrieval of symbols and their graph neighbors, saving thousands of tokens.
 
-### 3. The Shadow Army (Massive Parallelism)
+### 3. The Worker Swarm (Massive Parallelism)
 - **Swarm Command:** Delegate heavy tasks (linting, testing, massive refactors) to a swarm of background worker shadows.
 - **Proactive Sentinel:** A daemon that watches your screen (OCR) and files, delivering "Shadow Solutions" to terminal errors before you even ask.
 - **Shadow-Step:** Speculative execution in safe git branches. Merges only when tests pass 100%.
 
-### 4. The Eternal Palace (Sovereign Memory)
+### 4. The Eternal Palace (Autonomous Memory)
 - **Long-Term Recall:** Persistent semantic memory via MemPalace.
-- **Marshal's Archive:** Every session scan and successful fix is archived forever.
+- **System's Archive:** Every session scan and successful fix is archived forever.
 - **Absolute Query:** A single strike to search both the current Code Graph and your entire project history.
 
-### 5. Tactical Pursuit (Sovereign Goals)
-- **OKR Engine:** Direct the Shadow Army towards high-level objectives with `goal_create`.
+### 5. Tactical Pursuit (Autonomous Goals)
+- **OKR Engine:** Direct the Worker Swarm towards high-level objectives with `goal_create`.
 - **Key Result Tracking:** Automatic score calculation for project milestones.
-- **Drill Sergeant Briefings:** BERU provides daily accountability reports on your mission progress.
+- **Drill Sergeant Briefings:** AXONIZ provides daily accountability reports on your mission progress.
 
-### 6. Sovereign Infrastructure
+### 6. Autonomous Infrastructure
 - **Hardened Server:** Built-in JWT Auth, Rate Limiting, and Prometheus Metrics.
 - **Observability:** Monitor agent performance and system health via the `/metrics` endpoint.
 - **Offline Integrity:** 100% local, 100% private, 0% cloud.
 
 ## 🚀 Installation & Command
 
-### The Sovereign Bundle
+### The Autonomous Bundle
 Run the pre-built executable for the absolute experience:
 ```powershell
 .\dist\axoniz.exe --lc
@@ -52,7 +52,7 @@ Run the pre-built executable for the absolute experience:
    # Models live here: ~/.axoniz/models
    # llama.cpp lives here: ~/.axoniz/llama
    ```
-2. **Boot the Marshal:**
+2. **Boot the System:**
    ```powershell
    python -m axoniz.core.runner --web
    ```
@@ -61,11 +61,11 @@ Run the pre-built executable for the absolute experience:
 Access the **FRAZIYM AI Console** at `http://localhost:7860`:
 - **The Vault:** Manage your local GGUF armory.
 - **The Forge:** Search and download models from HuggingFace.
-- **War Room:** Monitor the Shadow Army's background activities.
-- **Sovereign Search:** Bridge the graph and your memory.
+- **War Room:** Monitor the Worker Swarm's background activities.
+- **Autonomous Search:** Bridge the graph and your memory.
 
 **Developer Resources:**
-- [Frontend Integration Guide](docs/FRONTEND_INTEGRATION.md) — Connect your UI to the Shadow Army.
+- [Frontend Integration Guide](docs/FRONTEND_INTEGRATION.md) — Connect your UI to the Worker Swarm.
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [AAA Tier Roadmap](docs/ROADMAP_TO_AAA.md)
 

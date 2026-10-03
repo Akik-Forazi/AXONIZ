@@ -1,8 +1,8 @@
-# AXONIZ SYSTEM: THE SOVEREIGN DEVELOPER MANUAL
+# AXONIZ SYSTEM: THE autonomous DEVELOPER MANUAL
 *(Generated via AXODEX Semantic Knowledge Graph)*
 
 ## 1. System Philosophy: "The Shadow Monarch's Eye"
-Axoniz is not just a chatbot; it is a **multi-phase autonomous agent framework** (codenamed BERU) designed to operate with 70B-parameter precision using efficient 3B-7B local models. It achieves this through:
+Axoniz is not just a chatbot; it is a **multi-phase autonomous agent framework** (codenamed AXONIZ) designed to operate with 70B-parameter precision using efficient 3B-7B local models. It achieves this through:
 - **Graph Intelligence**: Deep codebase understanding via Axodex.
 - **Trajectory Store**: Self-correction and loop detection in tool execution.
 - **Swarm Orchestration**: Parallelizing heavy tasks across sub-agents.
@@ -48,7 +48,7 @@ Triggered via `axoniz goal "..."`.
 
 ---
 
-## 5. Swarm Orchestration (Shadow Army)
+## 5. Swarm Orchestration (Worker Swarm)
 ### **Scenario: Massive Refactor or Research**
 When a task is too large for a single context, `run_swarm()` is used:
 1. **Decomposition**: `SwarmOrchestrator` splits the task into independent `SubTask` objects.
@@ -66,7 +66,7 @@ A background daemon that makes Axoniz feel "alive":
    - **Clipboard**: What did you just copy?
    - **OCR (Optional)**: Text content on the screen.
 2. **Suggestion Engine**: `SuggestionEngine.evaluate()` checks if the current context matches a "trigger rule" (e.g., you are in VS Code looking at a traceback).
-3. **Intervention**: If a match is found, BERU sends a proactive message: *"I see you're debugging X. Should I analyze the logs for you?"*
+3. **Intervention**: If a match is found, AXONIZ sends a proactive message: *"I see you're debugging X. Should I analyze the logs for you?"*
 
 ---
 
@@ -84,7 +84,7 @@ The bot acts as a bridge between the local agent and your mobile device:
 | :--- | :--- | :--- | :--- |
 | **Axodex** | Renaming folders or deleting `.axodex` | `AxodexTools` returns empty | Run `axodex analyze . --skip-git` |
 | **LLM Backend** | Port conflict (8080) or OOM | Agent hangs on `ensure_llm` | Check `taskmanager` for zombie `llama-server.exe` |
-| **Auth Engine** | Missing `beru.yaml` | Authority level resets to 1 | Verify `axoniz/roles/beru.yaml` exists |
+| **Auth Engine** | Missing `default.yaml` | Authority level resets to 1 | Verify `axoniz/roles/default.yaml` exists |
 | **Awareness** | Missing `psutil` or `pytesseract` | Suggestion loop stops | `pip install psutil pytesseract` |
 
 ---

@@ -1,7 +1,7 @@
 # Session Summary - May 8, 2026
 
 ## Major Accomplishments
-1.  **Project Renaming:** Transitioned to **AXONIZ** — the Shadow Monarch's elite Marshal.
+1.  **Project Renaming:** Transitioned to **AXONIZ** — the Shadow Monarch's elite System.
 2.  **MMS-TTS-OSS Integration:** Robust, offline-native voice backend.
 3.  **DistilGPT2 Reflex Brain:** Semantic intent detection in the ShadowGuard engine (<100ms latency).
 4.  **Hermes Intelligence Port:** Context Compression and API Failover logic.

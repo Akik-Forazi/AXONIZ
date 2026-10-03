@@ -1,4 +1,4 @@
-## BERU / AXONIZ — What was fixed
+## AXONIZ / AXONIZ — What was fixed
 
 ### Bugs fixed
 | File | Problem | Fix |

@@ -93,7 +93,7 @@ def speak(self, text: str) -> bool:
     
     # All backends failed
     logger.error(f"[TTS] ALL backends failed. Last error: {last_error}")
-    print(f"[BERU (text-only)] {text}")  # Fallback to print
+    print(f"[AXONIZ (text-only)] {text}")  # Fallback to print
     return False
 ```
 
@@ -155,7 +155,7 @@ def _sys_prompt_compact(self) -> str:
     now = _dt.now().strftime("%A, %B %d %Y — %I:%M %p").replace(" 0", " ")
     
     # Core identity ONLY
-    prompt = f"""You are BERU. Execute tasks efficiently. Current time: {now}
+    prompt = f"""You are AXONIZ. Execute tasks efficiently. Current time: {now}
 
 CRITICAL RULES:
 1. ALWAYS use tools to act (file_read, file_write, shell_run, etc.)
@@ -461,7 +461,7 @@ Expected output:
   edge    : ✓ ready
   pyttsx3 : ✓ ready
 [TTS] Selected: mms
-[TTS] Speaking: "Hello from BERU"
+[TTS] Speaking: "Hello from AXONIZ"
 ```
 
 ### Test 2: Small Model Context

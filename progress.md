@@ -1,4 +1,4 @@
-# BERU — Build Progress
+# AXONIZ — Build Progress
 
 > Updated: 2026-04-15
 
@@ -98,6 +98,6 @@ Missing (optional):
 - [x] Phase 9: Workflow Engine (Trigger → Condition → Action).
 - [x] Phase 10: Continuous Awareness (Visual environment monitoring).
 - [x] Phase 11: Goals (OKR Engine).
-- [ ] Phase 12: Distributed Shadow Army (Cross-machine swarm).
+- [ ] Phase 12: Distributed Worker Swarm (Cross-machine swarm).
 - [ ] Phase 13: Self-Evolving Prompts (DPO-style local feedback loop).
-- [ ] Phase 14: Visual Sovereignty (Local VLM integration).
+- [ ] Phase 14: Visual Autonomousty (Local VLM integration).
