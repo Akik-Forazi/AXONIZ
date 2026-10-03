@@ -1,0 +1,52 @@
+# ── Axoniz core ───────────────────────────────────────────────────────────────
+llama-cpp-python
+psutil             # resource monitoring
+huggingface_hub    # model management and downloads
+
+# ── Integrations ──────────────────────────────────────────────────────────────
+# Goose: install separately from https://github.com/aaif-goose/goose
+mempalace          # MemPalace vector memory (brings chromadb + pyyaml)
+
+# ── Voice — STT (pick one, all offline) ──────────────────────────────────────
+# Tier 1: Moonshine — best edge STT, outperforms Whisper tiny/small
+moonshine-onnx     # pip install moonshine-onnx
+sounddevice        # audio I/O (required for moonshine + kokoro)
+numpy              # required by all audio backends
+
+# Tier 2: faster-whisper — GPU-accelerated, great quality
+# faster-whisper   # uncomment if you want GPU whisper
+
+# Tier 3: openai-whisper — CPU whisper
+# openai-whisper   # uncomment for CPU-only whisper
+
+# Tier 4: SpeechRecognition + offline engine
+# SpeechRecognition
+# pyaudio
+# pocketsphinx     # offline speech recognition
+
+# ── Voice — TTS (pick one, all offline) ──────────────────────────────────────
+# Tier 1: Kokoro-82M — best quality/size ratio, Apache 2.0
+kokoro-onnx        # pip install kokoro-onnx
+soundfile          # wav read/write
+
+# Tier 2: Piper — fastest CPU TTS
+# piper-tts        # uncomment for Piper Python
+
+# Tier 3: edge-tts — free Microsoft cloud TTS (needs internet)
+edge-tts           # already in use for web TTS endpoint
+
+# Tier 4: pyttsx3 — COM/espeak offline fallback
+# pyttsx3
+
+# ── Voice — Wake Word ─────────────────────────────────────────────────────────
+# openwakeword — ONNX, ~1MB, zero latency, fully offline
+openwakeword       # pip install openwakeword
+
+# ── Vision — OCR & Screen (optional) ──────────────────────────────────────────
+pyautogui           # Screen capture
+pytesseract        # OCR (requires Tesseract-OCR binary on system)
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+requests           # HTTP utils
+transformers       # required by ShadowGuard Reflex brain
+av                 # required by transformers for some tasks on Windows

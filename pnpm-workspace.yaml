@@ -1,0 +1,17 @@
+allowBuilds:
+  msedge-tts: true
+  node-llama-cpp@file:_dl/node-llama-cpp-3.22.1.tgz: set this to true or false
+onlyBuiltDependencies:
+  - better-sqlite3
+  - node-llama-cpp
+  - onnxruntime-node
+  - esbuild
+  - sharp
+  - msedge-tts
+  - chromadb
+# CUDA/Vulkan llama.cpp variants are unnecessary on this host and their
+# tarballs are large enough to time out on a degraded connection.
+ignoredOptionalDependencies:
+  - "@node-llama-cpp/win-x64-cuda"
+  - "@node-llama-cpp/win-x64-cuda-ext"
+  - "@node-llama-cpp/win-x64-vulkan"

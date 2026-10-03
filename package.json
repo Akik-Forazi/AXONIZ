@@ -1,0 +1,112 @@
+{
+  "name": "@fraziym/axoniz",
+  "version": "0.1.1",
+  "description": "AXONIZ — Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
+  "type": "module",
+  "license": "MIT",
+  "author": "AKIK FARAJI <akikfaraji@gmail.com> (https://fraziym.com)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Akik-Forazi/AXONIZ"
+  },
+  "homepage": "https://github.com/Akik-Forazi/AXONIZ#readme",
+  "bugs": {
+    "url": "https://github.com/Akik-Forazi/AXONIZ/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "agentic",
+    "llm",
+    "autonomous",
+    "local",
+    "offline",
+    "llama",
+    "tool-use",
+    "coding-agent",
+    "code-intelligence",
+    "multi-agent",
+    "swarm",
+    "memory",
+    "axoniz",
+    "fraziym"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "bin": {
+    "axoniz": "./dist/cli/entry.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./agent": {
+      "types": "./dist/core/agent.d.ts",
+      "import": "./dist/core/agent.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./memory": {
+      "types": "./dist/integrations/unified_memory.d.ts",
+      "import": "./dist/integrations/unified_memory.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/cli/entry.js",
+    "web": "node dist/cli/entry.js --web",
+    "repl": "node dist/cli/entry.js --lc",
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "clean": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\"",
+    "postbuild": "node scripts/copy-assets.mjs",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@huggingface/hub": "^2.17.5",
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "chalk": "^6.0.1",
+    "commander": "^15.0.0",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "grammy": "^1.46.0",
+    "jose": "^6.2.12",
+    "js-yaml": "^5.4.2",
+    "msedge-tts": "^2.0.8",
+    "multer": "^2.4.0",
+    "node-llama-cpp": "^3.22.1",
+    "open": "^11.0.4",
+    "picocolors": "^1.1.1",
+    "pidusage": "^4.0.1",
+    "prom-client": "^15.1.3",
+    "screenshot-desktop": "^1.15.6",
+    "sharp": "^0.35.5",
+    "systeminformation": "^5.33.15",
+    "undici": "^8.11.2",
+    "zod": "^4.6.5"
+  },
+  "optionalDependencies": {
+    "screenshot-desktop": "^1.15.6",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}

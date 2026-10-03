@@ -1,0 +1,63 @@
+# AXODEX Ignore - Exclude non-code and large artifacts from AST analysis
+
+# Dependencies
+**/node_modules/**
+node_modules/
+.venv/
+venv/
+env/
+
+# Build & Dist
+**/dist/**
+**/build/**
+**/axoniz.egg-info/**
+**/__pycache__/**
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# AI Models & Large Binaries (Critical)
+**/*.onnx
+**/*.bin
+**/*.safetensors
+**/*.pt
+**/*.pth
+**/*.weights
+**/*.h5
+**/*.tflite
+
+# Logs & Metrics
+**/logs/**
+**/*.log
+**/*.csv
+**/*.jsonl
+axoniz_audit.jsonl
+
+# Testing & Coverage
+**/htmlcov/**
+**/.pytest_cache/**
+**/.coverage
+**/tests/benchmarks/**
+
+# Config & Tooling Artifacts
+**/.axodex/**
+axoniz/integrations/axodex/
+**/.claude/**
+**/.github/**
+**/.vscode/**
+**/.idea/**
+**/.DS_Store
+
+# Scratch & Temporary
+scratch/
+tmp/
+temp/
+
+# Data & Documents (Optional, but helps speed)
+**/*.pdf
+**/*.docx
+**/*.xlsx
+**/*.pptx
+**/*.mp3
+**/*.wav
+**/*.mp4

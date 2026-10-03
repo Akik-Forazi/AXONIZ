@@ -1,0 +1,46 @@
+/**
+ * AXONIZ-ZERO Core barrel — mirrors `axoniz/core/__init__.py`.
+ */
+export {
+  getLogger,
+  getLogger as get_logger,
+  initLogger,
+  initLogger as init_logger,
+  LogConfig,
+  AxonizLogger,
+  debug,
+  info,
+  warn,
+  error,
+  critical,
+  logJson,
+  logJson as log_json,
+  setLevel,
+  setLevel as set_level,
+  robustHandle,
+  robustHandle as robust_handle,
+  logCalls,
+  logCalls as log_calls,
+  safeJson,
+} from "./logger.js";
+
+export {
+  AxonizError as axonizError,
+  AxonizError,
+  BackendError,
+  BackendNotAvailableError,
+  ModelNotFoundError,
+  ApiKeyMissingError,
+  BackendTimeoutError,
+  RateLimitError,
+  ToolError,
+  ToolTimeoutError,
+  ToolSecurityError,
+  WorkspaceViolationError,
+  FileTooLargeError,
+  AgentError,
+  AgentLoopError,
+  AgentMaxStepsError,
+  ConfigError,
+  NetworkError,
+} from "./errors.js";

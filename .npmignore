@@ -1,0 +1,25 @@
+# Source
+src/
+_pyref/
+_dl/
+axoniz/
+
+# Tests & dev files
+_t*.mjs
+_probe*.mjs
+smoke.mjs
+*.log
+err.log
+patch.js
+
+# Config & misc
+tsconfig.json
+.gitignore
+.env*
+pnpm-lock.yaml
+pnpm-workspace.yaml
+scripts/
+
+# Documentation (shipped separately)
+docs/
+AGENTS.md

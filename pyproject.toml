@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "axoniz"
+version = "2.0.0"
+description = "AXONIZ-ZERO — Local AI agent with swarm, AST index, palace memory, daemon"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "transformers",
+    "av",
+]
+
+[project.optional-dependencies]
+ollama = ["ollama"]
+llamacpp = ["llama-cpp-python"]
+huggingface = ["transformers>=4.40", "torch", "accelerate", "safetensors"]
+huggingface-quant = ["transformers>=4.40", "torch", "accelerate", "safetensors", "bitsandbytes"]
+palace = ["chromadb", "pyyaml"]
+tts = ["edge-tts"]
+dev = ["flake8", "black", "pytest", "pyinstaller"]
+all = [
+    "ollama",
+    "chromadb",
+    "pyyaml",
+    "edge-tts",
+]
+
+[project.scripts]
+axoniz = "axoniz.core.runner:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
