@@ -152,48 +152,14 @@ export function unregisterTTSBackend(name: string): void {
   _backends.delete(name);
 }
 
-/* ── msedge-tts (PRIMARY, working path) ────────────────────────────────────── */
+/* ── Edge TTS (native implementation — zero external deps) ─────────────────── */
 
 /**
- * Import shape of `msedge-tts` v2.0.8 (verified against
- * node_modules/msedge-tts/dist/index.d.ts):
- *
- *   import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
- *
- * The package exposes named class exports only (no default export) and is
- * CommonJS under `main` with `esModuleInterop` bridging it into ESM. Its output
- * is MP3 (`audio-24khz-48kbitrate-mono-mp3`) or WebM/Opus — never WAV — so the
- * edge path writes `.mp3`; use kokoro/piper when a real RIFF WAV is required.
+ * Import our native Edge TTS implementation from `./edge_tts.ts`.
+ * This replaces the former `msedge-tts` npm package dependency which blocked
+ * `npm install` by enforcing pnpm via a preinstall script.
  */
-async function importMsEdgeTTS(): Promise<{
-  MsEdgeTTS: new (options?: { enableLogger?: boolean }) => {
-    setMetadata(
-      voiceName: string,
-      outputFormat: string,
-      metadataOptions?: { wordBoundaryEnabled?: boolean },
-    ): Promise<void>;
-    toFile(
-      dirPath: string,
-      input: string,
-      options?: { rate?: string | number; volume?: string | number; pitch?: string },
-    ): Promise<{ audioFilePath: string; metadataFilePath: string | null }>;
-    close(): void;
-  };
-  OUTPUT_FORMAT: Record<string, string>;
-}> {
-  return (await import("msedge-tts")) as unknown as {
-    MsEdgeTTS: new (options?: { enableLogger?: boolean }) => {
-      setMetadata(voiceName: string, outputFormat: string, metadataOptions?: object): Promise<void>;
-      toFile(
-        dirPath: string,
-        input: string,
-        options?: { rate?: string | number; volume?: string | number; pitch?: string },
-      ): Promise<{ audioFilePath: string; metadataFilePath: string | null }>;
-      close(): void;
-    };
-    OUTPUT_FORMAT: Record<string, string>;
-  };
-}
+import { MsEdgeTTS, OUTPUT_FORMAT } from "./edge_tts.js";
 
 /** "+0%" / "-0%" mean "leave it alone" — SSML rejects a zero relative change. */
 function prosodyValue(raw: string, fallback = "default"): string {
@@ -203,14 +169,13 @@ function prosodyValue(raw: string, fallback = "default"): string {
 }
 
 const edgeBackend: TTSBackend = {
-  name: "msedge-tts",
+  name: "edge-tts",
   available(): boolean {
-    return true; // module is installed; network is required at call time
+    return true; // network required at call time
   },
   async synthesize(text: string, filePath: string, engine: TTSEngine): Promise<boolean> {
     const outDir = path.dirname(path.resolve(filePath));
     try {
-      const { MsEdgeTTS, OUTPUT_FORMAT } = await importMsEdgeTTS();
       const tts = new MsEdgeTTS();
       const voice = engine.voice || EDGE_VOICE;
       await tts.setMetadata(voice, OUTPUT_FORMAT["AUDIO_24KHZ_48KBITRATE_MONO_MP3"]);
@@ -224,22 +189,17 @@ const edgeBackend: TTSBackend = {
       const target = path.resolve(filePath);
       if (path.resolve(audioFilePath) !== target) {
         fs.copyFileSync(audioFilePath, target);
-        try {
-          fs.unlinkSync(audioFilePath);
-        } catch {
-          /* best effort */
-        }
+        try { fs.unlinkSync(audioFilePath); } catch { /* best effort */ }
       }
       const size = fileSize(target);
       if (size <= 0) {
-        engine.storeLastError("[ERROR] msedge-tts produced an empty file");
+        engine.storeLastError("[ERROR] edge-tts produced an empty file");
         return false;
       }
       return true;
     } catch (e) {
-      // Offline machines land here — this is the expected online-only failure.
       engine.storeLastError(
-        `[ERROR] msedge-tts synthesis failed (online Microsoft Edge Read Aloud API ` +
+        `[ERROR] edge-tts synthesis failed (Microsoft Edge Read Aloud API ` +
           `unreachable?): ${errText(e)}`,
       );
       return false;
