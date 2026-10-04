@@ -18,7 +18,7 @@
  * (the cost is hardware depreciation, not per-token billing).
  */
 
-import { broker } from "../web/broker.js";
+import { broker } from "../../web/broker.js";
 
 export interface CostTrackerPricing {
   /** USD per 1 million input tokens. 0 for local providers. */

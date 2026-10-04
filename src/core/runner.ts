@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import process from "node:process";
+import { execSync } from "node:child_process";
 import {
   loadConfig,
   loadConfigWithAutodetect,
@@ -22,6 +23,7 @@ import {
   type AxonizConfig,
 } from "./config.js";
 import { debug, error as logError, getLogger } from "./debug.js";
+import { resolveCommand } from "../tools/_internal.js";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -314,6 +316,9 @@ export const HELP = `
 
   ${B}SUBCOMMANDS${R}
     ${BL}axoniz install axodex${R}  Install axodex (npm install -g @fraziym/axodex)
+    ${BL}axoniz version check${R}  Check if a version bump is needed (runs @fraziym/axovb)
+    ${BL}axoniz version bump${R}   Auto-bump version if needed (runs @fraziym/axovb)
+    ${BL}axoniz test${R}           Run multi-agent tests after dev (runs @fraziym/axotest)
     ${BL}axoniz config show${R}     Show config
     ${BL}axoniz config set k=v${R}  Set config value
     ${BL}axoniz model list${R}      List models
@@ -449,6 +454,46 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       return;
     }
     installIntegration(pos[1]);
+    return;
+  }
+
+  // AXOVB integration — version check/bump
+  if (pos[0] === "version") {
+    const action = pos[1] ?? "check";
+    const axovbBin = resolveCommand("axovb");
+    if (!axovbBin) {
+      console.log(`  ${RD}[-] axovb not found. Install with: npm install -g @fraziym/axovb${R}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      execSync(`"${axovbBin}" ${action}`, {
+        cwd: process.cwd(),
+        stdio: "inherit",
+      });
+    } catch {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  // AXOTEST integration — multi-agent testing
+  if (pos[0] === "test") {
+    const axotestBin = resolveCommand("axotest");
+    if (!axotestBin) {
+      console.log(`  ${RD}[-] axotest not found. Install with: npm install -g @fraziym/axotest${R}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    const extraArgs = pos.slice(1).join(" ");
+    try {
+      execSync(`"${axotestBin}" run ${extraArgs}`.trim(), {
+        cwd: process.cwd(),
+        stdio: "inherit",
+      });
+    } catch {
+      process.exitCode = 1;
+    }
     return;
   }
 
@@ -613,10 +658,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       kv("model", h.model ?? "—");
       kv("model_loaded", h.model_loaded ? "yes" : "no");
       kv("uptime", h.uptime != null ? `${Math.floor(Number(h.uptime) / 60)}m` : "—");
-      if (h.memory) {
-        kv("palace", h.memory.palace ? "available" : "offline");
-        kv("drawers", String(h.memory.drawers ?? 0));
-        kv("kg_facts", String(h.memory.kg?.facts ?? 0));
+      const mem = h.memory as { palace?: boolean; drawers?: number; kg?: { facts?: number } } | undefined;
+      if (mem) {
+        kv("palace", mem.palace ? "available" : "offline");
+        kv("drawers", String(mem.drawers ?? 0));
+        kv("kg_facts", String(mem.kg?.facts ?? 0));
       }
       return;
     }
