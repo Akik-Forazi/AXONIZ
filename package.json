@@ -1,6 +1,6 @@
 {
   "name": "@fraziym/axoniz",
-  "version": "0.1.5",
+  "version": "0.1.0-beta.1",
   "description": "AXONIZ — Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
   "type": "module",
   "license": "MIT",
@@ -100,7 +100,7 @@
     "sharp": "^0.35.5"
   },
   "peerDependencies": {
-    "@fraziym/axodex": "^1.6.12"
+    "@fraziym/axodex": "^0.1.0-beta.1"
   },
   "peerDependenciesMeta": {
     "@fraziym/axodex": {

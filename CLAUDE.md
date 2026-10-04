@@ -28,6 +28,53 @@ Running `axoniz --web` no longer serves the legacy scraped static UI. The Expres
 
 The spawn logic lives in `src/web/web-next-spawn.ts` (60s timeout for the dev server to come up; child process is cleaned up on SIGINT/SIGTERM).
 
+## Versioning (v0.3.5) — FRAZIYM format
+
+AXONIZ uses the FRAZIYM versioning format (NOT conventional semver):
+
+```
+VPP.FF.BBB-STAGE-RR
+│  │  │    │     │
+│  │  │    │     └── Pre-release revision (01, 02, …)
+│  │  │    └──────── Release stage (-alpha | -beta | -rc; omitted when stable)
+│  │  └───────────── Bug-fix version (000, 001, …)
+│  └──────────────── Feature version (00, 01, …)
+└─────────────────── Platform generation (V00, V01, …)
+```
+
+**Current version:** `V00.01.000-beta-01` (first beta of V00 platform, feature 01)
+
+Single source of truth: `src/version.ts` (exports `AXONIZ_VERSION`,
+`AXONIZ_VERSION_SEMVER`, `AXONIZ_RELEASE_STAGE`, `parseFraziymVersion()`,
+`fraziymToSemver()`).
+
+Five sync points carry the string (verified by `tests/version.test.ts`):
+1. `src/version.ts` — the source of truth
+2. `package.json` — `"version"` field (semver-translated to `0.1.0-beta.1`)
+3. `src/core/runner.ts` — CLI banner displays (`AXONIZ-ZERO`, `FRAZIYM AI`)
+4. `README.md` — version line at the top
+5. `tests/version.test.ts` — the test that verifies all sync points
+
+The `package.json` version is a semver-compatible translation of the
+FRAZIYM string because npm requires valid semver:
+- `V00.01.000-beta-01` → `0.1.0-beta.1`
+- `V00` → major 0
+- `01` → minor 1
+- `000` → patch 0
+- `-beta` → `-beta`
+- `01` → `.1`
+
+Bump procedure (documented in `src/version.ts`):
+1. Edit `src/version.ts` — bump `AXONIZ_VERSION`
+2. Re-derive the semver translation and update `package.json` `"version"`
+3. Update `README.md` displayed version
+4. Run `npm test` — `version.test.ts` fails if any sync point is stale
+5. Commit + push + `npm publish`
+
+The same FRAZIYM versioning applies to axodex (the standalone package
+at https://github.com/Akik-Forazi/axodex). Both packages are currently
+at `V00.01.000-beta-01` and versioned independently.
+
 ## Axodex integration (v0.3.4) — standalone npm package
 
 Axodex is now its own standalone npm package, published as
