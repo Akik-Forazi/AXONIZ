@@ -40,6 +40,19 @@ By moving intelligence into the **Code Graph** and the **System Architecture**, 
 
 ## 🚀 Installation & Command
 
+#
+### Install from NPM registry in global
+
+
+```powershell
+npm install -g @frazyim/axoniz
+```
+
+#### OR use
+```powershell
+npm i @fraziym/axoniz
+```
+
 ### The Autonomous Bundle
 Run the pre-built executable for the absolute experience:
 ```powershell
@@ -54,7 +67,7 @@ Run the pre-built executable for the absolute experience:
    ```
 2. **Boot the System:**
    ```powershell
-   python -m axoniz.core.runner --web
+   axoniz --web
    ```
 
 ## 🏰 Command Center (Web UI)

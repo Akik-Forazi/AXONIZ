@@ -425,6 +425,17 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return;
   }
 
+  if (pos[0] === "install") {
+    const { installIntegration } = await import("../integrations/installer.js");
+    if (pos.length < 2) {
+      console.error("Usage: axoniz install <repository-url-or-name>");
+      process.exitCode = 1;
+      return;
+    }
+    installIntegration(pos[1]);
+    return;
+  }
+
   const runner = new Runner();
   const cfg = runner.cfg;
   const ov = overridesFromArgs(args);

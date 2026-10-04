@@ -8,7 +8,7 @@ import os from "node:os";
 import fs from "node:fs";
 
 const DIST = process.argv[2] || path.join(import.meta.dirname, "dist");
-const u = (rel) => new URL(`file://${path.join(DIST, rel).replace(/\\/g, "/")}`).href;
+import { pathToFileURL } from "node:url"; const u = (rel) => pathToFileURL(path.join(DIST, rel)).href;
 
 const results = [];
 const ok = (name, cond, extra = "") => {

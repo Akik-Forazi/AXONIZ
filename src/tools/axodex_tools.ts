@@ -25,39 +25,8 @@ import { errText, resolveCommand, runCaptured } from "./_internal.js";
 /* ── engine discovery ─────────────────────────────────────────────────────── */
 
 /** Path to the Axodex CLI entry point. */
-const _localPath = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "..",
-  "integrations",
-  "Axodex",
-  "axodex",
-);
-const _globalPath = path.join(os.homedir(), ".axoniz", "integrations", "Axodex", "axodex");
-
-/** Path Autonomousty: prefer a complete global install over the bundled copy. */
-function _isValidEngine(dir: string): boolean {
-  return (
-    fs.existsSync(path.join(dir, "dist", "cli", "index.js")) && fs.existsSync(path.join(dir, "node_modules"))
-  );
-}
-
-const _bundledPath = (() => {
-  const rp = packagedResourcesPath();
-  return rp ? path.join(rp, "axoniz", "integrations", "Axodex", "axodex") : _localPath;
-})();
-
-export const AXODEX_ROOT: string = _isValidEngine(_globalPath)
-  ? _globalPath
-  : _isValidEngine(_localPath)
-    ? _localPath
-    : isPackaged()
-      ? _bundledPath
-      : _localPath;
-
-export const AXODEX_CLI: string = path.join(AXODEX_ROOT, "dist", "cli", "index.js");
+export const AXODEX_ROOT = path.join(os.homedir(), ".axoniz", "integrations", "Axodex");
+export const AXODEX_CLI = path.join(AXODEX_ROOT, "dist", "cli", "index.js");
 
 /** Node equivalent of `getattr(sys, "frozen", False)` for bundled executables. */
 function isPackaged(): boolean {
@@ -94,7 +63,8 @@ export class AxodexTools {
       }
     }
     error(
-      `[Axodex] CLI not found at ${AXODEX_CLI} and npx axodex is not available. Please ensure Axodex is installed.`,
+      `[Axodex] CLI not found at ${AXODEX_CLI}.\n` +
+      `  To install it automatically, run:  axoniz install axodex`
     );
   }
 

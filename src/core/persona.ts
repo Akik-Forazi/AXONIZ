@@ -49,7 +49,7 @@ export class Persona {
   readonly subRoles: unknown[];
   readonly heartbeatInstructions: string;
 
-  constructor(role = "axoniz") {
+  constructor(role = "default") {
     this.roleId = role;
     this.data = this.loadRole(role);
     this.name = String(this.data.name ?? "AXONIZ");
@@ -153,7 +153,7 @@ function errMsg(e: unknown): string {
 
 let personaInstance: Persona | null = null;
 
-export function getPersona(role = "axoniz"): Persona {
+export function getPersona(role = "default"): Persona {
   if (personaInstance === null || personaInstance.roleId !== role) {
     personaInstance = new Persona(role);
   }
