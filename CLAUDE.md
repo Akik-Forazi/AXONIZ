@@ -28,22 +28,49 @@ Running `axoniz --web` no longer serves the legacy scraped static UI. The Expres
 
 The spawn logic lives in `src/web/web-next-spawn.ts` (60s timeout for the dev server to come up; child process is cleaned up on SIGINT/SIGTERM).
 
-## Axodex integration (v0.3.3) — always bundled, no separate install
+## Axodex integration (v0.3.4) — standalone npm package
 
-`axoniz install axodex` is no longer required. AXONIZ now resolves the axodex CLI in this priority order:
+Axodex is now its own standalone npm package, published as
+**`@fraziym/axodex`** at https://www.npmjs.com/package/@fraziym/axodex.
 
-1. **Bundled dist** at `<repo>/axoniz/integrations/Axodex/axodex/dist/cli/index.js` — run via `node`
-2. **Bundled TS source** at `<repo>/axoniz/integrations/Axodex/axodex/src/cli/index.ts` — run via `bun` (preferred) or `npx tsx`
-3. **Packaged exe** (PyInstaller/pkg/SEA): from `process.resourcesPath/integrations/Axodex/axodex/dist/cli/index.js`
-4. **User home** `~/.axoniz/integrations/Axodex/axodex/dist/cli/index.js` (legacy fallback)
-5. **Global `npx axodex`** (last resort)
+Source: https://github.com/Akik-Forazi/axodex (separate repo)
 
-The resolver lives in `src/tools/axodex_tools.ts` (`resolveAxodex()` — memoized per-process). No build step is needed if `bun` is on PATH; the TS source runs directly.
+### Install
 
-To build the dist manually (optional, for fastest CLI startup):
 ```bash
-cd axoniz/integrations/Axodex/axodex && bun run build
+# Recommended — install both AXONIZ and axodex in one command
+npm install -g @fraziym/axoniz @fraziym/axodex
+
+# Or install axodex via the AXONIZ installer (runs the above npm install)
+axoniz install axodex
 ```
+
+### What changed in v0.3.4
+
+- **Removed**: the bundled axodex at `axoniz/integrations/Axodex/` (was
+  5800+ files of overhead inside the AXONIZ repo)
+- **Removed**: the git-clone-AXONIZ installer logic that downloaded 30+ MiB
+  and never linked the `axodex` binary on PATH
+- **Added**: `@fraziym/axodex` as a peerDependency in AXONIZ's package.json
+- **Replaced** `src/integrations/installer.ts`: now runs
+  `npm install -g @fraziym/axodex` (one-line, ~5s, binary lands on PATH)
+- **Simplified** `src/tools/axodex_tools.ts`: resolver now just checks
+  for `axodex` on PATH (preferred) or `npx @fraziym/axodex` (fallback)
+
+### Single source of truth for versioning
+
+axodex's version lives in `axodex/package.json` in the standalone repo
+(https://github.com/Akik-Forazi/axodex). To bump the version:
+
+```bash
+cd /path/to/axodex-repo
+# Edit axodex/package.json → bump "version"
+npm version patch  # or minor, major
+npm publish        # publishes @fraziym/axodex@<new-version> to npm
+```
+
+AXONIZ picks up the new version via its `^1.6.12` peerDependency range.
+No bundling, no copying — just npm.
 
 ## Always Do
 

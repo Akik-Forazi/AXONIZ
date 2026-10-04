@@ -99,6 +99,14 @@
     "screenshot-desktop": "^1.15.6",
     "sharp": "^0.35.5"
   },
+  "peerDependencies": {
+    "@fraziym/axodex": "^1.6.12"
+  },
+  "peerDependenciesMeta": {
+    "@fraziym/axodex": {
+      "optional": false
+    }
+  },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",

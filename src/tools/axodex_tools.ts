@@ -1,109 +1,38 @@
 /**
  * Axodex Native Tools — graph-powered code intelligence (TypeScript port).
  *
- * Connects AXONIZ to the Axodex graph index CLI. Resolves the CLI in
- * priority order:
+ * Connects AXONIZ to the Axodex CLI. As of v0.3.4+, axodex is its own
+ * npm package (@fraziym/axodex) — installed globally via
+ * `npm install -g @fraziym/axodex`. The binary lands on PATH and this
+ * module just invokes it.
  *
- *   1. BUNDLED axodex built dist at
- *      <repo>/axoniz/integrations/Axodex/axodex/dist/cli/index.js
- *      (run via `node`)
+ * Resolution order (memoized per-process):
  *
- *   2. BUNDLED axodex TypeScript source at
- *      <repo>/axoniz/integrations/Axodex/axodex/src/cli/index.ts
- *      (run via `bun` if available, else `npx tsx`)
+ *   1. `axodex` on PATH (preferred — global npm install)
+ *   2. `npx @fraziym/axodex` (auto-fallback — slower, no global install)
  *
- *   3. PACKAGED (PyInstaller / pkg / Node SEA) bundled axodex from
- *      `process.resourcesPath/integrations/Axodex/axodex/dist/cli/index.js`
+ * To install axodex:
+ *   npm install -g @fraziym/axodex
+ *   # or:
+ *   axoniz install axodex  # runs the above command automatically
  *
- *   4. USER HOME `~/.axoniz/integrations/Axodex/axodex/dist/cli/index.js`
- *      (legacy fallback)
- *
- *   5. GLOBAL `npx axodex` (last resort — requires user to have installed
- *      axodex globally; AXONIZ logs a clear warning if it falls through
- *      to this branch)
- *
- * No `axoniz install axodex` step is required — the bundled source is
- * always preferred and runs directly via `bun`/`tsx` so no build step
- * is needed either.
+ * Bundling inside the AXONIZ repo is intentionally NOT supported anymore.
+ * It added 5800+ files of overhead to the AXONIZ npm package and never
+ * got the binary on PATH correctly. The standalone @fraziym/axodex
+ * package is the single source of truth — one version, one binary,
+ * published independently at https://www.npmjs.com/package/@fraziym/axodex.
  *
  * Ported from `axoniz/tools/axodex_tools.py`.
  */
-
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { error, info } from "../core/debug.js";
 import { errText, resolveCommand, runCaptured } from "./_internal.js";
 
 /* ── engine discovery ─────────────────────────────────────────────────────── */
 
-/** Repo root: this file lives at src/tools/axodex_tools.ts, so ../.. is repo root. */
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(HERE, "..", "..");
-
-/** Bundled axodex integration root inside the AXONIZ repo. */
-export const AXODEX_BUNDLED_ROOT = path.join(
-  REPO_ROOT,
-  "axoniz",
-  "integrations",
-  "Axodex",
-  "axodex",
-);
-
-/** Built CLI entry (preferred — fastest, no runtime transpile). */
-export const AXODEX_BUNDLED_CLI_DIST = path.join(
-  AXODEX_BUNDLED_ROOT,
-  "dist",
-  "cli",
-  "index.js",
-);
-
-/** TypeScript source CLI entry (works without a build step via bun/tsx). */
-export const AXODEX_BUNDLED_CLI_SRC = path.join(
-  AXODEX_BUNDLED_ROOT,
-  "src",
-  "cli",
-  "index.ts",
-);
-
-/** User-home fallback for PyInstaller/pkg/SEA scenarios where REPO_ROOT
- *  is not on disk (the executable's resourcesPath takes over). */
-export const AXODEX_HOME_ROOT = path.join(
-  os.homedir(),
-  ".axoniz",
-  "integrations",
-  "Axodex",
-  "axodex",
-);
-
-/** Legacy exported constants (kept for backwards-compat with any caller
- *  that imported them). */
-export const AXODEX_ROOT = AXODEX_BUNDLED_ROOT;
-export const AXODEX_CLI = AXODEX_BUNDLED_CLI_DIST;
-
-/** Node equivalent of `getattr(sys, "frozen", False)` for bundled executables. */
-function isPackaged(): boolean {
-  const p = process as NodeJS.Process & { pkg?: unknown };
-  return Boolean(p.pkg) || Boolean(process.env.PKG_EXECPATH);
-}
-
-/** `process.resourcesPath` (Electron/Node SEA) is absent from @types/node. */
-function packagedResourcesPath(): string | null {
-  const rp = (process as NodeJS.Process & { resourcesPath?: unknown })
-    .resourcesPath;
-  return typeof rp === "string" && rp.length > 0 ? rp : null;
-}
-
 /**
- * Resolved axodex invocation. The `cmd` is the argv prefix to prepend to
- * any user-supplied args (e.g. ["axodex", "query", "foo"] or
- * ["node", "/path/to/dist/cli/index.js", "query", "foo"]).
- *
- * `via` is a human-readable hint for log lines ("bundled-dist" |
- * "bundled-src-via-bun" | "bundled-src-via-tsx" | "home-dist" |
- * "npx-global").
+ * Resolved axodex invocation. `cmd` is the argv prefix to prepend to any
+ * user-supplied args. `via` is a human-readable hint for log lines.
  */
 interface AxodexInvocation {
   cmd: string[];
@@ -115,81 +44,29 @@ let cachedInvocation: AxodexInvocation | null = null;
 /**
  * Find the best way to invoke axodex right now. Memoized per-process so
  * repeated calls don't re-probe.
+ *
+ *   1. `axodex` on PATH (preferred — installed via `npm install -g @fraziym/axodex`)
+ *   2. `npx @fraziym/axodex` (auto-fallback — no install required)
  */
 export function resolveAxodex(): AxodexInvocation | null {
   if (cachedInvocation) return cachedInvocation;
 
-  // 1. Bundled dist (preferred)
-  if (fs.existsSync(AXODEX_BUNDLED_CLI_DIST)) {
+  // 1. Global axodex binary on PATH
+  const axodexBin = resolveCommand("axodex");
+  if (axodexBin) {
     cachedInvocation = {
-      cmd: [process.execPath, AXODEX_BUNDLED_CLI_DIST],
-      via: "bundled-dist",
+      cmd: [axodexBin],
+      via: "global-npm",
     };
     return cachedInvocation;
   }
 
-  // 2. Bundled src — run via bun (fast, native) or tsx (slower but works)
-  if (fs.existsSync(AXODEX_BUNDLED_CLI_SRC)) {
-    const bunBin = resolveCommand("bun");
-    if (bunBin) {
-      cachedInvocation = {
-        cmd: [bunBin, "run", AXODEX_BUNDLED_CLI_SRC],
-        via: "bundled-src-via-bun",
-      };
-      return cachedInvocation;
-    }
-    const npxBin = resolveCommand("npx");
-    if (npxBin) {
-      cachedInvocation = {
-        cmd: [npxBin, "tsx", AXODEX_BUNDLED_CLI_SRC],
-        via: "bundled-src-via-tsx",
-      };
-      return cachedInvocation;
-    }
-    error(
-      `[Axodex] Bundled source exists at ${AXODEX_BUNDLED_CLI_SRC} but neither 'bun' nor 'npx tsx' is available. Install bun (recommended) or run 'cd axoniz/integrations/Axodex/axodex && npm run build' to compile to dist/.`,
-    );
-  }
-
-  // 3. Packaged (PyInstaller / pkg / Electron / Node SEA)
-  if (isPackaged()) {
-    const rp = packagedResourcesPath();
-    if (rp) {
-      const packagedDist = path.join(
-        rp,
-        "integrations",
-        "Axodex",
-        "axodex",
-        "dist",
-        "cli",
-        "index.js",
-      );
-      if (fs.existsSync(packagedDist)) {
-        cachedInvocation = {
-          cmd: [process.execPath, packagedDist],
-          via: "packaged-resources",
-        };
-        return cachedInvocation;
-      }
-    }
-  }
-
-  // 4. User-home fallback (legacy ~/.axoniz/integrations/Axodex/)
-  const homeDist = path.join(AXODEX_HOME_ROOT, "dist", "cli", "index.js");
-  if (fs.existsSync(homeDist)) {
-    cachedInvocation = {
-      cmd: [process.execPath, homeDist],
-      via: "home-dist",
-    };
-    return cachedInvocation;
-  }
-
-  // 5. Global `npx axodex` (last resort)
+  // 2. npx @fraziym/axodex (auto-fallback)
   const npxBin = resolveCommand("npx");
   if (npxBin) {
     cachedInvocation = {
-      cmd: [npxBin, "axodex"],
-      via: "npx-global",
+      cmd: [npxBin, "@fraziym/axodex"],
+      via: "npx-fallback",
     };
     return cachedInvocation;
   }
@@ -198,17 +75,22 @@ export function resolveAxodex(): AxodexInvocation | null {
   return null;
 }
 
+/** Legacy exported constant — kept for backwards-compat with old callers.
+ *  Returns null since axodex is no longer bundled inside the AXONIZ repo. */
+export const AXODEX_ROOT: string | null = null;
+export const AXODEX_CLI: string | null = null;
+
 export class AxodexTools {
   readonly workspace: string;
 
   constructor(workspace = ".") {
-    this.workspace = path.resolve(workspace);
+    this.workspace = workspace;
     this._ensure_built();
   }
 
   /**
    * Resolve the axodex CLI. If nothing resolves, log a clear diagnostic
-   * explaining where the bundled source lives and how to build it.
+   * explaining how to install axodex via npm.
    */
   async _ensure_built(): Promise<void> {
     const inv = resolveAxodex();
@@ -217,11 +99,11 @@ export class AxodexTools {
       return;
     }
     error(
-      `[Axodex] CLI not found.\n` +
-        `  Bundled source expected at:  ${AXODEX_BUNDLED_CLI_SRC}\n` +
-        `  Bundled dist expected at:    ${AXODEX_BUNDLED_CLI_DIST}\n` +
-        `  Either install bun (recommended — runs the TS source directly),\n` +
-        `  or build the dist with:  cd axoniz/integrations/Axodex/axodex && bun run build`,
+      `[Axodex] CLI not found on PATH.\n` +
+        `  Install with one of:\n` +
+        `    npm install -g @fraziym/axodex     (recommended — global install)\n` +
+        `    axoniz install axodex              (same thing, via AXONIZ installer)\n` +
+        `  Then run 'axodex --help' to verify.`,
     );
   }
 
@@ -245,9 +127,9 @@ export class AxodexTools {
     const inv = resolveAxodex();
     if (!inv) {
       return (
-        `[AXODEX ERROR] axodex CLI not found.\n` +
-        `  Bundled source expected at:  ${AXODEX_BUNDLED_CLI_SRC}\n` +
-        `  Install bun (recommended) or build with:  cd axoniz/integrations/Axodex/axodex && bun run build`
+        `[AXODEX ERROR] axodex CLI not found on PATH.\n` +
+        `  Install with:  npm install -g @fraziym/axodex\n` +
+        `  Or:           axoniz install axodex`
       );
     }
     const fullCmd: string[] = [...inv.cmd, ...cmd];
@@ -268,7 +150,7 @@ export class AxodexTools {
     } catch (e) {
       const err = e as NodeJS.ErrnoException;
       if (err && err.code === "ENOENT") {
-        return `[AXODEX ERROR] '${inv.cmd[0]}' not found. Install bun or build the dist.`;
+        return `[AXODEX ERROR] '${inv.cmd[0]}' not found. Install with: npm install -g @fraziym/axodex`;
       }
       return `[AXODEX EXCEPTION] ${errText(e)}`;
     }

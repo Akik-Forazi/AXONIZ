@@ -1,3 +1,0 @@
-package vendor
-
-class Assert

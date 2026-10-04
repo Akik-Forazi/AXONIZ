@@ -1,5 +1,0 @@
-# Custom self-hosted runner labels actionlint can't discover on its own.
-# axodex-evolution: the skill-evolution EC2 runner (infra/axodex-evolution/).
-self-hosted-runner:
-  labels:
-    - axodex-evolution

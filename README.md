@@ -45,13 +45,25 @@ By moving intelligence into the **Code Graph** and the **System Architecture**, 
 
 
 ```powershell
-npm install -g @frazyim/axoniz
+# Install AXONIZ + axodex together (recommended — axodex is a peer dependency)
+npm install -g @fraziym/axoniz @fraziym/axodex
 ```
 
-#### OR use
+#### OR install separately
 ```powershell
-npm i @fraziym/axoniz
+npm install -g @fraziym/axoniz
+npm install -g @fraziym/axodex      # graph-powered code intelligence engine
+
+# Or via the AXONIZ installer (runs the above npm install for you):
+axoniz install axodex
 ```
+
+> **Note**: As of v0.3.4, `axoniz install axodex` no longer clones the AXONIZ
+> GitHub repo. It just runs `npm install -g @fraziym/axodex` — fast, no
+> 30 MiB download, and the `axodex` binary lands on PATH correctly.
+> The bundled axodex has been removed from the AXONIZ repo (was 5800+ files
+> of overhead). axodex now lives at https://github.com/Akik-Forazi/axodex
+> as its own standalone package, versioned and published independently.
 
 ### The Autonomous Bundle
 Run the pre-built executable for the absolute experience:
