@@ -1,6 +1,5 @@
 /**
  * Copy non-TypeScript assets into dist/ after a build.
- * - src/web/static  -> dist/web/static   (the frontend the server serves)
  * - src/roles/*.yaml -> dist/roles/       (persona role definitions)
  *
  * Runs as the `postbuild` npm script.
@@ -12,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Directories whose entire contents should be mirrored into dist/. */
-const DIRS = [["src/web/static", "dist/web/static"], ["src/roles", "dist/roles"]];
+const DIRS = [["src/roles", "dist/roles"]];
 
 function copyTree(from, to) {
   if (!fs.existsSync(from)) {
