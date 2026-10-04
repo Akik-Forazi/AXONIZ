@@ -30,7 +30,6 @@ import type { Agent, AbortFlag } from "../core/agent.js";
 import { AbortFlag as AbortFlagClass } from "../core/agent.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const STATIC_DIR = path.join(HERE, "static");
 
 const auth = getAuth();
 const limiter = getRateLimiter();
@@ -124,48 +123,6 @@ function findByName(dir: string, name: string, depth = 0): string | null {
   return null;
 }
 
-/* ── Static file resolution (with traversal protection) ───────────────────── */
-
-const MIME: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "application/javascript",
-  ".mjs": "application/javascript",
-  ".css": "text/css",
-  ".json": "application/json",
-  ".map": "application/json",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".webp": "image/webp",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".wav": "audio/wav",
-  ".mp3": "audio/mpeg",
-  ".webm": "video/webm",
-  ".txt": "text/plain; charset=utf-8",
-  ".md": "text/plain; charset=utf-8",
-  ".wasm": "application/wasm",
-  ".pdf": "application/pdf",
-};
-
-export function resolveStatic(urlPath: string): { full: string; mime: string } | null {
-  let rel = urlPath === "/" || !urlPath ? "index.html" : urlPath.replace(/^\/+/, "");
-  if (rel.startsWith("static/")) rel = rel.slice(7);
-
-  const full = path.resolve(STATIC_DIR, rel);
-  const root = path.resolve(STATIC_DIR);
-  if (full !== root && !full.startsWith(root + path.sep)) return null;
-  try {
-    if (!fs.statSync(full).isFile()) return null;
-  } catch {
-    return null;
-  }
-  return { full, mime: MIME[path.extname(full).toLowerCase()] ?? "application/octet-stream" };
-}
 
 /* ── Server ───────────────────────────────────────────────────────────────── */
 
@@ -625,7 +582,7 @@ export class WebServer {
      * URL to remember.
      *
      * Fallback: if the Next.js dev server isn't running (spawn failed,
-     * web-next/ missing, etc.), fall back to the legacy static UI at
+     * web-next/ missing, etc.), NO static fallback — returns 502 if
      * src/web/static/ so the system never goes dark. A clear log line
      * tells the operator which UI is being served.
      */
@@ -677,30 +634,21 @@ export class WebServer {
           res.end();
         }
       } catch (e) {
-        // Dev server not reachable — fall back to legacy static UI if present.
-        const hit = resolveStatic(req.path);
-        if (hit) {
-          const noCache = hit.full.endsWith(".html") || req.path === "/";
-          res.setHeader("Cache-Control", noCache ? "no-cache" : "max-age=3600");
-          res.setHeader("X-Axoniz-Ui", "legacy-static-fallback");
-          res.type(hit.mime).sendFile(hit.full);
-          return;
-        }
-        if (!req.path.includes(".")) {
-          const index = resolveStatic("index.html");
-          if (index) {
-            res.setHeader("X-Axoniz-Ui", "legacy-static-fallback");
-            res.type("text/html; charset=utf-8").sendFile(index.full);
-            return;
-          }
-        }
+        // Next.js dashboard not reachable — NO LEGACY FALLBACK.
+        // The old static UI is permanently deleted. Return a clear error page.
         res
           .status(502)
-          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .setHeader("Content-Type", "text/html; charset=utf-8")
           .send(
-            `Next.js dev server not reachable at ${devUrl}\n` +
-              `Make sure 'bun run dev' (or 'npm run dev') is running in ${WEB_NEXT_DIR}.\n` +
-              `Error: ${e instanceof Error ? e.message : String(e)}`,
+            `<!DOCTYPE html><html><head><title>AXONIZ — Dashboard Not Available</title>` +
+            `<style>body{background:#0a0a0a;color:#e8e8e8;font-family:monospace;` +
+            `padding:40px;max-width:600px;margin:auto}h1{color:#fff}code{background:#1a1a1a;padding:2px 6px;border-radius:3px}</style></head>` +
+            `<body><h1>AXONIZ Dashboard Not Available</h1>` +
+            `<p>The Next.js dashboard at <code>${devUrl}</code> is not responding.</p>` +
+            `<p>To start it:</p><pre>cd ${WEB_NEXT_DIR}\nbun install\nbun run dev</pre>` +
+            `<p>Or build for production:</p><pre>cd ${WEB_NEXT_DIR}\nbun run build\nbun run start</pre>` +
+            `<p style="color:#666">Error: ${e instanceof Error ? e.message : String(e)}</p>` +
+            `</body></html>`,
           );
       }
     });
@@ -914,8 +862,8 @@ export class WebServer {
    * On startup, also spawns the Next.js dashboard (`web-next/`) on
    * :3000 as a child process. The Express server proxies all non-API
    * GET requests to it, so visiting :7860 gives the user the new
-   * dashboard (with a fallback to the legacy static UI if the
-   * dev server fails to start).
+   * dashboard 
+   * dev server fails to start — 502 on non-API requests).
    */
   async start(openBrowser = true): Promise<void> {
     const url = await this.listen();
@@ -935,10 +883,10 @@ export class WebServer {
     if (devReady) {
       console.log(`  \u001b[90mdashboard -> \u001b[94mhttp://localhost:3000\u001b[0m \u001b[90m(proxied)\u001b[0m`);
     } else {
-      console.log(`  \u001b[90mdashboard -> \u001b[91mnot started\u001b[0m \u001b[90m(falling back to legacy static UI)\u001b[0m`);
+      console.log(`  \u001b[90mdashboard -> \u001b[91mnot started\u001b[0m \u001b[90m\u001b[0m`);
     }
     console.log();
-    info(`[Web] serving at ${url} (dashboard ${devReady ? "live" : "legacy fallback"})`);
+    info(`[Web] serving at ${url} (dashboard ${devReady ? "live" : "502")})`);
 
     if (openBrowser) {
       setTimeout(() => {

@@ -11,7 +11,7 @@
  *   │  └──────────────── Feature version (00, 01, …)
  *   └─────────────────── Platform generation (V00, V01, …)
  *
- * Current version: V00.01.002-beta-03
+ * Current version: V00.01.003-beta-04
  *   - V00   = first platform generation under FRAZIYM versioning
  *   - 01    = first feature version (the rebuilt TS port + Next.js dashboard
  *             + standalone axodex extraction era)
@@ -29,7 +29,7 @@
  * The package.json version is a semver-compatible translation of this
  * string because npm requires valid semver. Mapping:
  *
- *   V00.01.000-beta-01  →  0.1.2-beta.3
+ *   V00.01.000-beta-01  →  0.1.3-beta.4
  *   V00 → major 0
  *   01  → minor 1
  *   000 → patch 0
