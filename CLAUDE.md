@@ -17,6 +17,34 @@ A new Next.js 16 dashboard lives in `web-next/` and replaces the legacy scraped 
 
 When editing files in `web-next/`, run `bun run lint` from that directory before committing.
 
+## `axoniz --web` now spawns the Next.js dashboard (v0.3.3)
+
+Running `axoniz --web` no longer serves the legacy scraped static UI. The Express backend (`src/web/server.ts`) now:
+
+1. Listens on :7860 (unchanged) — all `/api/*` routes live here
+2. Spawns `bun run dev` (or `npm run dev`) in `web-next/` as a child process on :3000
+3. Proxies all non-API GET requests from :7860 → :3000 so users only need to remember one URL
+4. Falls back to the legacy static UI at `src/web/static/` if `web-next/` is missing or the dev server fails to start (with a clear log line: `dashboard -> not started (falling back to legacy static UI)`)
+
+The spawn logic lives in `src/web/web-next-spawn.ts` (60s timeout for the dev server to come up; child process is cleaned up on SIGINT/SIGTERM).
+
+## Axodex integration (v0.3.3) — always bundled, no separate install
+
+`axoniz install axodex` is no longer required. AXONIZ now resolves the axodex CLI in this priority order:
+
+1. **Bundled dist** at `<repo>/axoniz/integrations/Axodex/axodex/dist/cli/index.js` — run via `node`
+2. **Bundled TS source** at `<repo>/axoniz/integrations/Axodex/axodex/src/cli/index.ts` — run via `bun` (preferred) or `npx tsx`
+3. **Packaged exe** (PyInstaller/pkg/SEA): from `process.resourcesPath/integrations/Axodex/axodex/dist/cli/index.js`
+4. **User home** `~/.axoniz/integrations/Axodex/axodex/dist/cli/index.js` (legacy fallback)
+5. **Global `npx axodex`** (last resort)
+
+The resolver lives in `src/tools/axodex_tools.ts` (`resolveAxodex()` — memoized per-process). No build step is needed if `bun` is on PATH; the TS source runs directly.
+
+To build the dist manually (optional, for fastest CLI startup):
+```bash
+cd axoniz/integrations/Axodex/axodex && bun run build
+```
+
 ## Always Do
 
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `axodex_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
