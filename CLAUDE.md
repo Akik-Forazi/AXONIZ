@@ -5,6 +5,18 @@ This project is indexed by Axodex as **DevNet** (4843 symbols, 10982 relationshi
 
 > If any Axodex tool warns the index is stale, run `npx axodex analyze` in terminal first.
 
+## Web UI (v0.3.0)
+
+A new Next.js 16 dashboard lives in `web-next/` and replaces the legacy scraped `src/web/static/` UI. It is a separate Node.js project (not part of the AXONIZ TypeScript port) so it can be developed and deployed independently.
+
+- **Sitemap**: `/chat`, `/agent`, `/vault`, `/forge`, `/war-room`, `/palace`, `/axodex`, `/search`, `/benchmarks`, `/system`, `/settings` (with sub-routes per provider — 14 total)
+- **14 providers supported**: llama.cpp, LM Studio, Ollama, OpenAI, OpenRouter, Google Gemini, Anthropic Claude, Groq, Together AI, Mistral, DeepSeek, Fireworks AI, Perplexity, Custom
+- **Real wiring**: every UI action hits a real backend endpoint OR makes a real fetch to the user's configured provider. No placeholders. Mock fallback only when no backend / no provider configured.
+- **Architecture**: typed client (`web-next/src/lib/axoniz/client.ts`) → Next.js proxy routes (`web-next/src/app/api/axoniz/[...path]/route.ts` with mock fallback, `chat/route.ts` for streaming, `providers/test/route.ts` for pinger) → real AXONIZ backend at :7860 OR real provider endpoint.
+- **See**: `docs/WEB_UI.md` (full sitemap + provider setup) and `docs/WEB_ROADMAP.md` (what's done, what's next).
+
+When editing files in `web-next/`, run `bun run lint` from that directory before committing.
+
 ## Always Do
 
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `axodex_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
