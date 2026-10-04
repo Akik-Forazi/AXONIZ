@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 import { openInBrowser } from "./open_browser.js";
+import { spawnWebNext, stopWebNext, WEB_NEXT_DIR } from "./web-next-spawn.js";
 import { AXONIZ_HOME, MODELS_DIR, loadConfigWithAutodetect, loadConfig, saveConfig, deepMerge, resolveSwarmModels, type AxonizConfig } from "../core/config.js";
 import { getBackend, listSupportedProviders } from "../core/backend/index.js";
 import { downloadModelAsync, getDownloadStatus, searchModels } from "../core/downloader.js";
@@ -614,28 +615,94 @@ export class WebServer {
       res.json({ status: "reset" });
     });
 
-    /* ── Static frontend + SPA fallback ────────────────────────────────── */
-    app.use((req, res, next) => {
+    /* ── Next.js dashboard proxy ───────────────────────────────────────
+     *
+     * Every non-API GET request is proxied to the Next.js dev server
+     * running on http://localhost:3000 (spawned in start()). The
+     * Express server keeps all /api/* routes; the dashboard is the
+     * only thing that gets proxied. This means a single port (:7860)
+     * gives users both the API and the new dashboard — no second
+     * URL to remember.
+     *
+     * Fallback: if the Next.js dev server isn't running (spawn failed,
+     * web-next/ missing, etc.), fall back to the legacy static UI at
+     * src/web/static/ so the system never goes dark. A clear log line
+     * tells the operator which UI is being served.
+     */
+    app.use(async (req, res, next) => {
+      // /api/* is handled by the routes above — never proxy.
       if (req.path.startsWith("/api/")) {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      const hit = resolveStatic(req.path);
-      if (hit) {
-        const noCache = hit.full.endsWith(".html") || req.path === "/";
-        res.setHeader("Cache-Control", noCache ? "no-cache" : "max-age=3600");
-        res.type(hit.mime).sendFile(hit.full);
+      // Only proxy GET/HEAD; the dashboard uses POST for its own /api/*
+      // routes which are handled above. Other methods on non-API paths
+      // are unusual — let them fall through to the 404 handler.
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        next();
         return;
       }
-      // Extension-less paths fall back to the SPA shell.
-      if (!req.path.includes(".")) {
-        const index = resolveStatic("index.html");
-        if (index) {
-          res.type("text/html; charset=utf-8").sendFile(index.full);
+
+      const devUrl = `http://localhost:3000${req.originalUrl || req.path}`;
+      try {
+        const upstream = await fetch(devUrl, {
+          method: req.method,
+          headers: sanitizeProxyHeaders(req.headers),
+          redirect: "manual",
+          signal: AbortSignal.timeout(30_000),
+        });
+        // Forward status + headers
+        res.status(upstream.status);
+        upstream.headers.forEach((value, key) => {
+          // Skip hop-by-hop headers and host — they belong to the dev server.
+          if (isHopByHop(key)) return;
+          res.setHeader(key, value);
+        });
+        // Stream the body
+        if (upstream.body) {
+          const reader = upstream.body.getReader();
+          const push = async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                res.write(value);
+              }
+            } finally {
+              res.end();
+            }
+          };
+          void push();
+        } else {
+          res.end();
+        }
+      } catch (e) {
+        // Dev server not reachable — fall back to legacy static UI if present.
+        const hit = resolveStatic(req.path);
+        if (hit) {
+          const noCache = hit.full.endsWith(".html") || req.path === "/";
+          res.setHeader("Cache-Control", noCache ? "no-cache" : "max-age=3600");
+          res.setHeader("X-Axoniz-Ui", "legacy-static-fallback");
+          res.type(hit.mime).sendFile(hit.full);
           return;
         }
+        if (!req.path.includes(".")) {
+          const index = resolveStatic("index.html");
+          if (index) {
+            res.setHeader("X-Axoniz-Ui", "legacy-static-fallback");
+            res.type("text/html; charset=utf-8").sendFile(index.full);
+            return;
+          }
+        }
+        res
+          .status(502)
+          .setHeader("Content-Type", "text/plain; charset=utf-8")
+          .send(
+            `Next.js dev server not reachable at ${devUrl}\n` +
+              `Make sure 'bun run dev' (or 'npm run dev') is running in ${WEB_NEXT_DIR}.\n` +
+              `Error: ${e instanceof Error ? e.message : String(e)}`,
+          );
       }
-      next();
     });
 
     app.use("/{*splat}", (_req, res) => {
@@ -841,13 +908,37 @@ export class WebServer {
     });
   }
 
-  /** Start the server and optionally open a browser. Blocks forever. */
+  /**
+   * Start the server and optionally open a browser. Blocks forever.
+   *
+   * On startup, also spawns the Next.js dashboard (`web-next/`) on
+   * :3000 as a child process. The Express server proxies all non-API
+   * GET requests to it, so visiting :7860 gives the user the new
+   * dashboard (with a fallback to the legacy static UI if the
+   * dev server fails to start).
+   */
   async start(openBrowser = true): Promise<void> {
     const url = await this.listen();
 
+    // Spawn the Next.js dashboard in the background. Resolve fast —
+    // don't block startup if web-next/ can't be reached.
+    let devReady = false;
+    try {
+      const dev = await spawnWebNext();
+      devReady = !!dev;
+    } catch (e) {
+      warn(`[Web] could not spawn Next.js dashboard: ${errMsg(e)}`);
+    }
+
     console.log(`\n  \u001b[97mAXONIZ (Axodex)\u001b[0m \u001b[90mLlamaCpp Edition\u001b[0m`);
-    console.log(`  \u001b[90mweb -> \u001b[94m${url}\u001b[0m\n`);
-    info(`[Web] serving ${STATIC_DIR} at ${url}`);
+    console.log(`  \u001b[90mweb -> \u001b[94m${url}\u001b[0m`);
+    if (devReady) {
+      console.log(`  \u001b[90mdashboard -> \u001b[94mhttp://localhost:3000\u001b[0m \u001b[90m(proxied)\u001b[0m`);
+    } else {
+      console.log(`  \u001b[90mdashboard -> \u001b[91mnot started\u001b[0m \u001b[90m(falling back to legacy static UI)\u001b[0m`);
+    }
+    console.log();
+    info(`[Web] serving at ${url} (dashboard ${devReady ? "live" : "legacy fallback"})`);
 
     if (openBrowser) {
       setTimeout(() => {
@@ -858,6 +949,7 @@ export class WebServer {
     // Block until the process is told to stop.
     await new Promise<void>((resolve) => {
       const shutdown = () => {
+        stopWebNext();
         void this.close().finally(resolve);
       };
       process.once("SIGINT", shutdown);
@@ -866,6 +958,8 @@ export class WebServer {
   }
 
   async close(): Promise<void> {
+    // Stop the Next.js dev server child process.
+    stopWebNext();
     broker.closeAll();
     if (!this.server) return;
     await new Promise<void>((resolve) => {
@@ -891,6 +985,46 @@ function jsonReplacer(_key: string, value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "function") return undefined;
   return value;
+}
+
+/* ── Proxy helpers (Next.js dashboard forwarding) ─────────────────────────── */
+
+/**
+ * RFC 7230 hop-by-hop headers — must not be forwarded by a proxy.
+ * Also strips the Host header (the dev server sets its own).
+ */
+const HOP_BY_HOP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "host",
+  "content-length", // let the stream handle its own length
+]);
+
+function isHopByHop(headerName: string): boolean {
+  return HOP_BY_HOP.has(headerName.toLowerCase());
+}
+
+/**
+ * Pass through request headers to the dev server, but strip hop-by-hop
+ * and Host (the dev server sets its own Host from its listen address).
+ */
+function sanitizeProxyHeaders(headers: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (isHopByHop(key)) continue;
+    if (Array.isArray(value)) {
+      out[key] = value.join(", ");
+    } else if (typeof value === "string") {
+      out[key] = value;
+    }
+  }
+  return out;
 }
 
 export { broker, _broker };

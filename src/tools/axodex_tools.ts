@@ -1,79 +1,118 @@
 /**
  * Axodex Native Tools — graph-powered code intelligence (TypeScript port).
  *
- * Ported from `axoniz/tools/axodex_tools.py`. Connects AXONIZ to the Axodex
- * graph index CLI.
+ * Connects AXONIZ to the Axodex CLI. As of v0.3.4+, axodex is its own
+ * npm package (@fraziym/axodex) — installed globally via
+ * `npm install -g @fraziym/axodex`. The binary lands on PATH and this
+ * module just invokes it.
  *
- * Python-stdlib mapping:
- *   __file__-relative path juggling -> import.meta.url + the same `..` depth
- *     compensation the Python used (src/tools -> repo root, matching
- *     axoniz/tools -> repo root), so the resolved path is identical.
- *   os.path.expanduser("~/.axoniz/...") -> os.homedir()
- *   sys.frozen / sys._MEIPASS (PyInstaller) -> process.pkg / resourcesPath
- *     (the Node bundler equivalents)
- *   subprocess.run(check/capture) -> runCaptured (never throws)
+ * Resolution order (memoized per-process):
+ *
+ *   1. `axodex` on PATH (preferred — global npm install)
+ *   2. `npx @fraziym/axodex` (auto-fallback — slower, no global install)
+ *
+ * To install axodex:
+ *   npm install -g @fraziym/axodex
+ *   # or:
+ *   axoniz install axodex  # runs the above command automatically
+ *
+ * Bundling inside the AXONIZ repo is intentionally NOT supported anymore.
+ * It added 5800+ files of overhead to the AXONIZ npm package and never
+ * got the binary on PATH correctly. The standalone @fraziym/axodex
+ * package is the single source of truth — one version, one binary,
+ * published independently at https://www.npmjs.com/package/@fraziym/axodex.
+ *
+ * Ported from `axoniz/tools/axodex_tools.py`.
  */
 
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { error } from "../core/debug.js";
+import { error, info } from "../core/debug.js";
 import { errText, resolveCommand, runCaptured } from "./_internal.js";
 
 /* ── engine discovery ─────────────────────────────────────────────────────── */
 
-/** Path to the Axodex CLI entry point. */
-export const AXODEX_ROOT = path.join(os.homedir(), ".axoniz", "integrations", "Axodex");
-export const AXODEX_CLI = path.join(AXODEX_ROOT, "dist", "cli", "index.js");
-
-/** Node equivalent of `getattr(sys, "frozen", False)` for bundled executables. */
-function isPackaged(): boolean {
-  const p = process as NodeJS.Process & { pkg?: unknown };
-  return Boolean(p.pkg) || Boolean(process.env.PKG_EXECPATH);
+/**
+ * Resolved axodex invocation. `cmd` is the argv prefix to prepend to any
+ * user-supplied args. `via` is a human-readable hint for log lines.
+ */
+interface AxodexInvocation {
+  cmd: string[];
+  via: string;
 }
 
-/** `process.resourcesPath` (Electron/Node SEA) is absent from @types/node. */
-function packagedResourcesPath(): string | null {
-  const rp = (process as NodeJS.Process & { resourcesPath?: unknown }).resourcesPath;
-  return typeof rp === "string" && rp.length > 0 ? rp : null;
+let cachedInvocation: AxodexInvocation | null = null;
+
+/**
+ * Find the best way to invoke axodex right now. Memoized per-process so
+ * repeated calls don't re-probe.
+ *
+ *   1. `axodex` on PATH (preferred — installed via `npm install -g @fraziym/axodex`)
+ *   2. `npx @fraziym/axodex` (auto-fallback — no install required)
+ */
+export function resolveAxodex(): AxodexInvocation | null {
+  if (cachedInvocation) return cachedInvocation;
+
+  // 1. Global axodex binary on PATH
+  const axodexBin = resolveCommand("axodex");
+  if (axodexBin) {
+    cachedInvocation = {
+      cmd: [axodexBin],
+      via: "global-npm",
+    };
+    return cachedInvocation;
+  }
+
+  // 2. npx @fraziym/axodex (auto-fallback)
+  const npxBin = resolveCommand("npx");
+  if (npxBin) {
+    cachedInvocation = {
+      cmd: [npxBin, "@fraziym/axodex"],
+      via: "npx-fallback",
+    };
+    return cachedInvocation;
+  }
+
+  cachedInvocation = null;
+  return null;
 }
+
+/** Legacy exported constant — kept for backwards-compat with old callers.
+ *  Returns null since axodex is no longer bundled inside the AXONIZ repo. */
+export const AXODEX_ROOT: string | null = null;
+export const AXODEX_CLI: string | null = null;
 
 export class AxodexTools {
   readonly workspace: string;
 
   constructor(workspace = ".") {
-    this.workspace = path.resolve(workspace);
+    this.workspace = workspace;
     this._ensure_built();
   }
 
   /**
-   * Check that the Axodex CLI exists, else probe for a globally installed
-   * `axodex`. Mirrors the Python guard, which ran `npx axodex --help` and
-   * logged a diagnostic when that failed.
+   * Resolve the axodex CLI. If nothing resolves, log a clear diagnostic
+   * explaining how to install axodex via npm.
    */
   async _ensure_built(): Promise<void> {
-    if (fs.existsSync(AXODEX_CLI)) return;
-    if (resolveCommand("npx")) {
-      try {
-        if (await this._probe() === 0) return;
-      } catch {
-        /* not available */
-      }
+    const inv = resolveAxodex();
+    if (inv) {
+      info(`[Axodex] resolved via ${inv.via}`);
+      return;
     }
     error(
-      `[Axodex] CLI not found at ${AXODEX_CLI}.\n` +
-      `  To install it automatically, run:  axoniz install axodex`
+      `[Axodex] CLI not found on PATH.\n` +
+        `  Install with one of:\n` +
+        `    npm install -g @fraziym/axodex     (recommended — global install)\n` +
+        `    axoniz install axodex              (same thing, via AXONIZ installer)\n` +
+        `  Then run 'axodex --help' to verify.`,
     );
   }
 
-  /** Best-effort `npx axodex --help`; resolves with the exit code. */
+  /** Best-effort probe to confirm axodex is actually invocable. */
   private async _probe(): Promise<number | null> {
-    const npx = resolveCommand("npx");
-    if (!npx) return null;
+    const inv = resolveAxodex();
+    if (!inv) return null;
     try {
-      const res = await runCaptured(quoteArgv([npx, "axodex", "--help"]), {
+      const res = await runCaptured(quoteArgv([...inv.cmd, "--help"]), {
         cwd: this.workspace,
         timeoutMs: 60_000,
       });
@@ -85,13 +124,15 @@ export class AxodexTools {
 
   /** Execute an axodex command and return stdout. */
   async _run(cmd: string[]): Promise<string> {
-    const fullCmd: string[] = fs.existsSync(AXODEX_CLI)
-      ? [process.execPath, AXODEX_CLI, ...cmd]
-      : (() => {
-          const npx = resolveCommand("npx");
-          return npx ? [npx, "axodex", ...cmd] : [];
-        })();
-    if (fullCmd.length === 0) return "[AXODEX ERROR] 'node' not found. Please install Node.js.";
+    const inv = resolveAxodex();
+    if (!inv) {
+      return (
+        `[AXODEX ERROR] axodex CLI not found on PATH.\n` +
+        `  Install with:  npm install -g @fraziym/axodex\n` +
+        `  Or:           axoniz install axodex`
+      );
+    }
+    const fullCmd: string[] = [...inv.cmd, ...cmd];
     try {
       const res = await runCaptured(quoteArgv(fullCmd), {
         cwd: this.workspace,
@@ -109,7 +150,7 @@ export class AxodexTools {
     } catch (e) {
       const err = e as NodeJS.ErrnoException;
       if (err && err.code === "ENOENT") {
-        return "[AXODEX ERROR] 'node' not found. Please install Node.js.";
+        return `[AXODEX ERROR] '${inv.cmd[0]}' not found. Install with: npm install -g @fraziym/axodex`;
       }
       return `[AXODEX EXCEPTION] ${errText(e)}`;
     }

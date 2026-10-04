@@ -17,6 +17,61 @@ A new Next.js 16 dashboard lives in `web-next/` and replaces the legacy scraped 
 
 When editing files in `web-next/`, run `bun run lint` from that directory before committing.
 
+## `axoniz --web` now spawns the Next.js dashboard (v0.3.3)
+
+Running `axoniz --web` no longer serves the legacy scraped static UI. The Express backend (`src/web/server.ts`) now:
+
+1. Listens on :7860 (unchanged) — all `/api/*` routes live here
+2. Spawns `bun run dev` (or `npm run dev`) in `web-next/` as a child process on :3000
+3. Proxies all non-API GET requests from :7860 → :3000 so users only need to remember one URL
+4. Falls back to the legacy static UI at `src/web/static/` if `web-next/` is missing or the dev server fails to start (with a clear log line: `dashboard -> not started (falling back to legacy static UI)`)
+
+The spawn logic lives in `src/web/web-next-spawn.ts` (60s timeout for the dev server to come up; child process is cleaned up on SIGINT/SIGTERM).
+
+## Axodex integration (v0.3.4) — standalone npm package
+
+Axodex is now its own standalone npm package, published as
+**`@fraziym/axodex`** at https://www.npmjs.com/package/@fraziym/axodex.
+
+Source: https://github.com/Akik-Forazi/axodex (separate repo)
+
+### Install
+
+```bash
+# Recommended — install both AXONIZ and axodex in one command
+npm install -g @fraziym/axoniz @fraziym/axodex
+
+# Or install axodex via the AXONIZ installer (runs the above npm install)
+axoniz install axodex
+```
+
+### What changed in v0.3.4
+
+- **Removed**: the bundled axodex at `axoniz/integrations/Axodex/` (was
+  5800+ files of overhead inside the AXONIZ repo)
+- **Removed**: the git-clone-AXONIZ installer logic that downloaded 30+ MiB
+  and never linked the `axodex` binary on PATH
+- **Added**: `@fraziym/axodex` as a peerDependency in AXONIZ's package.json
+- **Replaced** `src/integrations/installer.ts`: now runs
+  `npm install -g @fraziym/axodex` (one-line, ~5s, binary lands on PATH)
+- **Simplified** `src/tools/axodex_tools.ts`: resolver now just checks
+  for `axodex` on PATH (preferred) or `npx @fraziym/axodex` (fallback)
+
+### Single source of truth for versioning
+
+axodex's version lives in `axodex/package.json` in the standalone repo
+(https://github.com/Akik-Forazi/axodex). To bump the version:
+
+```bash
+cd /path/to/axodex-repo
+# Edit axodex/package.json → bump "version"
+npm version patch  # or minor, major
+npm publish        # publishes @fraziym/axodex@<new-version> to npm
+```
+
+AXONIZ picks up the new version via its `^1.6.12` peerDependency range.
+No bundling, no copying — just npm.
+
 ## Always Do
 
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `axodex_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
