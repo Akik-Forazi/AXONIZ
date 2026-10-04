@@ -134,7 +134,7 @@ export function makeDefaultArgs(): Args {
   };
 }
 
-const PROVIDERS = ["llamacpp", "llamacpp_server", "lmstudio", "ollama", "openai"];
+const PROVIDERS = ["llamacpp", "llamacpp_server", "lmstudio", "ollama", "openai", "openrouter", "gemini", "anthropic", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity", "custom"];
 
 /** Parse argv (already sliced past `node script`). */
 export function parseArgs(argv: string[]): Args {
@@ -293,14 +293,18 @@ export const HELP = `
   ${WH}${B}AXONIZ-ZERO${R}  ${DG}${AXONIZ_VERSION}  \u2014 local AI agent${R}
 
   ${B}MODES${R}
-    ${BL}--web${R}           Launch web UI at localhost:7860
+    ${BL}--web${R}           Launch dashboard at localhost:7860
+                          (spawns Next.js UI on :3000, proxied through :7860)
     ${BL}--lc${R}            Interactive REPL
     ${BL}--cli${R}           One-shot task then exit
-    ${BL}--goal "..."${R}    Autonomous goal mode
+    ${BL}--goal "..."${R}    Autonomous goal mode (plan → execute → verify)
     ${BL}--pipe${R}          Read task from stdin
+    ${BL}--version${R}       Print version and exit
 
   ${B}BACKEND${R}
-    ${BL}--provider <p>${R}   Backend: llamacpp, llamacpp_server, lmstudio, ollama, openai
+    ${BL}--provider <p>${R}   Backend: llamacpp, llamacpp_server, lmstudio, ollama, openai,
+                          openrouter, gemini, anthropic, groq, together, mistral,
+                          deepseek, fireworks, perplexity, custom
     ${BL}--model-path <p>${R}  Path to .gguf model (llamacpp only)
     ${BL}--url <url>${R}       Base URL for server backends
     ${BL}--gpu-layers <n>${R}  GPU layers (llamacpp only)
@@ -309,6 +313,7 @@ export const HELP = `
     ${BL}--tokens 4096${R}    Max output tokens
 
   ${B}SUBCOMMANDS${R}
+    ${BL}axoniz install axodex${R}  Install axodex (npm install -g @fraziym/axodex)
     ${BL}axoniz config show${R}     Show config
     ${BL}axoniz config set k=v${R}  Set config value
     ${BL}axoniz model list${R}      List models
@@ -316,6 +321,10 @@ export const HELP = `
     ${BL}axoniz memory${R}          Show memory
     ${BL}axoniz palace${R}          Show palace status
     ${BL}axoniz health${R}          System health report
+
+  ${B}VERSION${R}
+    ${DG}FRAZIYM:${R} ${AXONIZ_VERSION}
+    ${DG}npm:${R}     ${VERSION}
 `;
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */
@@ -592,6 +601,22 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
         for (const k of keys.slice(0, 20)) kv(k, String(mem[k]).slice(0, 72));
       } else {
         console.log(`  ${DG}(empty)${R}`);
+      }
+      return;
+    }
+    if (cmd === "health") {
+      const agent = await runner.buildAgent(ov);
+      const h = await agent.health();
+      section("system health");
+      kv("status", h.status ?? "unknown");
+      kv("backend", h.backend ?? "—");
+      kv("model", h.model ?? "—");
+      kv("model_loaded", h.model_loaded ? "yes" : "no");
+      kv("uptime", h.uptime != null ? `${Math.floor(Number(h.uptime) / 60)}m` : "—");
+      if (h.memory) {
+        kv("palace", h.memory.palace ? "available" : "offline");
+        kv("drawers", String(h.memory.drawers ?? 0));
+        kv("kg_facts", String(h.memory.kg?.facts ?? 0));
       }
       return;
     }
