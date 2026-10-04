@@ -161,10 +161,13 @@ __pycache__/
 node_modules
 
 _dl/
-*.log
 err.log
 
-_pyref/
-axoniz/
+# Large artifacts — never commit these
+*.zip
+*.jsonl
+*.gguf
 
 .commandcode/
+.axo-smoke-build/
+.tmp-tools-out/

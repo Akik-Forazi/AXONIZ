@@ -1,0 +1,37 @@
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
+
+WORKDIR /app
+
+COPY axodex-shared/package.json axodex-shared/package-lock.json ./axodex-shared/
+RUN npm ci --prefix axodex-shared
+
+COPY axodex-shared ./axodex-shared
+RUN npm run build --prefix axodex-shared
+
+COPY axodex/package.json ./axodex/
+
+COPY axodex-web/package.json axodex-web/package-lock.json ./axodex-web/
+RUN npm ci --prefix axodex-web
+
+COPY axodex-web ./axodex-web
+RUN npm run build --prefix axodex-web
+
+FROM node:22-alpine AS runtime
+
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+COPY --from=builder /app/axodex-web/dist ./dist
+COPY docker-server.mjs ./docker-server.mjs
+
+RUN chown -R node:node /app
+
+USER node
+
+EXPOSE 4173
+
+CMD ["node", "docker-server.mjs"]

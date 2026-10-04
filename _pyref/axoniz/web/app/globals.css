@@ -1,0 +1,104 @@
+/* ============================================ */
+/* Axoniz Design Tokens (Zero UI Core)          */
+/* ============================================ */
+
+:root {
+  /* 
+   * CORE PALETTE 
+   * These are the foundational colors that define the Axoniz/Zero aesthetic.
+   */
+  --bg: #0e0e10;
+  --fg: #e0e0e0;
+  --panel: #1a1a1c;
+  --border: #2d2d30;
+  --red: #e06c75;
+  --green: #50fa7b;
+  --warn: #f0ad4e;
+  --accent: #00aaff;
+
+  /* 
+   * SEMANTIC COLORS
+   * Used for status, feedback, and highlighting.
+   */
+  --color-error: #ff4444;
+  --color-error-light: #ff6666;
+  --color-success: #4caf50;
+  --color-warning: #f0ad4e;
+  --color-danger: #c0392b;
+  --color-recording: #ff3b30;
+  --color-muted: #888;
+  --color-muted-alt: #6b7280;
+  --color-accent: #00aaff;
+  --color-agent-active: #00ff00;
+  
+  /* 
+   * SYNTAX HIGHLIGHTING (Zero-style)
+   * Perfect for code blocks and terminal-like output in Agent reasoning.
+   */
+  --hl-bg: #1e2228;
+  --hl-fg: #9cdef2;
+  --hl-keyword: #c678dd;
+  --hl-string: #e5c07b;
+  --hl-comment: #828997;
+  --hl-function: #61afef;
+  --hl-number: #d19a66;
+  --hl-builtin: #56b6c2;
+  --hl-variable: #abb2bf;
+  --hl-params: #a8c0d4;
+
+  /* 
+   * UI SURFACE VARS
+   * Used for depth and layering.
+   */
+  --user-bubble-bg: color-mix(in srgb, var(--fg) 8%, var(--bg));
+  --ai-bubble-bg: var(--panel);
+  --bubble-border: var(--border);
+  --input-bg: #252529;
+  --input-border: var(--border);
+  --send-btn-bg: var(--red);
+}
+
+/* 
+ * LIGHT MODE OVERRIDE
+ */
+:root.light {
+  --bg: #f5f5f5;
+  --fg: #2b2b2b;
+  --panel: #ffffff;
+  --border: #dddddd;
+  --red: #e06c75;
+  --hl-bg: #f9f9f9;
+  --hl-fg: #2b2b2b;
+  --hl-keyword: #7928a1;
+  --hl-string: #986801;
+  --hl-comment: #6a737d;
+  --hl-function: #005cc5;
+  --hl-number: #986801;
+  --hl-builtin: #0070a0;
+  --hl-variable: #383a42;
+  --hl-params: #4a4f5c;
+}
+
+/* 
+ * TYPOGRAPHY
+ */
+:root {
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+}
+
+/* 
+ * UTILITY CLASSES (Axoniz-specific extensions)
+ */
+.text-glow-cyan {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.glass-panel {
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.density-compact { font-size: 13px; }
+.density-spacious { font-size: 16px; }

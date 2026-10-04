@@ -1,0 +1,110 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+.claude/settings.local.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+docker/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Misc
+*.local
+HANDOFF.md
+HANDOFF*.md
+
+.vercel
+
+
+
+
+
+
+.env*.local
+.axodex
+.claude/settings.local.json
+
+# Claude Code worktrees
+.claude/worktrees/
+
+# Claude code skills
+.claude/skills/generated/
+
+# Assets (screenshots, images)
+assets/
+
+# Generated files (should not be indexed)
+repomix-output*
+
+# Playwright artifacts
+axodex-web/playwright-report/
+axodex-web/test-results/
+
+# Python test artifacts
+eval/.coverage
+eval/.hypothesis/
+
+# Design docs (local only)
+docs/plans/
+
+axodex/test/fixtures/mini-repo/*.md
+axodex/test/fixtures/mini-repo/.claude
+axodex/test/fixtures/mini-repo/.gitignore
+
+# Ignore csharp generated obj and bin folders
+axodex/test/fixtures/lang-resolution/**/obj
+axodex/test/fixtures/lang-resolution/**/bin
+Axodex.sln
+# Git worktrees
+.worktrees/
+
+# Vendored tree-sitter grammar build artifacts (created at install time,
+# never committed). See docs/plans/2026-04-15-002-fix-tree-sitter-proto-vendor-deps-plan.md
+axodex/vendor/**/build/
+axodex/vendor/**/node_modules/
+
+/github/scripts/triage/__pycache__/
+
+.claude-flow/
+
+.claude/agents/
+.claude/commands/
+.claude/helpers
+.claude/skills/
+!.claude/skills/axodex/
+
+.history/
+
+.swarm/
+
+local_docs/
+
+# Local agent scratch / review prompts (never commit)
+.tmp/
+.agents/
+.context/
+axodex/web/
