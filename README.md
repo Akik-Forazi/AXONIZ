@@ -1,6 +1,8 @@
 # AXONIZ
 ### Autonomous Local Agentic System
 
+**Version: `V00.01.000-beta-01`** · FRAZIYM versioning · `npm: @fraziym/axoniz@0.1.0-beta.1`
+
 AXONIZ is a high-performance, 100% offline agentic framework designed to comprehend and orchestrate large-scale codebases using small-parameter local models (3B-8B).
 
 By moving intelligence into the **Code Graph** and the **System Architecture**, Axoniz-Zero enables a 3B model to outperform cloud-based 70B models in precision, speed, and architectural depth.

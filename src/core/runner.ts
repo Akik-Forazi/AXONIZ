@@ -29,6 +29,13 @@ const _pkgPath = path.join(__dirname, "../../package.json");
 const _pkg = JSON.parse(fs.readFileSync(_pkgPath, "utf8"));
 export const VERSION = _pkg.version;
 
+// AXONIZ_VERSION is the FRAZIYM-format version (V00.01.000-beta-01).
+// VERSION above is the semver translation (0.1.0-beta.1) used by npm.
+// Both are kept in sync via tests/version.test.ts. The CLI banner shows
+// the FRAZIYM version because that's the canonical identity.
+import { AXONIZ_VERSION } from "../version.js";
+export { AXONIZ_VERSION };
+
 /* ── Colour ───────────────────────────────────────────────────────────────── */
 
 function c(code: string): string {
@@ -64,7 +71,7 @@ export class C {
 
 export function printBanner(model = "", backend = ""): void {
   console.log();
-  console.log(`  ${PURPLE}${B}FRAZIYM AI${R}  ${DG}v${VERSION}${R}`);
+  console.log(`  ${PURPLE}${B}FRAZIYM AI${R}  ${DG}${AXONIZ_VERSION}${R}`);
   console.log(`  ${DG}local ai agent \u00b7 ${backend} \u00b7 ${model || "auto"}${R}`);
   console.log();
 }
@@ -283,7 +290,7 @@ export function overridesFromArgs(args: Args): Record<string, unknown> {
 /* ── Help ─────────────────────────────────────────────────────────────────── */
 
 export const HELP = `
-  ${WH}${B}AXONIZ-ZERO${R}  ${DG}v${VERSION}  \u2014 local AI agent${R}
+  ${WH}${B}AXONIZ-ZERO${R}  ${DG}${AXONIZ_VERSION}  \u2014 local AI agent${R}
 
   ${B}MODES${R}
     ${BL}--web${R}           Launch web UI at localhost:7860
@@ -417,7 +424,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const pos = args.positional;
 
   if (args.version) {
-    console.log(`axoniz-zero ${VERSION}`);
+    console.log(`axoniz-zero ${AXONIZ_VERSION}  (npm: ${VERSION})`);
     return;
   }
   if (args.help) {
@@ -562,7 +569,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const model = String(ov.model_name ?? cfgAny.model_name ?? "");
   const workspace = String(ov.workspace ?? cfgAny.workspace ?? ".");
 
-  console.log(`\n  ${PURPLE}${B}FRAZIYM AI${R}  ${DG}v${VERSION}${R}`);
+  console.log(`\n  ${PURPLE}${B}FRAZIYM AI${R}  ${DG}${AXONIZ_VERSION}${R}`);
   const provStr = String(
     ov.provider ?? cfg.llm?.active_provider ?? cfgAny.backend ?? "llamacpp",
   );
