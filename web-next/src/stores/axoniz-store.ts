@@ -355,7 +355,7 @@ export const useAxonizStore = create<UiState>()(
         set((s) => ({ llamacpp: { ...s.llamacpp, ...patch } })),
     }),
     {
-      name: "axoniz-store-v5",
+      name: "axoniz-store-v7",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         token: s.token,
@@ -366,7 +366,7 @@ export const useAxonizStore = create<UiState>()(
         providers: s.providers,
         llamacpp: s.llamacpp,
       }),
-      version: 5,
+      version: 7,
       migrate: () => ({
         token: null,
         username: null,

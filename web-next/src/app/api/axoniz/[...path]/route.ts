@@ -61,9 +61,17 @@ function mockFor(method: string, path: string, search: string, body: unknown): u
       username: string;
       password: string;
     };
-    // For preview: accept any non-empty credentials.
+    // Mock fallback ONLY — real auth is the AXONIZ backend's responsibility
+    // (src/web/server.ts uses getAuth() + auth.verifyPassword + JWT).
+    // When the real backend is online, the proxy forwards to it and this
+    // mock is never hit. In preview/dev without the backend, any
+    // non-empty credentials work to keep the UI demoable.
     if (username && password && password.length >= 4) {
-      return { token: `mock-${Date.now()}-${username}`, username };
+      return {
+        token: `mock-${Date.now()}-${username}`,
+        username,
+        _source: "mock",
+      };
     }
     return { error: "Invalid credentials" };
   }
