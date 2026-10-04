@@ -29,7 +29,7 @@
  * The package.json version is a semver-compatible translation of this
  * string because npm requires valid semver. Mapping:
  *
- *   V00.01.000-beta-01  →  0.1.3-beta.4
+ *   V00.01.003-beta-04  →  0.1.3-beta.4
  *   V00 → major 0
  *   01  → minor 1
  *   000 → patch 0
@@ -48,7 +48,7 @@
  * the semver translation.
  */
 
-export const AXONIZ_VERSION = "V00.01.000-beta-01";
+export const AXONIZ_VERSION = "V00.01.003-beta-04";
 
 /**
  * The release stage of the current version. Useful for runtime branching
@@ -61,7 +61,7 @@ export const AXONIZ_RELEASE_STAGE: "alpha" | "beta" | "rc" | "stable" = "beta";
  * package.json "version" should match. The tests/version.test.ts
  * verifies they stay in sync.
  */
-export const AXONIZ_VERSION_SEMVER = "0.1.0-beta.1";
+export const AXONIZ_VERSION_SEMVER = "0.1.3-beta.4";
 
 /**
  * Parse a FRAZIYM version string into its components. Returns null if

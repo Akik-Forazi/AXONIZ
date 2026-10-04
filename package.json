@@ -101,8 +101,8 @@
   },
   "peerDependencies": {
     "@fraziym/axodex": "^0.1.1-beta.2",
-    "@fraziym/axovb": "^0.1.0-beta.1",
-    "@fraziym/axotest": "^0.1.0-beta.1"
+    "@fraziym/axovb": "^0.1.1-beta.2",
+    "@fraziym/axotest": "^0.1.1-beta.2"
   },
   "peerDependenciesMeta": {
     "@fraziym/axodex": {
