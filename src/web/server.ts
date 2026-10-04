@@ -883,10 +883,10 @@ export class WebServer {
     if (devReady) {
       console.log(`  \u001b[90mdashboard -> \u001b[94mhttp://localhost:3000\u001b[0m \u001b[90m(proxied)\u001b[0m`);
     } else {
-      console.log(`  \u001b[90mdashboard -> \u001b[91mnot started\u001b[0m \u001b[90m\u001b[0m`);
+      console.log(`  \u001b[90mdashboard -> \u001b[91mnot started\u001b[0m \u001b[90m(502 — no static fallback)\u001b[0m`);
     }
     console.log();
-    info(`[Web] serving at ${url} (dashboard ${devReady ? "live" : "502")})`);
+    info(`[Web] serving at ${url} (dashboard ${devReady ? "live" : "502"})`);
 
     if (openBrowser) {
       setTimeout(() => {
