@@ -613,10 +613,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       kv("model", h.model ?? "—");
       kv("model_loaded", h.model_loaded ? "yes" : "no");
       kv("uptime", h.uptime != null ? `${Math.floor(Number(h.uptime) / 60)}m` : "—");
-      if (h.memory) {
-        kv("palace", h.memory.palace ? "available" : "offline");
-        kv("drawers", String(h.memory.drawers ?? 0));
-        kv("kg_facts", String(h.memory.kg?.facts ?? 0));
+      const mem = h.memory as { palace?: boolean; drawers?: number; kg?: { facts?: number } } | undefined;
+      if (mem) {
+        kv("palace", mem.palace ? "available" : "offline");
+        kv("drawers", String(mem.drawers ?? 0));
+        kv("kg_facts", String(mem.kg?.facts ?? 0));
       }
       return;
     }
