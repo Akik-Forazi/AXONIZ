@@ -198,6 +198,36 @@ export type {
   ReflexPipeline,
 } from "./reflex.js";
 
+/* ── PEAK advancements (v0.3.6) ─────────────────────────────────────────── */
+
+export { CostTracker } from "./cost_tracker.js";
+export type {
+  CostTrackerPricing,
+  ToolCallCost,
+  LLMCallCost,
+  TaskCostTotal,
+  CostEvent,
+} from "./cost_tracker.js";
+
+export { VerifyGate } from "./verify_gate.js";
+export type {
+  VerifyCheck,
+  VerifyResult,
+  VerifyCheckName,
+} from "./verify_gate.js";
+
+export { DAGPlanner } from "./dag_planner.js";
+export type {
+  DAGStep,
+  PlanResult,
+  LLMCallback,
+} from "./dag_planner.js";
+
+// Semantic context compression (enhanced methods on the existing
+// ContextCompressor class — scoreImportance, semanticKeepMask,
+// compressSemantic). The re-export above already covers
+// ContextCompressor + SUMMARY_PREFIX; no new top-level export needed.
+
 /**
  * Python's `__all__`, extended with the camelCase aliases this port adds so
  * consumers can keep using the Python spelling verbatim.

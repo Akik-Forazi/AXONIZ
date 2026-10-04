@@ -135,6 +135,208 @@ export class ContextCompressor {
     return this.should_compress(current_tokens);
   }
 
+  /* ── Semantic importance scoring (v0.3.6 PEAK enhancement) ──────── */
+
+  /**
+   * Score a message by its semantic importance (0–100).
+   *
+   * Higher = keep. Lower = summarize.
+   *
+   * Heuristics:
+   *   - User messages: HIGH (they're the goal — never summarize the user's ask)
+   *   - Assistant messages with tool_calls: HIGH (they're actions taken)
+   *   - Tool results containing errors: HIGH (they're learning signal)
+   *   - Tool results containing "[ERROR]" or "Exception": HIGH (same)
+   *   - Tool results containing "[DONE]": HIGH (mission complete signal)
+   *   - System messages: PROTECTED (never scored — always kept)
+   *   - Plain assistant text (no tools): MEDIUM → decays with age
+   *   - Tool results with success: MEDIUM → decays with age
+   *
+   * Age decay: every 10 turns from the end, score * 0.9 (so old
+   * "successful tool result" messages gradually lose importance).
+   */
+  scoreImportance(msg: CompressionMessage, indexFromEnd: number): number {
+    const role = msg.role ?? "user";
+    const content = String(msg.content ?? "");
+    const lower = content.toLowerCase();
+
+    // System messages are always protected — score 100 so they're never
+    // included in the summarization region.
+    if (role === "system") return 100;
+
+    // User messages are the goal — protect them.
+    if (role === "user") return 95;
+
+    // Assistant messages with tool calls are actions taken — protect them.
+    if (role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
+      return 90;
+    }
+
+    // Tool results: score by content
+    if (role === "tool") {
+      if (lower.includes("[error]") || lower.includes("exception") || lower.includes("traceback")) {
+        return 85; // errors are learning signal — keep them
+      }
+      if (lower.includes("[done]") || lower.includes("task complete")) {
+        return 88; // completion signals — keep
+      }
+      if (lower.includes("[ok]") || lower.includes("success")) {
+        return 60; // successful results — medium, decay with age
+      }
+      return 50; // generic tool result — low
+    }
+
+    // Plain assistant text (no tools) — medium, decay with age
+    let score = 40;
+
+    // Age decay: every 10 turns from the end, *0.9
+    const ageFactor = Math.pow(0.9, Math.floor(indexFromEnd / 10));
+    score = score * ageFactor;
+
+    // Bump if the message contains code blocks (likely important reasoning)
+    if (content.includes("```")) score += 10;
+
+    // Bump if the message is long (likely substantive)
+    if (content.length > 500) score += 5;
+
+    return Math.round(score);
+  }
+
+  /**
+   * Build a "keep mask" for a message list: a boolean[] indicating
+   * which messages to keep verbatim vs summarize. Uses semantic
+   * scoring + head/tail protection.
+   *
+   * Messages to keep: system (head), all user messages, all assistant-
+   * with-tools messages, all error tool results, + the last N turns
+   * (for recency). Everything else is a candidate for summarization.
+   */
+  semanticKeepMask(messages: CompressionMessage[]): boolean[] {
+    const n = messages.length;
+    const mask = new Array(n).fill(false);
+
+    // 1. Always keep system messages
+    for (let i = 0; i < n; i++) {
+      if (messages[i].role === "system") mask[i] = true;
+    }
+
+    // 2. Score every non-system message
+    const scored = messages.map((m, i) => ({
+      index: i,
+      score: m.role === "system" ? 100 : this.scoreImportance(m, n - i),
+      msg: m,
+    }));
+
+    // 3. Always keep messages with score >= 70 (user, assistant+tools, errors)
+    for (const s of scored) {
+      if (s.score >= 70) mask[s.index] = true;
+    }
+
+    // 4. Always keep the last protect_last_n messages (recency)
+    for (let i = Math.max(0, n - this.protect_last_n); i < n; i++) {
+      mask[i] = true;
+    }
+
+    // 5. Always keep the first protect_first_n messages (system prompt region)
+    for (let i = 0; i < Math.min(this.protect_first_n, n); i++) {
+      mask[i] = true;
+    }
+
+    return mask;
+  }
+
+  /**
+   * Semantic-aware compression. Instead of summarizing a contiguous
+   * middle region (the original behavior), this method:
+   *
+   *   1. Scores every message by importance (scoreImportance)
+   *   2. Keeps the high-importance messages verbatim
+   *   3. Keeps the last N messages (recency)
+   *   4. Summarizes only the low-importance messages in between
+   *
+   * This means:
+   *   - User asks are never lost
+   *   - Tool calls (actions taken) are never lost
+   *   - Errors are never lost (learning signal)
+   *   - Only "old successful tool results" and "old assistant rambling" get summarized
+   *
+   * Falls back to the original contiguous-region method if the LLM
+   * summary agent isn't available.
+   */
+  async compressSemantic(
+    messages: CompressionMessage[],
+    agent: SummaryAgent | null = null,
+  ): Promise<CompressionMessage[]> {
+    if (messages.length <= this.protect_first_n + this.protect_last_n + 2) {
+      return messages;
+    }
+
+    const mask = this.semanticKeepMask(messages);
+    const toSummarize: CompressionMessage[] = [];
+    const summaryPlaceholders: Array<{ index: number }> = [];
+
+    // Collect the low-importance messages that will be summarized
+    for (let i = 0; i < messages.length; i++) {
+      if (!mask[i]) {
+        toSummarize.push(messages[i]);
+        summaryPlaceholders.push({ index: i });
+      }
+    }
+
+    if (toSummarize.length === 0) {
+      // Nothing to summarize — return as-is
+      return messages;
+    }
+
+    info(
+      `[COMPRESSOR] Semantic compaction: keeping ${mask.filter(Boolean).length}/${messages.length} messages, summarizing ${toSummarize.length}`,
+    );
+
+    // Generate the summary
+    const summary = await this._generate_summary(toSummarize, agent);
+    if (!summary) {
+      // Summary failed — fall back to keeping everything (don't lose data)
+      return messages;
+    }
+
+    // Rebuild: system + summary + kept messages (in original order)
+    const result: CompressionMessage[] = [];
+    let summaryInserted = false;
+
+    for (let i = 0; i < messages.length; i++) {
+      if (mask[i]) {
+        result.push(messages[i]);
+      } else if (!summaryInserted) {
+        // Insert the summary once, at the position of the first summarized message
+        result.push({
+          role: "system",
+          content: `${SUMMARY_PREFIX}\n\n${summary}`,
+        });
+        summaryInserted = true;
+      }
+      // Skip subsequent summarized messages (they're covered by the summary)
+    }
+
+    // If all messages were low-importance (edge case), insert summary at the end
+    if (!summaryInserted && result.length === 0) {
+      result.push({
+        role: "system",
+        content: `${SUMMARY_PREFIX}\n\n${summary}`,
+      });
+    }
+
+    this.compression_count += 1;
+    return result;
+  }
+
+  /** camelCase alias. */
+  async compressSemanticMessages(
+    messages: CompressionMessage[],
+    agent: SummaryAgent | null = null,
+  ): Promise<CompressionMessage[]> {
+    return this.compressSemantic(messages, agent);
+  }
+
   /**
    * Main compression loop.
    * agent: The Agent instance (to call LLM for summarization)

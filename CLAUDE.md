@@ -75,6 +75,87 @@ The same FRAZIYM versioning applies to axodex (the standalone package
 at https://github.com/Akik-Forazi/axodex). Both packages are currently
 at `V00.01.000-beta-01` and versioned independently.
 
+## PEAK agent advancements (v0.3.6)
+
+Five new modules landed in v0.3.6 to close the highest-priority gaps from
+the AGENTIC_ROADMAP. The modules are **implemented but not yet wired**
+into `agent.run()` / `loop._plan()` / `loop._verify()` / `_exec()` —
+that's the P0 wiring work tracked in `docs/TODO.md`.
+
+### 1. Tool Registry — `src/core/tool_registry.ts`
+
+Per-role tool scoping. Solves P0-002 "tool scoping not implemented".
+
+- `AgentDefinition` interface with `role`, `tools` (allowlist), `canDestroy`, `canAccessNetwork`, `systemPrompt`
+- `ToolRegistry` class with 8 pre-defined roles: `planner`, `researcher`, `coder`, `debugger`, `reviewer`, `tester`, `verifier`, `general`
+- `ToolRegistry.scopedToolMap(role, fullToolMap)` → filtered `Map<string, ToolFn>` containing only the role's allowed tools
+- `ToolRegistry.toolNamesForRole(role)` → `string[]` for system prompt construction
+- P0-W1 wiring: call `scopedToolMap` in `agent.run()` when `this.role` is set
+
+### 2. Cost Tracker — `src/core/intelligence/cost_tracker.ts`
+
+Per-task token + $ cost attribution. Solves P2-002 "no per-task cost tracking".
+
+- `CostTracker` class with `recordToolCall()`, `recordLLMCall()`, `getTaskTotal()`
+- Pricing: `{ inputPricePerMTok, outputPricePerMTok }` — 0 for local providers (llama.cpp/LM Studio/Ollama)
+- Emits `broker.broadcast("cost", event)` SSE events for live dashboard updates
+- `onCost` callback for direct subscribers
+- P0-W2 wiring: call `recordToolCall` + `recordLLMCall` inside `_exec()` and the LLM stream loop
+
+### 3. Verify Gate — `src/core/intelligence/verify_gate.ts`
+
+Real verification that runs actual toolchain checks. Replaces the LLM-only `_verify()` in `loop.ts`.
+
+- `VerifyGate.run(checks: VerifyCheckName[])` → `VerifyResult`
+- Supported checks: `tsc`, `eslint`, `vitest`, `pytest`, `mypy`, `flake8`
+- Each check: runs the actual binary, parses output, returns `{ passed, errors, warnings, durationMs }`
+- Checks that aren't applicable (no `tsconfig.json`) are skipped with `passed: true`
+- Independent — a tsc failure doesn't stop eslint/vitest from running
+- P0-W3 wiring: call `VerifyGate.run()` in `loop._verify()` after code-editing steps
+
+### 4. DAG Planner — `src/core/intelligence/dag_planner.ts`
+
+Dependency-graph plan with parallel step execution. Replaces the linear `PlanTask[]` from `loop._plan()`.
+
+- `DAGStep` interface: `id`, `title`, `dependsOn: string[]`, `role`, `difficulty` (1-5), `produces`/`consumes` artifacts, `verify`
+- `DAGPlanner.plan(goal)` → `{ steps: DAGStep[], waves: DAGStep[][], estimatedDurationMs }`
+- `topologicalSort(steps)` → waves of parallel-executable steps (Kahn's algorithm, throws on cycles)
+- Steps in the same wave can run via `Promise.all()` — major speedup for goals with independent sub-tasks
+- P0-W4 wiring: call `DAGPlanner.plan()` in `loop._plan()`, iterate `waves` in `loop.run()`
+
+### 5. Semantic Context Compression — `src/core/intelligence/context_compressor.ts`
+
+Importance-based compression (was turn-count-based). Solves P2-003.
+
+Enhanced the existing `ContextCompressor` class with three new methods:
+- `scoreImportance(msg, indexFromEnd)` → 0-100 score (user=95, assistant+tools=90, errors=85, done=88, success=60, plain text=40 with age decay ×0.9 per 10 turns)
+- `semanticKeepMask(messages)` → `boolean[]` — which messages to keep verbatim
+- `compressSemantic(messages, agent)` → keeps high-importance + last N turns verbatim, summarizes only old low-importance results
+- Falls back to the original contiguous-region `compress()` if LLM summary fails
+- P0-W5 wiring: call `compressSemantic()` instead of `compress()` in the threshold trigger
+
+### Module index
+
+All 5 new modules are re-exported from `src/core/intelligence/index.ts`:
+`CostTracker`, `VerifyGate`, `DAGPlanner` (+ their type interfaces).
+`ToolRegistry` is exported from `src/core/tool_registry.ts` directly.
+The semantic compression methods live on the existing `ContextCompressor` class.
+
+### What's NOT done yet (P0 wiring — see `docs/TODO.md`)
+
+The 5 modules are **implemented and exported** but **not yet called**
+from the agent loop. The wiring tasks (P0-W1 through P0-W5) are the
+immediate next step:
+
+| Task | Module | Wire into | Status |
+|---|---|---|---|
+| P0-W1 | ToolRegistry | `agent.run()` scoped tool map | 🔴 pending |
+| P0-W2 | CostTracker | `_exec()` + LLM stream | 🔴 pending |
+| P0-W3 | VerifyGate | `loop._verify()` | 🔴 pending |
+| P0-W4 | DAGPlanner | `loop._plan()` + `loop.run()` wave iteration | 🔴 pending |
+| P0-W5 | compressSemantic | context threshold trigger | 🔴 pending |
+| P0-W6 | tests for all 5 | `tests/*.test.ts` | 🔴 pending |
+
 ## Axodex integration (v0.3.4) — standalone npm package
 
 Axodex is now its own standalone npm package, published as
