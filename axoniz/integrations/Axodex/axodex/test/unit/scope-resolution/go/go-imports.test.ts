@@ -1,0 +1,240 @@
+import { describe, expect, it } from 'vitest';
+import {
+  splitGoImportStatement,
+  interpretGoImport,
+  resolveGoImportTarget,
+} from '../../../../src/core/ingestion/languages/go/index.js';
+import { getGoParser } from '../../../../src/core/ingestion/languages/go/query.js';
+import type { CaptureMatch } from 'axodex-shared';
+import { resolveGoImportBinding } from '../../../../src/core/ingestion/languages/go/import-binding.js';
+
+function parseThenSplit(src: string): CaptureMatch[] {
+  const tree = getGoParser().parse(src);
+  const out: CaptureMatch[] = [];
+  for (let i = 0; i < tree.rootNode.namedChildCount; i++) {
+    const child = tree.rootNode.namedChild(i);
+    if (child?.type === 'import_declaration') out.push(...splitGoImportStatement(child as any));
+  }
+  return out;
+}
+
+function capt(name: string, text: string) {
+  return { name, text, range: { startLine: 1, startCol: 1, endLine: 1, endCol: 1 } };
+}
+
+describe('Go import decomposition', () => {
+  it('decomposes single default import', () => {
+    const matches = parseThenSplit('import "fmt"');
+    expect(matches.length).toBe(1);
+    expect(matches[0]['@import.source']?.text).toBe('fmt');
+    expect(matches[0]['@import.kind']?.text).toBe('namespace');
+    expect(matches[0]['@import.name']?.text).toBe('fmt');
+  });
+
+  it.each([
+    ['"example.com/app/handlers/v2"', 'handlers'],
+    ['h "example.com/app/handlers/v2"', 'h'],
+    ['"example.com/app/v2/handlers"', 'handlers'],
+    ['"example.com/app/v2beta"', 'v2beta'],
+    ['"gopkg.in/yaml.v3"', 'yaml'],
+    ['yamlv3 "gopkg.in/yaml.v3"', 'yamlv3'],
+    ['"gopkg.in/yaml.v3beta"', 'yaml.v3beta'],
+  ])('uses the same package qualifier for %s as route extraction', (spec, expected) => {
+    const matches = parseThenSplit(`import ${spec}`);
+    expect(matches[0]['@import.name']?.text).toBe(expected);
+    expect(interpretGoImport(matches[0])?.localName).toBe(expected);
+  });
+
+  it('decomposes grouped imports', () => {
+    const src = `import (
+  "fmt"
+  "os"
+)`;
+    const matches = parseThenSplit(src);
+    expect(matches.length).toBe(2);
+  });
+
+  it('decomposes aliased import', () => {
+    const matches = parseThenSplit('import util "example.com/pkg/util"');
+    expect(matches.length).toBe(1);
+    expect(matches[0]['@import.kind']?.text).toBe('alias');
+    expect(matches[0]['@import.name']?.text).toBe('util');
+    expect(matches[0]['@import.source']?.text).toBe('example.com/pkg/util');
+  });
+
+  it('filters blank imports', () => {
+    const matches = parseThenSplit('import _ "example.com/sideeffect"');
+    expect(matches.length).toBe(0);
+  });
+
+  it('handles dot imports', () => {
+    const matches = parseThenSplit('import . "example.com/dsl"');
+    expect(matches.length).toBe(1);
+    expect(matches[0]['@import.kind']?.text).toBe('dot');
+  });
+});
+
+describe('Go import interpretation', () => {
+  it('interprets namespace import', () => {
+    const result = interpretGoImport({
+      '@import.kind': capt('@import.kind', 'namespace'),
+      '@import.name': capt('@import.name', 'models'),
+      '@import.source': capt('@import.source', 'example.com/app/models'),
+    });
+    expect(result).toEqual({
+      kind: 'namespace',
+      localName: 'models',
+      importedName: 'models',
+      targetRaw: 'example.com/app/models',
+      implicitLocalName: true,
+    });
+  });
+
+  it('interprets alias import', () => {
+    const result = interpretGoImport({
+      '@import.kind': capt('@import.kind', 'alias'),
+      '@import.name': capt('@import.name', 'util'),
+      '@import.alias': capt('@import.alias', 'util'),
+      '@import.source': capt('@import.source', 'example.com/pkg/util'),
+    });
+    expect(result).toEqual({
+      kind: 'namespace',
+      localName: 'util',
+      importedName: 'util',
+      targetRaw: 'example.com/pkg/util',
+    });
+  });
+
+  it('interprets dot import as wildcard', () => {
+    const result = interpretGoImport({
+      '@import.kind': capt('@import.kind', 'dot'),
+      '@import.name': capt('@import.name', 'dsl'),
+      '@import.source': capt('@import.source', 'example.com/dsl'),
+    });
+    expect(result).toEqual({ kind: 'wildcard', targetRaw: 'example.com/dsl' });
+  });
+});
+
+describe('Go import binding names', () => {
+  it.each([
+    ['"example.com/app/api/v2"', 'v2'],
+    ['"example.com/app/storage"', 'endpoints'],
+    ['alias "example.com/app/storage"', 'alias'],
+    ['storage "example.com/app/storage"', 'storage'],
+  ])('resolves %s from the package clause while preserving aliases', (spec, expected) => {
+    const parsed = interpretGoImport(parseThenSplit(`import ${spec}`)[0]);
+    if (!parsed) throw new Error('Expected parsed import');
+    const result = resolveGoImportBinding(
+      parsed,
+      () => ['pkg/one.go', 'pkg/two.go'],
+      () => `package ${expected === 'v2' ? 'v2' : 'endpoints'}\n`,
+    );
+    expect(result).toMatchObject({ kind: 'namespace', localName: expected });
+  });
+
+  it('retains only the dependency if package clauses conflict', () => {
+    const parsed = interpretGoImport(parseThenSplit('import "example.com/app/pkg"')[0]);
+    if (!parsed) throw new Error('Expected parsed import');
+    expect(
+      resolveGoImportBinding(
+        parsed,
+        () => ['a.go', 'b.go'],
+        (file) => (file === 'a.go' ? 'package a' : 'package b'),
+      ),
+    ).toEqual({ kind: 'side-effect', targetRaw: 'example.com/app/pkg' });
+  });
+
+  it('does not guess a binding from an unreadable target', () => {
+    const parsed = interpretGoImport(parseThenSplit('import "example.com/app/pkg"')[0]);
+    if (!parsed) throw new Error('Expected parsed import');
+    expect(
+      resolveGoImportBinding(
+        parsed,
+        () => ['missing.go'],
+        () => undefined,
+      ),
+    ).toEqual({
+      kind: 'side-effect',
+      targetRaw: 'example.com/app/pkg',
+    });
+  });
+});
+
+describe('Go import target resolution', () => {
+  it('resolves module root imports to root package files', () => {
+    const result = resolveGoImportTarget(
+      'example.com/lib',
+      'cmd/app/main.go',
+      new Set(['root.go', 'extra.go', 'internal/model/model.go', 'root_test.go']),
+      { modulePath: 'example.com/lib' },
+    );
+
+    expect(result).toEqual(['extra.go', 'root.go']);
+  });
+
+  it('resolves sub-package imports under module root', () => {
+    const result = resolveGoImportTarget(
+      'example.com/lib/internal/models',
+      'cmd/app/main.go',
+      new Set(['internal/models/user.go', 'internal/models/repo.go', 'root.go']),
+      { modulePath: 'example.com/lib' },
+    );
+
+    expect(Array.isArray(result)).toBe(true);
+    expect((result as string[]).sort()).toEqual([
+      'internal/models/repo.go',
+      'internal/models/user.go',
+    ]);
+  });
+
+  it.each(['github.com/vendor/dep/internal/models', 'fmt', 'example.com/modular/internal/models'])(
+    'rejects imports outside the go.mod module: %s',
+    (targetRaw) => {
+      const result = resolveGoImportTarget(
+        targetRaw,
+        'main.go',
+        new Set(['internal/models/user.go', 'main.go']),
+        { modulePath: 'example.com/mod' },
+      );
+
+      expect(result).toBeNull();
+    },
+  );
+
+  it('treats a semantic import-version suffix as part of the module path', () => {
+    const result = resolveGoImportTarget(
+      'example.com/mod/v2/internal/models',
+      'cmd/app/main.go',
+      new Set(['internal/models/user.go']),
+      { modulePath: 'example.com/mod/v2' },
+    );
+
+    expect(result).toEqual(['internal/models/user.go']);
+  });
+
+  it('rejects single-segment GOPATH suffix that collides with a local dir', () => {
+    // "github.com/other/team/pkg" suffix-stripped would eventually
+    // reach "pkg" which matches the local pkg/ dir — but we require
+    // ≥2 segments in the GOPATH fallback, so it must not resolve.
+    const result = resolveGoImportTarget(
+      'github.com/other/team/pkg',
+      'main.go',
+      new Set(['pkg/util.go', 'main.go']),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('resolves multi-segment GOPATH suffix that matches local dir', () => {
+    // "github.com/other/team/pkg" where "team/pkg/" exists locally
+    // — the 2-segment suffix "team/pkg" should still resolve.
+    const result = resolveGoImportTarget(
+      'github.com/other/team/pkg',
+      'main.go',
+      new Set(['team/pkg/util.go', 'main.go']),
+    );
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result as string[]).toEqual(['team/pkg/util.go']);
+  });
+});

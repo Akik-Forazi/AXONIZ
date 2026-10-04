@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "axodex": {
+      "command": "npx",
+      "args": ["-y", "axodex@latest", "mcp"]
+    }
+  }
+}

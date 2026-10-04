@@ -1,0 +1,17 @@
+# Evaluation results (large, should not be committed)
+results/
+*.traj.json
+preds.json
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environment
+.env
+.venv/
+.venv

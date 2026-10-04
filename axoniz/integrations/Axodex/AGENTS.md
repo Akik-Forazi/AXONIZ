@@ -1,7 +1,7 @@
-<!-- version: 1.7.0 -->
-<!-- Last updated: 2026-04-23 -->
+<!-- version: 1.17.0 -->
+<!-- Last updated: 2026-09-24 -->
 
-Last reviewed: 2026-04-23
+Last reviewed: 2026-09-24
 
 **Project:** Axodex · **Environment:** dev · **Maintainer:** repository maintainers (see GitHub)
 
@@ -39,15 +39,68 @@ Commands and gotchas live under **Repo reference** below and in **[CONTRIBUTING.
 ## Reference docs
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**, **[CONTRIBUTING.md](CONTRIBUTING.md)**, **[GUARDRAILS.md](GUARDRAILS.md)**
-- **Call-resolution DAG (legacy path):** See ARCHITECTURE.md § Call-Resolution DAG. Typed 6-stage DAG inside the `parse` phase; language-specific behavior behind `inferImplicitReceiver` / `selectDispatch` hooks on `LanguageProvider`. Shared code in `axodex/src/core/ingestion/` must not name languages. Types: `axodex/src/core/ingestion/call-types.ts`.
-- **Scope-resolution pipeline (RFC #909 Ring 3):** See ARCHITECTURE.md § Scope-Resolution Pipeline. Replaces the legacy DAG for languages in `MIGRATED_LANGUAGES` (see `registry-primary-flag.ts`). A language plugs in by implementing `ScopeResolver` (`scope-resolution/contract/scope-resolver.ts`) and registering it in `SCOPE_RESOLVERS`. CI parity gate runs BOTH paths per migrated language on every PR.
+- **Objective-C provider work:** read **[docs/languages/objective-c-provider.md](docs/languages/objective-c-provider.md)** before changing Objective-C parsing or resolution.
+- **Call & inheritance resolution (RFC #909 Ring 3):** See ARCHITECTURE.md § Scope-Resolution Pipeline. All languages resolve calls and inheritance through the scope-resolution pipeline (`Registry.lookup`, `preEmitInheritanceEdges`, `emitHeritageEdges`, `buildMro` → `MethodDispatchIndex`). **Shared code in `axodex/src/core/ingestion/` must not name languages** — plug language behavior in via `LanguageProvider` / `ScopeResolver` hooks. A language plugs in by implementing `ScopeResolver` (`scope-resolution/contract/scope-resolver.ts`) and registering it in `SCOPE_RESOLVERS`. (The legacy call-resolution DAG + `@heritage` capture path were removed in RING4-1 #942.)
 - **Cursor:** `.cursor/index.mdc` (always-on); `.cursor/rules/*.mdc` (glob-scoped). Legacy `.cursorrules` deprecated.
-- **Axodex:** skills in `.claude/skills/axodex/`; MCP rules in `axodex:start` block below.
+- **Axodex:** standard skills in `.claude/skills/axodex-*/`; MCP rules in `axodex:start` block below.
+
+## PR Swarm Review (cross-CLI)
+
+To run a production-readiness review of a Axodex pull request from **any** AI CLI, follow
+the canonical, CLI-neutral spec **[`pr-swarm-review/orchestration.md`](pr-swarm-review/orchestration.md)**
+(seven read-only review personas under `pr-swarm-review/personas/`). It defines two
+execution modes with the same output contract: **Swarm mode** (parallel subagents, e.g.
+Claude Code) and **Solo mode** (one agent runs all lanes sequentially — Codex, Gemini,
+Cursor, Copilot, or any agent reading this file). Per-CLI entrypoints are thin wrappers
+listed in [`pr-swarm-review/README.md`](pr-swarm-review/README.md); edit review logic only
+in the canonical files, never in the wrappers. The review is read-only — it never edits,
+commits, or posts.
+
+## Engineering planning & execution (`/axodex-plan` · `/axodex-work` · `/axodex-review` · `/axodex-lfg`)
+
+Four canonical, CLI-neutral skill specs under `.claude/skills/` (Claude Code invokes
+them as slash commands; Codex or any other agent reading this file should read the
+named SKILL.md and follow it directly — user-level Codex prompts are documented in the
+plan/work/lfg skill READMEs):
+
+- **`axodex-plan/SKILL.md`** — deep, implementation-ready plan for a code change:
+  Axodex graph intelligence for navigation, statement-level PDG slices for behavioral
+  constraints, targeted source reads for verification. Output lands in `docs/plans/`
+  with a reusable implementation context pack (section 11). Planning-only — it never
+  edits code (index freshness refreshes via `analyze --index-only` are the one
+  permitted state change). Interactive runs ask up front how deep to go
+  (quick / standard / deep); Deepen mode strengthens an existing plan in place.
+- **`axodex-work/SKILL.md`** — executes a axodex-plan as verified atomic commits:
+  drift-checks the plan's evidence pin against HEAD, `impact` before every symbol
+  edit, tests from the plan's scenarios, `detect_changes` before every commit.
+- **`axodex-review/SKILL.md`** — read-only Axodex review of a PR URL/number,
+  branch or commit range, or local staged/unstaged/untracked changes. It pins exact
+  SHAs, aligns the graph and checkout, runs a PDG-backed taint pass on trust-boundary
+  diffs, scales to per-domain expert lenses from the graph's clusters (dispatched as
+  parallel swarm lanes — `ci-personas/` — when the CI review agent runs it), and
+  reports evidence-backed findings.
+- **`axodex-lfg/SKILL.md`** — pipeline orchestrator: plan (depth asked up front) →
+  blocking user gate (proceed or stop) → work → `axodex-review`.
+
+The family ships with the npm package (`axodex/skills/`, installed to editor targets
+by `axodex setup`) and the Claude Code plugin; review also has a standalone Cursor
+mirror. `axodex/test/unit/shipped-skills-sync.test.ts` guards the copies. Token savings of the workflow are measurable with
+`eval/workflow_bench/` (real headless CLI runs, free-model routing supported — see its README).
 
 ## Changelog
 
 | Date | Version | Change |
 |------|---------|--------|
+| 2026-09-24 | 1.17.0 | Clones with the same `origin` URL now share a store automatically; `--no-share` records a lasting opt-out (#3352). |
+| 2026-09-24 | 1.16.0 | Documented the shared worktree index store (`<AXODEX_HOME>/stores/`, `analyze --share-with`, `AXODEX_SHARED_STORE=off`) in the storage notes (#3352). |
+| 2026-09-07 | 1.15.0 | Added the Objective-C provider guide as the required reference before changing Objective-C parsing or resolution. |
+| 2026-07-20 | 1.14.0 | `axodex-review` gains a coordinated swarm: six `ci-personas/` lanes the CI review agent dispatches as subagents (via the `Agent` tool), with a bounded critic gate and sidechain-excluded evidence. |
+| 2026-07-16 | 1.13.0 | `axodex-plan` asks plan depth up front (quick/standard/deep) in interactive runs; `axodex-lfg` gate slimmed to proceed/stop (Deepen stays as the route-back mechanism). |
+| 2026-07-16 | 1.12.0 | Renamed `axodex-pr-review` to `axodex-review`; added PR URL/number, branch/range, and local-change targets plus install migration (setup warns on a legacy `axodex-pr-review` dir and leaves it in place; uninstall removes it). |
+| 2026-07-11 | 1.11.0 | Skill family shipped via npm skills/ + plugin (sync-guarded); added eval/workflow_bench token-savings benchmark. |
+| 2026-07-11 | 1.10.0 | Added `axodex-work` (plan executor) and `axodex-lfg` (plan → deepen/work gate → review pipeline) skills; section renamed to Engineering planning & execution. |
+| 2026-07-11 | 1.9.0 | Added Engineering planning (`/axodex-plan`) section; registered the `axodex-plan` skill (`.claude/skills/axodex-plan/`). |
+| 2026-05-22 | 1.8.0 | Kotlin added to `MIGRATED_LANGUAGES` (registry-primary call resolution by default). Closes #1756 (companion-vs-instance dispatch) and #1757 (lambda scopes); refs #1746. RFC §6.4 corpus criterion waived (corpus-mode wiring is #927-scope); fixture criterion met. |
 | 2026-04-23 | 1.7.0 | TypeScript added to `MIGRATED_LANGUAGES` (registry-primary call resolution by default). |
 | 2026-04-20 | 1.6.0 | Added scope-resolution pipeline pointer (RFC #909 Ring 3); Python migrated to registry-primary. |
 | 2026-04-19 | 1.5.0 | Cross-repo impact (#794): `impact`/`query`/`context` accept `repo: "@<group>"` + `service`. Removed `group_query`/`group_contracts`/`group_status` MCP tools; added `axodex://group/{name}/contracts` and `axodex://group/{name}/status` resources. |
@@ -62,29 +115,32 @@ Commands and gotchas live under **Repo reference** below and in **[CONTRIBUTING.
 <!-- axodex:start -->
 # Axodex — Code Intelligence
 
-This project is indexed by Axodex as **Axodex** (20601 symbols, 27453 relationships, 300 execution flows). Use the Axodex MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by Axodex as **Axodex** (248612 symbols, 565510 relationships, 918 execution flows).
 
-> If any Axodex tool warns the index is stale, run `npx axodex analyze` in terminal first.
+> Index stale? Run `node .axodex/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.axodex/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx axodex@latest analyze` (npm 11 npx crash; #1939).
+> On query/context/impact/cypher object results, read staleness.status and branch/lastCommit. Re-analyze only for behind or diverged — current is clone HEAD, not main.
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `axodex_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `axodex_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `axodex_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `axodex_context({name: "symbolName"})`.
+- **MUST run impact analysis before editing.** Use `impact({target: "symbolName", direction: "upstream"})` (MCP) or `node .axodex/run.cjs impact "symbolName" --direction upstream --repo .` (CLI fallback); report callers, processes, and risk. Never substitute grep for graph analysis. For unified PDG impact, add `mode: "pdg"` with optional `line: <N>` — it returns statement-level `affectedStatements` over CDG + REACHING_DEF and inter-procedural symbols in `interproceduralByDepth`/`byDepth`; no-layer/degraded PDG results are UNKNOWN-risk notes (`--pdg` layer). CLI equivalent: `node .axodex/run.cjs impact "symbolName" --direction upstream --mode pdg --line <N> --repo .`.
+- **MUST analyze graph changes before committing.** Use `detect_changes({scope: "all"})` (MCP) or `node .axodex/run.cjs detect-changes --scope all --repo .` (CLI fallback). `partial: true` or `truncated: true` is not a clean check — a zero means unseen, not unaffected; re-run it. For regression review: `detect_changes({scope: "compare", base_ref: "main"})` or `node .axodex/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
+- MUST warn on HIGH/CRITICAL `risk` pre-edit; never use `riskSharedAxes` to waive a HIGH/CRITICAL `risk` warning. Compare File/symbol: MCP File omits axes; Graph-RAG expands File.
+- **MUST treat `risk: UNKNOWN` as unresolved, not as low.** An empty caller set is not evidence the symbol is unused — it can also mean the callers are not resolvable by the index (plain-object property access, dynamic dispatch, cross-language calls). `impact` pairs `UNKNOWN` with a `riskNote` saying so. Confirm with a text search before treating the symbol as safe to change or delete; do not proceed on the strength of a zero.
+- **MUST use `query({search_query: "concept"})` for concepts/flows, `context({name: "symbolName"})` for a named symbol, or `impact` for blast radius, on read-only callers, dependencies, imports, or execution flow.** Graph first; text search only for empty/`UNKNOWN`/literals.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+- For control/data dependence, `pdg_query({mode: "controls", target: "fileOrSymbol"})` answers "under what condition does X run?" (CDG, incl. guard clauses) and `pdg_query({mode: "flows", target, variable})` traces "where does variable Y flow?" (REACHING_DEF). `--pdg` layer.
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `axodex_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `axodex_rename` which understands the call graph.
-- NEVER commit changes without running `axodex_detect_changes()` to check affected scope.
+- NEVER edit a function, class, or method before MCP/CLI impact analysis.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis, and never read `UNKNOWN` as an all-clear — it means the walk could not answer, which is the one verdict that requires confirming by other means.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit before MCP/CLI graph change analysis.
 
 ## Resources
 
 | Resource | Use for |
-|----------|---------|
+| --- | --- |
 | `axodex://repo/Axodex/context` | Codebase overview, check index freshness |
 | `axodex://repo/Axodex/clusters` | All functional areas |
 | `axodex://repo/Axodex/processes` | All execution flows |
@@ -93,13 +149,13 @@ This project is indexed by Axodex as **Axodex** (20601 symbols, 27453 relationsh
 ## CLI
 
 | Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/axodex/axodex-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/axodex/axodex-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/axodex/axodex-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/axodex/axodex-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/axodex/axodex-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/axodex/axodex-cli/SKILL.md` |
+| --- | --- |
+| Understand architecture / "How does X work?" | `.claude/skills/axodex-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/axodex-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/axodex-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/axodex-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/axodex-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/axodex-cli/SKILL.md` |
 
 <!-- axodex:end -->
 
@@ -141,6 +197,7 @@ npx axodex serve                         # HTTP API on port 4747 (from any index
 
 ### Gotchas
 
-- `npm install` in `axodex/` triggers `prepare` (builds via `tsc`) and `postinstall` (patches tree-sitter-swift, builds tree-sitter-proto). Native bindings need `python3`, `make`, `g++`.
-- `tree-sitter-kotlin` and `tree-sitter-swift` are optional — install warnings expected.
+- `npm install` in `axodex/` triggers `prepare` (builds via `tsc`) and `postinstall` (`build-tree-sitter-grammars.cjs` activates committed prebuilds in place under `vendor/`, and only source-builds when none matches). A C/C++ toolchain (`python3`, `make`, `g++`) is needed only for that source-build fallback.
+- The vendored grammars `tree-sitter-{c,dart,proto,swift,kotlin,zig}` are handled uniformly: c is required; dart/proto/swift/kotlin/zig are optional and skippable via `AXODEX_SKIP_OPTIONAL_GRAMMARS=1`. Install warnings appear only when no prebuild matches the platform-arch and no toolchain is present, and are non-fatal — only that language's parsing is unavailable.
 - ESLint configured via `eslint.config.mjs` (TS, React Hooks, unused-imports). No `npm run lint` script; use `npx eslint .`. Prettier runs via lint-staged. CI checks both in `ci-quality.yml`.
+- Index storage defaults to `<repo>/.axodex/`. `AXODEX_STORAGE_PATH` selects one complete external index directory and wins over `AXODEX_STORAGE_ROOT`, which creates an isolated `<repo-basename>-<12-hex>/` slot per repository. Linked worktrees share one store under `<AXODEX_HOME>/stores/<key>/` (one immutable graph per commit, private graphs for checkouts with local changes, shared parse caches); clones with the same `origin` URL join a registered sibling's store automatically (`analyze --share-with` names one, `--no-share` opts out and is remembered), and `AXODEX_SHARED_STORE=off` or either storage env var disables sharing (#3352). `AXODEX_CONTENT_RETENTION` is `full` (default), `symbol`, or `none`. MCP `list_repos`, `axodex://repo/{name}/context`, and HTTP `GET /api/repos` / `GET /api/repo` expose `storagePath`, `contentRetention`, and `sourceAvailable`. HTTP `/api/file` and `/api/grep` return 410 unless retention is `full`; MCP `include_content` may still return symbol spans at `symbol`.

@@ -1,10 +1,10 @@
-<!-- version: 1.3.0 -->
+<!-- version: 1.8.0 -->
 <!--
   Metadata: version, last reviewed, scope, model policy, reference docs, changelog.
-  Last updated: 2026-03-22
+  Last updated: 2026-07-16
 -->
 
-Last reviewed: 2026-04-13
+Last reviewed: 2026-07-16
 
 **Project:** Axodex · **Environment:** dev · **Maintainer:** repository maintainers (see GitHub)
 
@@ -35,13 +35,19 @@ If always-on instructions grow, load deep conventions via conditional reads (e.g
 ## Reference Documentation
 
 - **This repository:** [AGENTS.md](AGENTS.md) (Cursor + monorepo notes), [ARCHITECTURE.md](ARCHITECTURE.md), [CONTRIBUTING.md](CONTRIBUTING.md), [GUARDRAILS.md](GUARDRAILS.md).
-- **Call-resolution DAG:** See ARCHITECTURE.md § Call-Resolution DAG. Shared pipeline code in `axodex/src/core/ingestion/` must not name languages — use `LanguageProvider` hooks instead (see AGENTS.md).
-- **Axodex:** `.claude/skills/axodex/`; MCP and indexed-repo rules live only in [AGENTS.md](AGENTS.md) (`axodex:start` … `axodex:end`). See **Axodex rules** below.
+- **Call & inheritance resolution:** See ARCHITECTURE.md § Scope-Resolution Pipeline. Shared pipeline code in `axodex/src/core/ingestion/` must not name languages — use `LanguageProvider` / `ScopeResolver` hooks instead (see AGENTS.md). (The legacy call-resolution DAG was removed in #942.)
+- **Axodex:** standard skills in `.claude/skills/axodex-*/`; MCP and indexed-repo rules live only in [AGENTS.md](AGENTS.md) (`axodex:start` … `axodex:end`). See **Axodex rules** below.
+- **Engineering plans, execution & review:** `/axodex-plan <task>` (implementation-ready plans via Axodex + statement-level PDG + source verification; Deepen mode for existing plans), `/axodex-work [plan]` (executes a plan as impact-checked, detect_changes-gated atomic commits), `/axodex-review [PR|branch|range|local]` (read-only graph-backed review), `/axodex-lfg <task>` (plan with depth asked up front → proceed/stop gate → work → review pipeline). Specs in `.claude/skills/axodex-{plan,work,review,lfg}/SKILL.md` (see AGENTS.md § Engineering planning & execution).
 
 ## Changelog
 
 | Date | Version | Change |
 |------|---------|--------|
+| 2026-07-20 | 1.8.0 | The CI review agent runs `axodex-review` as a coordinated swarm — six `ci-personas/` lanes dispatched via the `Agent` tool with a bounded critic gate. |
+| 2026-07-16 | 1.7.0 | `/axodex-plan` asks depth up front in interactive runs; `/axodex-lfg` gate slimmed to proceed/stop. |
+| 2026-07-16 | 1.6.0 | Renamed `/axodex-pr-review` to `/axodex-review` and added PR, branch/range, and local-change targets. |
+| 2026-07-11 | 1.5.0 | Added `/axodex-work` and `/axodex-lfg` to the engineering plans & execution pointer. |
+| 2026-07-11 | 1.4.0 | Added `/axodex-plan` pointer to Reference Documentation. |
 | 2026-04-13 | 1.3.0 | Updated Axodex index stats after DAG refactor. |
 | 2026-03-24 | 1.2.0 | Removed duplicated axodex:start block and scope table; replaced with pointers to AGENTS.md. |
 | 2026-03-23 | 1.1.0 | Updated agent instructions to match AGENTS.md. |
@@ -56,29 +62,32 @@ See the `<!-- axodex:start --> … <!-- axodex:end -->` block in **[AGENTS.md](A
 <!-- axodex:start -->
 # Axodex — Code Intelligence
 
-This project is indexed by Axodex as **Axodex** (20601 symbols, 27453 relationships, 300 execution flows). Use the Axodex MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by Axodex as **Axodex** (248612 symbols, 565510 relationships, 918 execution flows).
 
-> If any Axodex tool warns the index is stale, run `npx axodex analyze` in terminal first.
+> Index stale? Run `node .axodex/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.axodex/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx axodex@latest analyze` (npm 11 npx crash; #1939).
+> On query/context/impact/cypher object results, read staleness.status and branch/lastCommit. Re-analyze only for behind or diverged — current is clone HEAD, not main.
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `axodex_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `axodex_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `axodex_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `axodex_context({name: "symbolName"})`.
+- **MUST run impact analysis before editing.** Use `impact({target: "symbolName", direction: "upstream"})` (MCP) or `node .axodex/run.cjs impact "symbolName" --direction upstream --repo .` (CLI fallback); report callers, processes, and risk. Never substitute grep for graph analysis. For unified PDG impact, add `mode: "pdg"` with optional `line: <N>` — it returns statement-level `affectedStatements` over CDG + REACHING_DEF and inter-procedural symbols in `interproceduralByDepth`/`byDepth`; no-layer/degraded PDG results are UNKNOWN-risk notes (`--pdg` layer). CLI equivalent: `node .axodex/run.cjs impact "symbolName" --direction upstream --mode pdg --line <N> --repo .`.
+- **MUST analyze graph changes before committing.** Use `detect_changes({scope: "all"})` (MCP) or `node .axodex/run.cjs detect-changes --scope all --repo .` (CLI fallback). `partial: true` or `truncated: true` is not a clean check — a zero means unseen, not unaffected; re-run it. For regression review: `detect_changes({scope: "compare", base_ref: "main"})` or `node .axodex/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
+- MUST warn on HIGH/CRITICAL `risk` pre-edit; never use `riskSharedAxes` to waive a HIGH/CRITICAL `risk` warning. Compare File/symbol: MCP File omits axes; Graph-RAG expands File.
+- **MUST treat `risk: UNKNOWN` as unresolved, not as low.** An empty caller set is not evidence the symbol is unused — it can also mean the callers are not resolvable by the index (plain-object property access, dynamic dispatch, cross-language calls). `impact` pairs `UNKNOWN` with a `riskNote` saying so. Confirm with a text search before treating the symbol as safe to change or delete; do not proceed on the strength of a zero.
+- **MUST use `query({search_query: "concept"})` for concepts/flows, `context({name: "symbolName"})` for a named symbol, or `impact` for blast radius, on read-only callers, dependencies, imports, or execution flow.** Graph first; text search only for empty/`UNKNOWN`/literals.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+- For control/data dependence, `pdg_query({mode: "controls", target: "fileOrSymbol"})` answers "under what condition does X run?" (CDG, incl. guard clauses) and `pdg_query({mode: "flows", target, variable})` traces "where does variable Y flow?" (REACHING_DEF). `--pdg` layer.
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `axodex_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `axodex_rename` which understands the call graph.
-- NEVER commit changes without running `axodex_detect_changes()` to check affected scope.
+- NEVER edit a function, class, or method before MCP/CLI impact analysis.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis, and never read `UNKNOWN` as an all-clear — it means the walk could not answer, which is the one verdict that requires confirming by other means.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit before MCP/CLI graph change analysis.
 
 ## Resources
 
 | Resource | Use for |
-|----------|---------|
+| --- | --- |
 | `axodex://repo/Axodex/context` | Codebase overview, check index freshness |
 | `axodex://repo/Axodex/clusters` | All functional areas |
 | `axodex://repo/Axodex/processes` | All execution flows |
@@ -87,12 +96,12 @@ This project is indexed by Axodex as **Axodex** (20601 symbols, 27453 relationsh
 ## CLI
 
 | Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/axodex/axodex-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/axodex/axodex-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/axodex/axodex-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/axodex/axodex-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/axodex/axodex-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/axodex/axodex-cli/SKILL.md` |
+| --- | --- |
+| Understand architecture / "How does X work?" | `.claude/skills/axodex-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/axodex-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/axodex-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/axodex-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/axodex-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/axodex-cli/SKILL.md` |
 
 <!-- axodex:end -->

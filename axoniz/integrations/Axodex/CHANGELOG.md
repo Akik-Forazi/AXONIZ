@@ -4,12 +4,6 @@ All notable changes to Axodex will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
-- Migrated from KuzuDB to LadybugDB v0.15 (`@ladybugdb/core`, `@ladybugdb/wasm-core`)
-- Renamed all internal paths from `kuzu` to `lbug` (storage: `.axodex/kuzu` → `.axodex/lbug`)
-- Added automatic cleanup of stale KuzuDB index files
-- LadybugDB v0.15 requires explicit VECTOR extension loading for semantic search
-
 ## [1.5.3] - 2026-04-01
 
 ### Added

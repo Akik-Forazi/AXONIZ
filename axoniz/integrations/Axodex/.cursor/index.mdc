@@ -14,7 +14,7 @@ Canonical agent instructions: **[AGENTS.md](../AGENTS.md)** (Axodex MCP rules, m
 - NEVER rename symbols with find-and-replace — use `axodex_rename`.
 - NEVER commit without running `axodex_detect_changes()`.
 - NEVER ignore HIGH/CRITICAL risk warnings from impact analysis.
-- NEVER run `npx axodex analyze` without `--embeddings` if `.axodex/meta.json` shows stored embeddings.
+- NEVER run `npx axodex analyze` without `--embeddings` if the index metadata (`.axodex/axodex.json` / legacy `meta.json`) shows stored embeddings.
 
 Full rules: **[AGENTS.md](../AGENTS.md)** (`axodex:start` block, Cursor Cloud section).
 

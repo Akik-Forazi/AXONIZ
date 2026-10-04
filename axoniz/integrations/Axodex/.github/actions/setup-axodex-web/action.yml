@@ -1,0 +1,29 @@
+name: Setup Axodex Web
+description: Setup Node.js 22, build axodex-shared, install web dependencies
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      with:
+        # Vite 7 requires Node ^20.19.0 || >=22.12.0 (require(esm) support).
+        node-version: 22
+        cache: npm
+        cache-dependency-path: axodex-web/package-lock.json
+
+    - name: Install web dependencies
+      run: npm ci
+      shell: bash
+      working-directory: axodex-web
+      env:
+        # Browsers are installed explicitly by e2e. Typecheck only needs types.
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+    # Compile shared with the web package's TypeScript 7. Do not npm-ci
+    # axodex-shared (a second optional-platform install, ~7 minutes).
+    - name: Build axodex-shared
+      # node + lib/tsc.js — same on Windows/macOS/Linux. Do not use .bin/tsc
+      # (tsc.cmd on Windows; execFileSync cannot launch .cmd without a shell).
+      run: node ../axodex-web/node_modules/typescript/lib/tsc.js
+      shell: bash
+      working-directory: axodex-shared
