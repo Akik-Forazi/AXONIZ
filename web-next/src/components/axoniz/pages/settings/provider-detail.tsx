@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, use } from "react";
+import Link from "next/link";
 import {
   ChevronLeft, Server, Cloud, Cpu, Loader2, CheckCircle2, AlertTriangle,
   ExternalLink, Save,
@@ -16,7 +17,6 @@ import {
   useAxonizStore,
   PROVIDER_CATALOG,
   type ProviderId,
-  type ProviderConfig,
 } from "@/stores/axoniz-store";
 
 interface ModelInfo {
@@ -32,11 +32,24 @@ interface TestState {
   error?: string;
 }
 
-export function ProviderDetailPage({ providerId }: { providerId: string }) {
-  const id = providerId as ProviderId;
-  const { providers, setProvider, navigate, activeProvider, setActiveProvider, setActiveModel, llamacpp, setLlamacpp } = useAxonizStore();
-  const cfg = providers[id] ?? { enabled: false, baseUrl: "", apiKey: "", model: "" };
-  const meta = PROVIDER_CATALOG.find((p) => p.id === id)!;
+export function ProviderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const providerId = id as ProviderId;
+
+  const providers = useAxonizStore((s) => s.providers);
+  const setProvider = useAxonizStore((s) => s.setProvider);
+  const activeProvider = useAxonizStore((s) => s.activeProvider);
+  const setActiveProvider = useAxonizStore((s) => s.setActiveProvider);
+  const setActiveModel = useAxonizStore((s) => s.setActiveModel);
+  const llamacpp = useAxonizStore((s) => s.llamacpp);
+  const setLlamacpp = useAxonizStore((s) => s.setLlamacpp);
+
+  const cfg = providers[providerId] ?? { enabled: false, baseUrl: "", apiKey: "", model: "" };
+  const meta = PROVIDER_CATALOG.find((p) => p.id === providerId)!;
   const [test, setTest] = useState<TestState>({ status: "idle" });
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
@@ -45,7 +58,7 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
     setTest({ status: "loading", models: [] });
     try {
       const result = await axonizClient.testProvider({
-        provider: id,
+        provider: providerId,
         baseUrl: cfg.baseUrl || meta.defaultBaseUrl,
         apiKey: cfg.apiKey || undefined,
       });
@@ -56,7 +69,7 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
         error: result.error,
       });
       if (result.ok) {
-        toast.success(`${meta.name} reachable`, { description: `${result.models.length} models · ${result.latencyMs}ms` });
+        toast.success(`${meta.name} reachable`, { description: `${(result.models ?? []).length} models · ${result.latencyMs}ms` });
       } else {
         toast.error(`${meta.name} test failed`, { description: result.error });
       }
@@ -69,9 +82,7 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
   async function save() {
     setSaving(true);
     try {
-      await axonizClient.saveConfig({
-        providers: { [id]: cfg },
-      });
+      await axonizClient.saveConfig({ providers: { [providerId]: cfg } });
       toast.success("Saved", { description: `${meta.name} config persisted locally.` });
     } catch {
       toast.error("Save failed");
@@ -81,12 +92,12 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
   }
 
   function activate() {
-    setActiveProvider(id);
+    setActiveProvider(providerId);
     if (cfg.model) setActiveModel(cfg.model);
     toast.success(`Active provider: ${meta.name}`);
   }
 
-  const isActive = activeProvider === id;
+  const isActive = activeProvider === providerId;
   const filteredModels = (test.models ?? []).filter((m) =>
     !query || m.id.toLowerCase().includes(query.toLowerCase()),
   );
@@ -95,9 +106,9 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
     <div className="h-full overflow-y-auto">
       <div className="px-4 h-10 border-b border-border flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10">
         <div className="flex items-center gap-2 text-[13px] font-medium">
-          <button onClick={() => navigate("/settings/providers")} className="text-muted-foreground hover:text-foreground flex items-center gap-1">
+          <Link href="/settings/providers" className="text-muted-foreground hover:text-foreground flex items-center gap-1">
             <ChevronLeft className="w-3.5 h-3.5" />Providers
-          </button>
+          </Link>
           <span className="text-muted-foreground/40">/</span>
           <span>{meta.name}</span>
         </div>
@@ -135,10 +146,10 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
         </Card>
 
         {/* Config form */}
-        {id === "llamacpp" ? (
+        {providerId === "llamacpp" ? (
           <Card className="surface p-4 space-y-3.5">
             <Field label="Model path" hint="Absolute path to the .gguf file in your Vault" value={llamacpp.modelPath} placeholder="~/.axoniz/models/your-model.gguf" onChange={(v) => setLlamacpp({ modelPath: v })} mono />
-            <Field label="llama-server URL" hint="If running llama.cpp in server mode. Test connection hits /health." value={cfg.baseUrl} placeholder="http://localhost:8080" onChange={(v) => setProvider(id, { baseUrl: v })} mono />
+            <Field label="llama-server URL" hint="If running llama.cpp in server mode. Test connection hits /health." value={cfg.baseUrl} placeholder="http://localhost:8080" onChange={(v) => setProvider(providerId, { baseUrl: v })} mono />
             <div className="grid grid-cols-3 gap-3">
               <SliderCell label="Context" value={llamacpp.nCtx} min={1024} max={32768} step={1024} onChange={(v) => setLlamacpp({ nCtx: v })} format={(v) => `${(v / 1024).toFixed(0)}K`} />
               <SliderCell label="GPU layers" value={llamacpp.nGpuLayers} min={0} max={99} step={1} onChange={(v) => setLlamacpp({ nGpuLayers: v })} format={(v) => (v === 0 ? "CPU" : v >= 99 ? "Full" : `${v}`)} />
@@ -147,13 +158,12 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
           </Card>
         ) : (
           <Card className="surface p-4 space-y-3.5">
-            <Field label="Base URL" hint="Provider endpoint, no trailing slash" value={cfg.baseUrl} placeholder={meta.defaultBaseUrl} onChange={(v) => setProvider(id, { baseUrl: v })} mono />
+            <Field label="Base URL" hint="Provider endpoint, no trailing slash" value={cfg.baseUrl} placeholder={meta.defaultBaseUrl} onChange={(v) => setProvider(providerId, { baseUrl: v })} mono />
             {meta.needsApiKey && (
-              <Field label={meta.apiKeyLabel || "API key"} hint="Stored locally in your browser only — never sent anywhere except the provider's own endpoint" type="password" value={cfg.apiKey} placeholder={meta.apiKeyPlaceholder} onChange={(v) => setProvider(id, { apiKey: v })} />
+              <Field label={meta.apiKeyLabel || "API key"} hint="Stored locally in your browser only — never sent anywhere except the provider's own endpoint" type="password" value={cfg.apiKey} placeholder={meta.apiKeyPlaceholder} onChange={(v) => setProvider(providerId, { apiKey: v })} />
             )}
-            <Field label="Model" hint="Pick from the test results below or enter manually" value={cfg.model} placeholder={meta.popularModels[0] ?? ""} onChange={(v) => setProvider(id, { model: v })} mono />
+            <Field label="Model" hint="Pick from the test results below or enter manually" value={cfg.model} placeholder={meta.popularModels[0] ?? ""} onChange={(v) => setProvider(providerId, { model: v })} mono />
 
-            {/* Popular models (quick pick) */}
             {meta.popularModels.length > 0 && (
               <div>
                 <Label className="text-xs font-medium text-muted-foreground">Popular models</Label>
@@ -161,7 +171,7 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
                   {meta.popularModels.map((m) => (
                     <button
                       key={m}
-                      onClick={() => setProvider(id, { model: m })}
+                      onClick={() => setProvider(providerId, { model: m })}
                       className={`px-2 py-1 rounded-md border text-[11px] font-mono transition-colors ${
                         cfg.model === m
                           ? "border-foreground/20 bg-foreground/5 text-foreground"
@@ -175,7 +185,6 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
               </div>
             )}
 
-            {/* Pricing hint */}
             {(meta.pricePerMTokIn > 0 || meta.pricePerMTokOut > 0) && (
               <div className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[11px] text-muted-foreground">
                 <span className="text-foreground/80 font-mono">${meta.pricePerMTokIn.toFixed(2)}</span> /MTok input
@@ -187,7 +196,7 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
           </Card>
         )}
 
-        {/* Test connection button + result */}
+        {/* Test connection */}
         <Card className="surface p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -213,7 +222,7 @@ export function ProviderDetailPage({ providerId }: { providerId: string }) {
                     {filteredModels.slice(0, 50).map((m) => (
                       <button
                         key={m.id}
-                        onClick={() => setProvider(id, { model: m.id })}
+                        onClick={() => setProvider(providerId, { model: m.id })}
                         className={`w-full text-left px-3 py-1.5 border-b border-border last:border-b-0 hover:bg-secondary transition-colors flex items-center gap-2 ${
                           cfg.model === m.id ? "bg-foreground/5" : ""
                         }`}

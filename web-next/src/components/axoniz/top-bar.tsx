@@ -1,16 +1,17 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Power, Search } from "lucide-react";
-import { useAxonizStore } from "@/stores/axoniz-store";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { useAxonizStore, PROVIDER_CATALOG } from "@/stores/axoniz-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHealthQuery, useSystemStatsQuery } from "./queries";
-import { PROVIDER_CATALOG } from "@/stores/axoniz-store";
 
 export function TopBar() {
+  const pathname = usePathname();
   const {
-    route,
     sidebarCollapsed,
     toggleSidebar,
     activeProvider,
@@ -26,9 +27,11 @@ export function TopBar() {
   const online = health?.status === "active";
   const providerMeta = PROVIDER_CATALOG.find((p) => p.id === activeProvider);
 
-  // Build breadcrumb from route
-  const parts = route.split("/").filter(Boolean);
-  const breadcrumb = parts.length > 0 ? parts.join(" / ") : "chat";
+  // Build breadcrumb from real Next.js pathname
+  const parts = pathname.split("/").filter(Boolean);
+  const breadcrumb = parts.length > 0
+    ? parts.map((p) => p.length > 22 ? p.slice(0, 22) + "…" : p).join(" / ")
+    : "chat";
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-2 px-4 h-12 border-b border-border bg-background/95 backdrop-blur-sm">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Server, Cpu, Shield, Mic, Palette, User, ChevronRight, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ const CARDS: SettingsCard[] = [
 ];
 
 export function SettingsIndexPage({ activeTab }: { activeTab?: string }) {
-  const { navigate, providers } = useAxonizStore();
+  const providers = useAxonizStore((s) => s.providers);
   const enabledCount = Object.values(providers).filter((p) => p.enabled || p.baseUrl).length;
 
   return (
@@ -36,7 +37,7 @@ export function SettingsIndexPage({ activeTab }: { activeTab?: string }) {
 
       <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-w-5xl">
         {CARDS.map((card) => (
-          <button key={card.route} onClick={() => navigate(card.route)} className="text-left">
+          <Link key={card.route} href={card.route}>
             <Card className={`surface hoverable p-4 h-full ${activeTab === card.route.split("/")[2] ? "border-foreground/15" : ""}`}>
               <div className="flex items-start gap-3">
                 <div className="shrink-0 w-8 h-8 rounded-md bg-secondary border border-border flex items-center justify-center">
@@ -57,7 +58,7 @@ export function SettingsIndexPage({ activeTab }: { activeTab?: string }) {
                 </div>
               )}
             </Card>
-          </button>
+          </Link>
         ))}
       </div>
     </div>

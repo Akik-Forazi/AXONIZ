@@ -283,14 +283,11 @@ interface AuthState {
 }
 
 interface UiState extends AuthState {
-  /* navigation — state-based router. URL stays /, but the app tracks a path */
-  route: string;
-  navigate: (to: string) => void;
-  navigateBack: () => void;
-  navigateToSection: (section: string) => void;
-
+  /* Sidebar collapse state — small piece of UI state, kept in store so the
+       TopBar toggle button can flip it. Routing is now real Next.js routes. */
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
+  setSidebarCollapsed: (v: boolean) => void;
 
   activeModel: string | null;
   activeProvider: ProviderId;
@@ -312,14 +309,11 @@ interface UiState extends AuthState {
   setDataSource: (s: "mock" | "live") => void;
 }
 
-const INITIAL_ROUTE = "/chat";
-
 export const useAxonizStore = create<UiState>()(
   persist(
     (set, get) => ({
       token: null,
       username: null,
-      route: INITIAL_ROUTE,
       sidebarCollapsed: false,
       activeModel: null,
       activeProvider: "llamacpp",
@@ -328,21 +322,13 @@ export const useAxonizStore = create<UiState>()(
       llamacpp: DEFAULT_LLAMACPP,
       modelPickerOpen: false,
 
-      setAuth: (token, username) => set({ token, username, route: INITIAL_ROUTE }),
-      logout: () => set({ token: null, username: null, route: "/chat" }),
-
-      navigate: (to) => set({ route: to }),
-      navigateBack: () => {
-        const r = get().route;
-        const parts = r.split("/").filter(Boolean);
-        if (parts.length > 1) {
-          set({ route: "/" + parts.slice(0, -1).join("/") });
-        }
-      },
-      navigateToSection: (section) => set({ route: `/${section}` }),
+      setAuth: (token, username) => set({ token, username }),
+      logout: () => set({ token: null, username: null }),
 
       toggleSidebar: () =>
         set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+
       openModelPicker: () => set({ modelPickerOpen: true }),
       closeModelPicker: () => set({ modelPickerOpen: false }),
       pickModel: (provider, model) =>
@@ -369,23 +355,21 @@ export const useAxonizStore = create<UiState>()(
         set((s) => ({ llamacpp: { ...s.llamacpp, ...patch } })),
     }),
     {
-      name: "axoniz-store-v4",
+      name: "axoniz-store-v5",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         token: s.token,
         username: s.username,
-        route: s.route,
         sidebarCollapsed: s.sidebarCollapsed,
         activeModel: s.activeModel,
         activeProvider: s.activeProvider,
         providers: s.providers,
         llamacpp: s.llamacpp,
       }),
-      version: 4,
+      version: 5,
       migrate: () => ({
         token: null,
         username: null,
-        route: INITIAL_ROUTE,
         sidebarCollapsed: false,
         activeModel: null,
         activeProvider: "llamacpp" as ProviderId,

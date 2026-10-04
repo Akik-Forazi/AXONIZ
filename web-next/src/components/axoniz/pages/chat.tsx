@@ -49,7 +49,7 @@ export function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const { activeProvider, providers, llamacpp, activeModel, openModelPicker, navigate } = useAxonizStore();
+  const { activeProvider, providers, llamacpp, activeModel, openModelPicker } = useAxonizStore();
   const cfg = providers[activeProvider];
   const meta = PROVIDER_CATALOG.find((p) => p.id === activeProvider)!;
   const providerReady = activeProvider === "llamacpp" || !!cfg?.baseUrl;
