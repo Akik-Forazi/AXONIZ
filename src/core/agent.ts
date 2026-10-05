@@ -15,7 +15,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { ChatHistory } from "./history.js";
 import { debug, error, info, warn, getLogger } from "./debug.js";
-import { WorkspaceIndexer, GitTools, TokenCounter, ContextCompressor } from "./extras.js";
+import { WorkspaceIndexer, GitTools, TokenCounter } from "./extras.js";
 import { FileTools } from "../tools/file_tools.js";
 import { ShellTools } from "../tools/shell_tools.js";
 import { WebTools } from "../tools/web_tools.js";
@@ -35,6 +35,9 @@ import {
   SkillDistiller,
 } from "./intelligence/index.js";
 import { ShadowGuardReflex } from "./intelligence/reflex.js";
+import { CostTracker } from "./intelligence/cost_tracker.js";
+import { ContextCompressor } from "./intelligence/context_compressor.js";
+import { ToolRegistry, type AgentRole } from "./tool_registry.js";
 import { SemanticMemory as Memory } from "./memory.js";
 import { getPersona, type Persona } from "./persona.js";
 import { TOOL_SCHEMAS, type ToolFunctionSchema } from "./tool_schemas.js";
@@ -314,6 +317,14 @@ export class Agent {
   readonly config: AxonizConfig & Record<string, unknown>;
   readonly workspace: string;
 
+  /**
+   * Optional PEAK role for scoped tool access (v0.3.6).
+   * When set, only the tools in AGENT_DEFINITIONS[role].tools are
+   * dispatchable via exec(). When undefined, the full tool map is
+   * used (backwards-compat with pre-v0.3.6 behavior).
+   */
+  role?: AgentRole;
+
   /* Core tools */
   readonly fileTools: FileTools;
   readonly shellTools: ShellTools;
@@ -337,6 +348,12 @@ export class Agent {
   readonly daemon: axonizDaemon;
   readonly predictor: PredictiveEngine;
   readonly distiller: SkillDistiller;
+  /**
+   * Per-task cost attribution (v0.3.6 PEAK). Records token usage +
+   * duration for every tool call and LLM call. Broadcasts live cost
+   * events over the SSE broker for the web UI's event rail.
+   */
+  readonly costTracker: CostTracker;
 
   standby: boolean;
   llm: Backend | null = null;
@@ -368,6 +385,14 @@ export class Agent {
     ) as AxonizConfig & Record<string, unknown>;
     this.workspace = path.resolve(String(kwargs.workspace ?? "."));
 
+    // ── PEAK role (v0.3.6): optional per-role tool scoping ──
+    // When set, only AGENT_DEFINITIONS[role].tools are dispatchable.
+    // When undefined, the full tool map is used (backwards-compat).
+    const roleRaw = kwargs.role;
+    if (typeof roleRaw === "string" && roleRaw.length > 0 && roleRaw !== "general") {
+      this.role = roleRaw as AgentRole;
+    }
+
     // ── Core tools ──
     this.fileTools = new FileTools(this.workspace);
     this.shellTools = new ShellTools(this.workspace);
@@ -381,12 +406,28 @@ export class Agent {
     this.astIndex = new ASTIndexer(this.workspace);
     this.axodex = new AxodexTools(this.workspace);
 
-    // ── Context compression (Phase 6+) ──
-    // NOTE: ContextCompressor lives in extras.ts (ported with the core utilities).
-    // Its constructor is positional: (maxTokens, keepTail).
+    // ── Context compression (Phase 6+ → v0.3.6 semantic) ──
+    // The new ContextCompressor (src/core/intelligence/context_compressor.ts)
+    // exposes compressSemantic() — keep-importance-aware compaction that
+    // preserves user asks, tool calls, and errors verbatim. Falls back to
+    // the contiguous-region compress() method internally when LLM
+    // summarisation is unavailable.
+    const nCtx = Math.max(1000, Number(this.config.n_ctx ?? 32768));
     this.compressor = new ContextCompressor(
-      Math.max(1000, Math.floor(Number(this.config.n_ctx ?? 32768) * 0.4)),
-      6,
+      String(this.config.model_name ?? "axoniz"), // model name (used in logs)
+      0.4,                                        // threshold_percent (≈ old 0.4 * n_ctx)
+      3,                                          // protect_first_n (system prompt region)
+      6,                                          // protect_last_n (recency, matches old keepTail)
+      nCtx,                                       // context_length
+    );
+
+    // ── Cost tracker (v0.3.6 PEAK) ──
+    // 0 pricing for local providers (llama.cpp, LM Studio, Ollama).
+    // Cloud providers (OpenAI, Anthropic) should override this with
+    // real per-MTok pricing in their backend factory.
+    this.costTracker = new CostTracker(
+      this.trajSessionId ?? "session",
+      { inputPricePerMTok: 0, outputPricePerMTok: 0 },
     );
 
     // Standby mode — don't load LLM weights on startup
@@ -962,8 +1003,22 @@ export class Agent {
    *   4. Self-correction analysis
    */
   async exec(name: string, args: Record<string, unknown>): Promise<string> {
-    const fn = this.toolMap.get(name);
-    if (!fn) return `[ERROR] Unknown tool '${name}'`;
+    // PEAK role scoping (v0.3.6): when a role is set, restrict dispatchable
+    // tools to AGENT_DEFINITIONS[role].tools. When undefined, fall through
+    // to the full map (backwards-compat with pre-v0.3.6 behavior).
+    const dispatchMap = this.role
+      ? ToolRegistry.scopedToolMap(this.role, this.toolMap)
+      : this.toolMap;
+    const fn = dispatchMap.get(name);
+    if (!fn) {
+      // If the tool exists in the full map but not in the scoped map, surface
+      // a role-restriction message so the LLM knows why the call was refused.
+      if (this.toolMap.has(name) && this.role) {
+        const def = ToolRegistry.get(this.role);
+        return `[ERROR] Tool '${name}' is not available to role '${this.role}'. Allowed: ${def?.tools.join(", ") ?? "(none)"}`;
+      }
+      return `[ERROR] Unknown tool '${name}'`;
+    }
 
     const def = this.config.definition as any;
     if (def && def.tool_config && def.tool_config.tool_names) {
@@ -1050,6 +1105,17 @@ export class Agent {
       success = false;
     }
     const durationMs = Date.now() - t0;
+
+    // 2b. Cost attribution (v0.3.6 PEAK) — record tool token usage + duration.
+    // tokensIn ≈ args JSON, tokensOut ≈ result string. TokenCounter is a
+    // rough ~4 chars/token estimator; good enough for cost dashboards.
+    try {
+      const tokensIn = TokenCounter.count(JSON.stringify(args ?? {}));
+      const tokensOut = TokenCounter.count(result);
+      this.costTracker.recordToolCall(name, tokensIn, tokensOut, durationMs);
+    } catch (e) {
+      debug(`[CostTracker] tool record failed: ${errText(e)}`);
+    }
 
     // 3. Record to trajectory
     if (this.trajSessionId) {
@@ -1296,13 +1362,17 @@ export class Agent {
         }
       }
 
-      // Context compression (Phase 6+)
+      // Context compression (Phase 6+ → v0.3.6 semantic). Uses the new
+      // compressSemantic() — keep-importance-aware compaction that
+      // preserves user asks, tool calls, and errors verbatim. Falls
+      // back to contiguous-region compress() internally.
     const curTokens = TokenCounter.countMessages(msgs as never);
-    if (curTokens > this.compressor.max_tokens) {
-      msgs = (await this.compressor.compress(msgs as never, this.summarizer())) as ChatMessage[];
+    if (this.compressor.shouldCompress(curTokens)) {
+      msgs = (await this.compressor.compressSemantic(msgs as never, this as never)) as ChatMessage[];
     }
 
       let response: CompletionResult;
+      const llmT0 = Date.now();
       try {
         response = await this.llm!.complete(msgs);
       } catch (e) {
@@ -1316,7 +1386,7 @@ export class Agent {
         error(`[Agent] API Error: ${reason.value} | ${errText(e)}`);
 
         if (reason.value === APIFailoverReason.CONTEXT_OVERFLOW) {
-          msgs = (await this.compressor.compress(msgs as never, this.summarizer())) as ChatMessage[];
+          msgs = (await this.compressor.compressSemantic(msgs as never, this as never)) as ChatMessage[];
           try {
             response = await this.llm!.complete(msgs);
           } catch (e2) {
@@ -1325,6 +1395,17 @@ export class Agent {
         } else {
           return `[ERROR] Backend (${reason.value}): ${errText(e)}`;
         }
+      }
+      // Cost attribution for the LLM call (v0.3.6 PEAK)
+      try {
+        const tokensIn = TokenCounter.countMessages(msgs as never);
+        const tokensOut = isToolCallResponse(response)
+          ? TokenCounter.count(JSON.stringify(response.calls))
+          : TokenCounter.count(response.text ?? "");
+        const model = String(this.config.model_name ?? this.llm?.name ?? "axoniz");
+        this.costTracker.recordLLMCall(tokensIn, tokensOut, Date.now() - llmT0, model);
+      } catch (e) {
+        debug(`[CostTracker] LLM record failed: ${errText(e)}`);
       }
 
       if (isToolCallResponse(response)) {
@@ -1427,12 +1508,14 @@ export class Agent {
       if (this.aborted()) return "[Stopped by user]";
       this.onStep?.(step, maxSteps);
 
+      // Context compression (Phase 6+ → v0.3.6 semantic)
       const curTokens = TokenCounter.countMessages(msgs as never);
-      if (curTokens > this.compressor.max_tokens) {
-        msgs = (await this.compressor.compress(msgs as never, this.summarizer())) as ChatMessage[];
+      if (this.compressor.shouldCompress(curTokens)) {
+        msgs = (await this.compressor.compressSemantic(msgs as never, this as never)) as ChatMessage[];
       }
 
       const tokens: string[] = [];
+      const llmT0 = Date.now();
       try {
         for await (const tok of this.llm!.streamText(msgs)) {
           if (this.aborted()) break;
@@ -1441,6 +1524,15 @@ export class Agent {
         }
       } catch (e) {
         return `[ERROR] Stream: ${errText(e)}`;
+      }
+      // Cost attribution for the LLM stream (v0.3.6 PEAK)
+      try {
+        const tokensIn = TokenCounter.countMessages(msgs as never);
+        const tokensOut = TokenCounter.count(tokens.join(""));
+        const model = String(this.config.model_name ?? this.llm?.name ?? "axoniz");
+        this.costTracker.recordLLMCall(tokensIn, tokensOut, Date.now() - llmT0, model);
+      } catch (e) {
+        debug(`[CostTracker] LLM stream record failed: ${errText(e)}`);
       }
 
       if (this.aborted()) return "[Stopped by user]";

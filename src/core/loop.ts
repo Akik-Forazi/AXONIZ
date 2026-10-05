@@ -20,6 +20,8 @@
  *    optional glyph + colour so the intended output is produced.
  */
 import { getLogger } from "./logger.js";
+import { VerifyGate } from "./intelligence/verify_gate.js";
+import { DAGPlanner } from "./intelligence/dag_planner.js";
 
 const logger = getLogger();
 
@@ -201,6 +203,23 @@ export class LoopEngine {
   cycle = 0;
   protected _stop = false;
 
+  /**
+   * Convenience accessor for the agent's workspace. Used by VerifyGate
+   * and DAGPlanner so callers can write `this.workspace` instead of
+   * `this.agent.workspace ?? "."`.
+   */
+  get workspace(): string {
+    return this.agent.workspace ?? ".";
+  }
+
+  /**
+   * Single-prompt LLM callback (used by DAGPlanner). Wraps _llm_json()
+   * so the planner can send one combined prompt and receive raw text.
+   */
+  private _llm_callback(prompt: string): Promise<string> {
+    return this._llm_json("", prompt);
+  }
+
   constructor(
     agent: AgentLike,
     options: {
@@ -340,6 +359,46 @@ export class LoopEngine {
   }
 
   async _plan(goal: string): Promise<PlanTask[]> {
+    // PEAK DAG planner (v0.3.6): try the dependency-graph planner first.
+    // The DAG planner produces steps with explicit dependsOn[] so the
+    // engine could execute independent steps in parallel (a future
+    // enhancement). For now we flatten to a linear PlanTask[] — the
+    // existing execution loop — but the DAG gives better
+    // dependency-aware step ordering than the linear prompt.
+    const dagSpinner = new Spinner("Planning (DAG)...");
+    dagSpinner.start();
+    try {
+      const planner = new DAGPlanner((prompt: string) => this._llm_callback(prompt));
+      const plan = await planner.plan(goal);
+      if (plan.steps.length > 0) {
+        dagSpinner.stop();
+        // Convert DAGStep[] to PlanTask[] for the existing execution loop.
+        // Carry dependsOn[] + role as opaque keys so downstream consumers
+        // (and future parallel execution) can still see the DAG metadata.
+        return plan.steps.map((s, i) => ({
+          id: i + 1,
+          task: s.title,
+          verify: s.verify ?? "",
+          ...({
+            dependsOn: s.dependsOn,
+            role: s.role,
+            description: s.description,
+            parallelizable: s.parallelizable,
+            difficulty: s.difficulty,
+            produces: s.produces,
+            consumes: s.consumes,
+          } as Record<string, unknown>),
+        }));
+      }
+    } catch (e) {
+      logger.debug(
+        `[Loop] DAG planner failed, falling back to linear plan: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      dagSpinner.stop();
+    }
+
+    // Linear fallback (original behavior)
     const spinner = new Spinner("Planning...");
     spinner.start();
     const raw = await this._llm_json(PLANNER_PROMPT, `GOAL: ${goal}\nWorkspace: ${this.agent.workspace ?? ""}`);
@@ -399,6 +458,46 @@ export class LoopEngine {
   }
 
   async _verify(task: string, condition: string, evidence: string): Promise<{ ok: boolean; reason: string; fixHint: string }> {
+    // PEAK VerifyGate (v0.3.6): try deterministic checks (tsc, eslint,
+    // vitest) BEFORE the LLM-based verification. The LLM verifier is
+    // expensive and unreliable (it hallucinates success); the gate runs
+    // real tools and parses concrete errors with line numbers.
+    //
+    // If the workspace doesn't have any of these tools configured
+    // (e.g. no tsconfig.json / no vitest.config.ts), each check is
+    // skipped with a "skipped: …" result and passed=true. When every
+    // check is skipped, the gate has nothing meaningful to say — we
+    // fall through to LLM verification so the agent can assess task
+    // completion semantically (e.g. "write a haiku" has no tsc meaning).
+    try {
+      const gate = new VerifyGate(this.workspace);
+      const result = await gate.run(["tsc", "eslint", "vitest"]);
+      const allSkipped = result.checks.every((c) => c.output.startsWith("Skipped:"));
+      if (allSkipped) {
+        logger.debug("[Loop] VerifyGate: all checks skipped, falling through to LLM verify");
+      } else if (result.ok) {
+        return {
+          ok: true,
+          reason: `Verification passed: ${result.summary}`,
+          fixHint: "",
+        };
+      } else {
+        // At least one configured check ran and failed — surface the
+        // concrete errors as the fixHint so the LLM-driven retry can
+        // address them.
+        return {
+          ok: false,
+          reason: `VerifyGate failed: ${result.summary}`,
+          fixHint: result.summary,
+        };
+      }
+    } catch (e) {
+      logger.debug(
+        `[Loop] VerifyGate failed, falling back to LLM verify: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    // LLM-based verification (original behavior)
     const spinner = new Spinner("Verifying...");
     spinner.start();
     const raw = await this._llm_json(
