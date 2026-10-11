@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
@@ -27,6 +28,7 @@ import { getAuth } from "../core/auth.js";
 import { info, warn, error as logError } from "../core/debug.js";
 import { broker, _broker, formatSse } from "./broker.js";
 import type { Agent, AbortFlag } from "../core/agent.js";
+import { FALLBACK_SYSTEM_PROMPT } from "../core/agent.js";
 import { AbortFlag as AbortFlagClass } from "../core/agent.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +65,113 @@ class Stats {
 }
 
 export const stats = new Stats();
+
+/* ── Code Graph Loader (axodex integration) ──────────────────────────────── */
+
+export interface CodeGraphSummary {
+  repoPath: string;
+  totalSymbols: number;
+  clusters: number;
+  entryPoints: string[];
+  keyDependencies: string[];
+  summary: string;
+}
+
+export class CodeGraphLoader {
+  private static readonly AXODEX_ANALYZE_TIMEOUT = 120_000; // 2 min
+  private static analysisResult: CodeGraphSummary | null = null;
+
+  static async loadCodeGraph(repoPath?: string): Promise<CodeGraphSummary | null> {
+    const targetPath = repoPath || process.cwd();
+    if (!this.isAxodexAvailable()) {
+      return null;
+    }
+    try {
+      const raw = execSync(`axodex analyze "${targetPath}"`, {
+        timeout: this.AXODEX_ANALYZE_TIMEOUT,
+        encoding: "utf-8",
+        maxBuffer: 1024 * 1024 * 1024,
+      });
+      const summaryLines: string[] = [];
+      const lines = raw.split("\n");
+      for (const line of lines) {
+        const lowered = line.toLowerCase();
+        if (
+          lowered.includes("symbol") ||
+          lowered.includes("cluster") ||
+          lowered.includes("entry point") ||
+          lowered.includes("dependency") ||
+          lowered.includes("total")
+        ) {
+          summaryLines.push(line.trim());
+        }
+      }
+      const extracted = summaryLines.slice(0, 12).join(" ");
+      return {
+        repoPath: targetPath,
+        totalSymbols: this.extractNumber(raw, /total symbols[:\s]*(\d+)/i) ?? 0,
+        clusters: this.extractNumber(raw, /communities?[:\s]*(\d+)/i) ?? 0,
+        entryPoints: this.extractEntryPoints(raw),
+        keyDependencies: this.extractDependencies(raw),
+        summary: extracted || "Codebase indexed by axodex",
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  private static isAxodexAvailable(): boolean {
+    try {
+      execSync("axodex --version", { stdio: "pipe" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private static extractNumber(raw: string, regex: RegExp): number | null {
+    const m = raw.match(regex);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  private static extractEntryPoints(raw: string): string[] {
+    const points: string[] = [];
+    const lines = raw.split("\n");
+    for (const line of lines) {
+      if (/main|entry/i.test(line) && /symbol|function|module/i.test(line)) {
+        const match = line.match(/["'`]([^"'`]+)["'']/);
+        if (match) points.push(match[1]);
+        else {
+          const words = line.split(/\s+/).filter(w => w.length > 3);
+          if (words.length >= 2) points.push(words[0]);
+        }
+        if (points.length >= 5) break;
+      }
+    }
+    return points;
+  }
+
+  private static extractDependencies(raw: string): string[] {
+    const deps: string[] = [];
+    const lines = raw.split("\n");
+    for (const line of lines) {
+      if (line.includes("depends on") || line.includes("->")) {
+        const match = line.match(/["'`]([^"'`]+)["'']/);
+        if (match && !deps.includes(match[1])) deps.push(match[1]);
+      }
+      if (deps.length >= 8) break;
+    }
+    return deps;
+  }
+
+  static getSummary(): CodeGraphSummary | null {
+    return this.analysisResult;
+  }
+
+  static setSummary(result: CodeGraphSummary | null): void {
+    this.analysisResult = result;
+  }
+}
 
 /* ── Model search dirs (mirrors the Python helper) ────────────────────────── */
 
@@ -354,6 +463,23 @@ export class WebServer {
 
     app.get("/api/stats", (_req, res) => {
       res.json(stats.snapshot());
+    });
+
+    app.get("/api/code-graph-summary", (_req, res) => {
+      const summary = CodeGraphLoader.getSummary();
+      if (!summary) {
+        res.json({ status: "not_analyzed", message: "Code graph not yet analyzed. Server is still indexing." });
+        return;
+      }
+      res.json({
+        status: "ok",
+        repoPath: summary.repoPath,
+        totalSymbols: summary.totalSymbols,
+        clusters: summary.clusters,
+        entryPoints: summary.entryPoints,
+        keyDependencies: summary.keyDependencies,
+        summary: summary.summary,
+      });
     });
 
     app.get("/api/system/stats", async (_req, res) => {
@@ -887,6 +1013,39 @@ export class WebServer {
     }
     console.log();
     info(`[Web] serving at ${url} (dashboard ${devReady ? "live" : "502"})`);
+
+    // Load code graph context from axodex in background (non-blocking).
+    void (async () => {
+      const summary = await CodeGraphLoader.loadCodeGraph();
+      CodeGraphLoader.setSummary(summary);
+      if (summary) {
+        _broker.broadcast("code_graph_summary", {
+          repoPath: summary.repoPath,
+          totalSymbols: summary.totalSymbols,
+          clusters: summary.clusters,
+          entryPoints: summary.entryPoints,
+          keyDependencies: summary.keyDependencies,
+          summary: summary.summary,
+        });
+      }
+      // Set code graph summary in agent config so the agent's sysPrompt( )
+      // includes it via persona_override — this gives the agent architectural
+      // awareness without requiring a full persona rebuild.
+      if (this.agent) {
+        try {
+          const cgOverride =
+            `\nCODEBASE GRAPH SUMMARY:\nRepo: ${summary.repoPath}\nTotal Symbols: ${summary.totalSymbols}\nClusters: ${summary.clusters}\nEntry Points: ${summary.entryPoints.join(", ")}\nKey Dependencies: ${summary.keyDependencies.join(", ")}\n${summary.summary}\n`;
+          const currentOverride = String(
+            (this.agent.config.agent as Record<string, unknown> | undefined)?.persona_override ?? "",
+          );
+          const combinedOverride =
+            cgOverride + "\n\n" + (currentOverride || FALLBACK_SYSTEM_PROMPT);
+          ;(this.agent.config.agent as Record<string, unknown>).persona_override = combinedOverride;
+        } catch (e) {
+          warn(`[Web] failed to set agent code-graph override: ${errMsg(e)}`);
+        }
+      }
+    })();
 
     if (openBrowser) {
       setTimeout(() => {
