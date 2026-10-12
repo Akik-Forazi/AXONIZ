@@ -20,7 +20,22 @@ import type { Agent } from "./core/agent.js";
 export async function bootAgent(
   cfg: AxonizConfig | null = null,
   overrides: Record<string, unknown> | null = null,
+  existingAgent?: Agent | null,
 ): Promise<Agent> {
+  // If the caller already built an agent (e.g. runner.ts builds one for the
+  // banner display, then calls fullBoot), reuse it instead of rebuilding —
+  // this is what caused the "Building agent" log to appear twice in `--web`
+  // mode (once at runner.ts:635 with provider=llamacpp, again here at
+  // startup.ts:43 with the resolved provider from config.json).
+  if (existingAgent) {
+    info(
+      `[Startup] Reusing pre-built agent | provider=${String(
+        (existingAgent.config as Record<string, unknown>).provider ?? "unknown",
+      )}`,
+    );
+    return existingAgent;
+  }
+
   const { Agent } = await import("./core/agent.js");
 
   const config = (cfg ?? loadConfigWithAutodetect()) as unknown as Record<string, unknown>;
@@ -178,6 +193,8 @@ export interface FullBootOptions {
   port?: number;
   openBrowser?: boolean;
   web?: boolean;
+  /** Reuse a pre-built agent instead of rebuilding one (avoids double-init). */
+  existingAgent?: Agent | null;
 }
 
 /**
@@ -185,11 +202,21 @@ export interface FullBootOptions {
  * If `web` is true, blocks serving the web UI.
  */
 export async function fullBoot(opts: FullBootOptions = {}): Promise<Agent> {
-  const { cfg = null, overrides = null, port = 7860, openBrowser = true, web = true } = opts;
+  const {
+    cfg = null,
+    overrides = null,
+    port = 7860,
+    openBrowser = true,
+    web = true,
+    existingAgent = null,
+  } = opts;
 
   printBootHeader();
 
-  const agent = await bootAgent(cfg, overrides);
+  // Pass `existingAgent` so runner.ts can build the agent once for its banner
+  // display and we don't rebuild it here. Previously this caused two
+  // "Building agent" log lines + duplicate Axodex/Memory/FileWatcher init.
+  const agent = await bootAgent(cfg, overrides, existingAgent);
   printStep(
     "Agent",
     `provider=${String((agent.config as Record<string, unknown>).provider)} workspace=${agent.workspace}`,

@@ -904,10 +904,14 @@ export class axonizDaemon {
     if (process.env.AXONIZ_DISABLE_VISION) {
       return;
     }
+    // OCR-based visual error detection requires the `tesseract` binary, which
+    // isn't shipped with the Node port. Rather than warn on every heartbeat
+    // (the warning was firing every ~1.6s in the user's log), we stay silent
+    // at INFO level. Set AXONIZ_VISION_DEBUG=1 to surface the debug log.
     if (!this._vision_warned) {
       this._vision_warned = true;
-      warn(
-        "[Vision] OCR-based visual error detection is unavailable in the Node port (no tesseract) — sentinel idle.",
+      debug(
+        "[Vision] OCR-based visual error detection unavailable (no tesseract binary) — sentinel idle. Set AXONIZ_DISABLE_VISION=1 to skip this check entirely.",
       );
     }
   }

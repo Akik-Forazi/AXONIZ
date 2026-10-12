@@ -80,6 +80,9 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
 
   // Spawn
   info(`[Web] spawning ${runnerLabel} run dev in web-next/ (port ${DEV_PORT})`);
+  // Use shell:true on Windows so `npm` (which is actually `npm.cmd`) can be
+  // spawned. Without shell:true, Node throws `spawn EINVAL` for .cmd files.
+  // On POSIX, shell:true is a no-op for real binaries.
   child = spawn(runner, ["run", "dev"], {
     cwd: WEB_NEXT_DIR,
     env: {
@@ -92,6 +95,7 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
+    shell: process.platform === "win32",
   });
 
   // Pipe child stdout/stderr to debug logs (so we can see compile errors)

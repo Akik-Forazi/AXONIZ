@@ -714,14 +714,19 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
           port?: number;
           openBrowser?: boolean;
           web?: boolean;
+          existingAgent?: import("./agent.js").Agent | null;
         }) => Promise<unknown>;
       };
+      // Pass the agent we already built above so fullBoot doesn't rebuild
+      // it (previously this triggered a second "Building agent" log +
+      // duplicate Axodex/Memory/FileWatcher/Daemon init).
       await fullBoot({
         cfg: null,
         overrides: Object.keys(ov).length > 0 ? ov : null,
         port: args.port,
         openBrowser: true,
         web: true,
+        existingAgent: agent,
       });
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {

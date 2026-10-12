@@ -82,7 +82,9 @@ export class Persona {
         logger.error(`Failed to load role ${roleId} from ${p}: ${errMsg(e)}`, "axoniz.persona");
       }
     }
-    logger.warning(
+    // Using the built-in default IS the default behavior — not worth a warning.
+    // Demoted from warning → debug so the log stays clean at INFO level.
+    logger.debug(
       `[Persona] Role YAML '${roleId}.yaml' not found — using built-in default`,
       "axoniz.persona",
     );

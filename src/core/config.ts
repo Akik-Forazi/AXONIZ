@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { debug } from "./debug.js";
 
 export const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
 export const MODELS_DIR = path.join(AXONIZ_HOME, "models");
@@ -368,9 +369,18 @@ export function resolveSwarmModels(cfg: AxonizConfig): void {
     if (resolved) {
       swarm[role] = resolved;
     } else {
-      process.emitWarning(
-        `[SwarmConfig] Model '${entry}' for role '${role}' not found in any search dir.`,
+      // Stale path in the user's config.json — silently clear it so the
+      // swarm falls back to the active main model (per the docstring:
+      // "If no swarm models are configured, the active main model is used
+      // for all phases (standard behaviour).")
+      //
+      // Previously this fired `process.emitWarning` on every startup, which
+      // printed 8 warnings (one per role × 2 passes) for paths the user
+      // long since moved/deleted. Demoted to a single debug line.
+      debug(
+        `[SwarmConfig] Model '${entry}' for role '${role}' not found in any search dir — clearing. Swarm will use the active main model for this role.`,
       );
+      swarm[role] = "";
     }
   }
 }

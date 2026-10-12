@@ -15,7 +15,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import express, { type Express, type Request, type Response } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import { openInBrowser } from "./open_browser.js";
 import { spawnWebNext, stopWebNext, WEB_NEXT_DIR } from "./web-next-spawn.js";
@@ -282,7 +282,7 @@ export class WebServer {
     const app = express();
 
     // CORS (the Python server sent these on every response).
-    app.use((_req, res, next) => {
+    app.use((_req: Request, res: Response, next: NextFunction) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -296,7 +296,7 @@ export class WebServer {
     const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 * 1024 } });
 
     // Rate limiting for API traffic only (static assets excluded, as in Python).
-    app.use("/api", (req, res, next) => {
+    app.use("/api", (req: Request, res: Response, next: NextFunction) => {
       this.recordRequest();
       const ip = req.ip ?? "local";
       if (!limiter.isAllowed(ip, 100, 60)) {
@@ -306,12 +306,12 @@ export class WebServer {
       next();
     });
 
-    app.options("/{*splat}", (_req, res) => {
+    app.options("/{*splat}", (_req: Request, res: Response) => {
       res.status(204).end();
     });
 
     /* ── Metrics ───────────────────────────────────────────────────────── */
-    app.get("/metrics", async (_req, res) => {
+    app.get("/metrics", async (_req: Request, res: Response) => {
       try {
         res.type("text/plain; version=0.0.4; charset=utf-8").send(await getMetrics());
       } catch (e) {
@@ -320,7 +320,7 @@ export class WebServer {
     });
 
     /* ── Voice (GET) ───────────────────────────────────────────────────── */
-    app.get("/api/voice/tts", async (req, res) => {
+    app.get("/api/voice/tts", async (req: Request, res: Response) => {
       const text = String(req.query.text ?? "").trim();
       if (!text) {
         res.status(400).json({ error: "No text provided" });
@@ -345,20 +345,20 @@ export class WebServer {
       }
     });
 
-    app.get("/api/voice/stt", (_req, res) => {
+    app.get("/api/voice/stt", (_req: Request, res: Response) => {
       res.status(405).json({ error: "Use POST for STT" });
     });
 
     /* ── GET API ───────────────────────────────────────────────────────── */
-    app.get("/api/models/search", async (req, res) => {
+    app.get("/api/models/search", async (req: Request, res: Response) => {
       res.json(await searchModels(String(req.query.q ?? "gguf")));
     });
 
-    app.get("/api/models/downloads", (_req, res) => {
+    app.get("/api/models/downloads", (_req: Request, res: Response) => {
       res.json(getDownloadStatus());
     });
 
-    app.get("/api/war_room", (_req, res) => {
+    app.get("/api/war_room", (_req: Request, res: Response) => {
       if (!this.agent) {
         res.json({ error: "No agent" });
         return;
@@ -366,7 +366,7 @@ export class WebServer {
       res.json({ status: this.agent.warRoom() });
     });
 
-    app.get("/api/absolute_query", async (req, res) => {
+    app.get("/api/absolute_query", async (req: Request, res: Response) => {
       if (!this.agent) {
         res.json({ error: "No agent" });
         return;
@@ -375,7 +375,7 @@ export class WebServer {
     });
 
     /* ── SSE event stream ──────────────────────────────────────────────── */
-    app.get("/api/stream", (req, res) => {
+    app.get("/api/stream", (req: Request, res: Response) => {
       this.openSse(res);
       const q = broker.addClient();
 
@@ -412,7 +412,7 @@ export class WebServer {
       })();
     });
 
-    app.get("/api/health", async (_req, res) => {
+    app.get("/api/health", async (_req: Request, res: Response) => {
       if (!this.agent) {
         res.json({ status: "inactive" });
         return;
@@ -435,14 +435,14 @@ export class WebServer {
       }
     });
 
-    app.get("/api/config", (_req, res) => {
+    app.get("/api/config", (_req: Request, res: Response) => {
       const cfg = loadConfigWithAutodetect() as unknown as Record<string, unknown>;
       cfg._home = AXONIZ_HOME;
       cfg._models_dir = MODELS_DIR;
       res.json(cfg);
     });
 
-    app.get("/api/models", (_req, res) => {
+    app.get("/api/models", (_req: Request, res: Response) => {
       const found = new Set<string>();
       for (const d of getModelSearchDirs()) {
         if (!fs.existsSync(d)) continue;
@@ -453,19 +453,19 @@ export class WebServer {
       });
     });
 
-    app.get("/api/backends", (_req, res) => {
+    app.get("/api/backends", (_req: Request, res: Response) => {
       res.json(listSupportedProviders());
     });
 
-    app.get("/api/memory", (_req, res) => {
+    app.get("/api/memory", (_req: Request, res: Response) => {
       res.json(this.agent ? this.agent.memory.all() : {});
     });
 
-    app.get("/api/stats", (_req, res) => {
+    app.get("/api/stats", (_req: Request, res: Response) => {
       res.json(stats.snapshot());
     });
 
-    app.get("/api/code-graph-summary", (_req, res) => {
+    app.get("/api/code-graph-summary", (_req: Request, res: Response) => {
       const summary = CodeGraphLoader.getSummary();
       if (!summary) {
         res.json({ status: "not_analyzed", message: "Code graph not yet analyzed. Server is still indexing." });
@@ -482,11 +482,11 @@ export class WebServer {
       });
     });
 
-    app.get("/api/system/stats", async (_req, res) => {
+    app.get("/api/system/stats", async (_req: Request, res: Response) => {
       res.json(await getSystemTelemetry());
     });
 
-    app.get("/api/files/list", (_req, res) => {
+    app.get("/api/files/list", (_req: Request, res: Response) => {
       if (!this.agent) {
         res.status(500).json({ error: "No agent" });
         return;
@@ -494,7 +494,7 @@ export class WebServer {
       res.json({ tree: this.agent.codeTools.tree(".", 3) });
     });
 
-    app.get("/api/swarm/status", (_req, res) => {
+    app.get("/api/swarm/status", (_req: Request, res: Response) => {
       const cfg = loadConfig();
       resolveSwarmModels(cfg);
       const swarm = (cfg.swarm_models ?? {}) as unknown as Record<string, string>;
@@ -517,7 +517,7 @@ export class WebServer {
     });
 
     /* ── POST API ──────────────────────────────────────────────────────── */
-    app.post("/api/auth/login", async (req, res) => {
+    app.post("/api/auth/login", async (req: Request, res: Response) => {
       const username = String(req.body?.username ?? "");
       const password = String(req.body?.password ?? "");
       if (auth.verifyPassword(username, password)) {
@@ -528,7 +528,7 @@ export class WebServer {
       res.status(401).json({ error: "Invalid credentials" });
     });
 
-    app.post("/api/voice/stt", upload.single("audio"), async (req, res) => {
+    app.post("/api/voice/stt", upload.single("audio"), async (req: Request, res: Response) => {
       const file = req.file;
       if (!file) {
         res.status(400).json({ error: "Invalid STT request format" });
@@ -558,7 +558,7 @@ export class WebServer {
       }
     });
 
-    app.post("/api/models/download", (req, res) => {
+    app.post("/api/models/download", (req: Request, res: Response) => {
       const repoId = req.body?.repo_id;
       const filename = req.body?.filename;
       if (!repoId || !filename) {
@@ -568,7 +568,7 @@ export class WebServer {
       res.json({ message: downloadModelAsync(String(repoId), String(filename)) });
     });
 
-    app.post("/api/agent/task", (req, res) => {
+    app.post("/api/agent/task", (req: Request, res: Response) => {
       const conversationId = String(req.body?.conversationId ?? "default");
       const userId = String(req.body?.userId ?? "default");
       const intent = String(req.body?.intent ?? req.body?.message ?? "").trim();
@@ -583,7 +583,7 @@ export class WebServer {
       res.json({ taskId, status: "started" });
     });
 
-    app.post("/api/chat", async (req, res) => {
+    app.post("/api/chat", async (req: Request, res: Response) => {
       const message = String(req.body?.message ?? req.body?.content ?? "").trim();
       const mode = String(req.body?.mode ?? "chat");
       if (!message || !this.agent) {
@@ -613,7 +613,7 @@ export class WebServer {
       }
     });
 
-    app.post("/api/config/save", (req, res) => {
+    app.post("/api/config/save", (req: Request, res: Response) => {
       const cfg = loadConfig() as unknown as Record<string, unknown>;
       deepMerge(cfg, (req.body ?? {}) as Record<string, unknown>);
       saveConfig(cfg);
@@ -623,7 +623,7 @@ export class WebServer {
       res.json({ status: "saved" });
     });
 
-    app.post("/api/providers/test", async (req, res) => {
+    app.post("/api/providers/test", async (req: Request, res: Response) => {
       const provider = String(req.body?.provider ?? "openai");
       const testCfg = {
         llm: {
@@ -639,7 +639,7 @@ export class WebServer {
       }
     });
 
-    app.post("/api/model/switch", (req, res) => {
+    app.post("/api/model/switch", (req: Request, res: Response) => {
       const modelName = String(req.body?.path ?? "").trim();
       if (!modelName) {
         res.json({ ok: false, msg: "No model name provided" });
@@ -693,7 +693,7 @@ export class WebServer {
       res.json({ ok: true, loaded: path.basename(fullPath) });
     });
 
-    app.post("/api/reset", (_req, res) => {
+    app.post("/api/reset", (_req: Request, res: Response) => {
       this.agent?.reset();
       res.json({ status: "reset" });
     });
@@ -712,7 +712,7 @@ export class WebServer {
      * src/web/static/ so the system never goes dark. A clear log line
      * tells the operator which UI is being served.
      */
-    app.use(async (req, res, next) => {
+    app.use(async (req: Request, res: Response, next: NextFunction) => {
       // /api/* is handled by the routes above — never proxy.
       if (req.path.startsWith("/api/")) {
         res.status(404).json({ error: "Not found" });
@@ -779,7 +779,7 @@ export class WebServer {
       }
     });
 
-    app.use("/{*splat}", (_req, res) => {
+    app.use("/{*splat}", (_req: Request, res: Response) => {
       res.status(404).json({ error: "Not found" });
     });
 

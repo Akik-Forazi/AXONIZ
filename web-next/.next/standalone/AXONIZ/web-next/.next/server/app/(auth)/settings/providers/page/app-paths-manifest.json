@@ -1,0 +1,3 @@
+{
+  "/(auth)/settings/providers/page": "app/(auth)/settings/providers/page.js"
+}

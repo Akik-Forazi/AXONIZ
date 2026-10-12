@@ -1,0 +1,3 @@
+{
+  "/api/axoniz/[...path]/route": "app/api/axoniz/[...path]/route.js"
+}

@@ -1,0 +1,205 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/axoniz/[...path]",
+      "regex": "^/api/axoniz/(.+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPpath": "nxtPpath"
+      },
+      "namedRegex": "^/api/axoniz/(?<nxtPpath>.+?)(?:/)?$"
+    },
+    {
+      "page": "/settings/providers/[id]",
+      "regex": "^/settings/providers/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/settings/providers/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/agent",
+      "regex": "^/agent(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/agent(?:/)?$"
+    },
+    {
+      "page": "/api",
+      "regex": "^/api(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api(?:/)?$"
+    },
+    {
+      "page": "/api/axoniz/chat",
+      "regex": "^/api/axoniz/chat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/axoniz/chat(?:/)?$"
+    },
+    {
+      "page": "/api/axoniz/providers/test",
+      "regex": "^/api/axoniz/providers/test(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/axoniz/providers/test(?:/)?$"
+    },
+    {
+      "page": "/api/axoniz/stream",
+      "regex": "^/api/axoniz/stream(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/axoniz/stream(?:/)?$"
+    },
+    {
+      "page": "/axodex",
+      "regex": "^/axodex(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/axodex(?:/)?$"
+    },
+    {
+      "page": "/benchmarks",
+      "regex": "^/benchmarks(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/benchmarks(?:/)?$"
+    },
+    {
+      "page": "/chat",
+      "regex": "^/chat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/chat(?:/)?$"
+    },
+    {
+      "page": "/forge",
+      "regex": "^/forge(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/forge(?:/)?$"
+    },
+    {
+      "page": "/palace",
+      "regex": "^/palace(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/palace(?:/)?$"
+    },
+    {
+      "page": "/search",
+      "regex": "^/search(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/search(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    },
+    {
+      "page": "/settings/appearance",
+      "regex": "^/settings/appearance(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/appearance(?:/)?$"
+    },
+    {
+      "page": "/settings/authority",
+      "regex": "^/settings/authority(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/authority(?:/)?$"
+    },
+    {
+      "page": "/settings/providers",
+      "regex": "^/settings/providers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/providers(?:/)?$"
+    },
+    {
+      "page": "/settings/runtime",
+      "regex": "^/settings/runtime(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/runtime(?:/)?$"
+    },
+    {
+      "page": "/settings/session",
+      "regex": "^/settings/session(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/session(?:/)?$"
+    },
+    {
+      "page": "/settings/voice",
+      "regex": "^/settings/voice(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/voice(?:/)?$"
+    },
+    {
+      "page": "/system",
+      "regex": "^/system(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/system(?:/)?$"
+    },
+    {
+      "page": "/vault",
+      "regex": "^/vault(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/vault(?:/)?$"
+    },
+    {
+      "page": "/war-room",
+      "regex": "^/war\\-room(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/war\\-room(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
