@@ -170,4 +170,4 @@ err.log
 
 .commandcode/
 .axo-smoke-build/
-.tmp-tools-out/
+.tmp-tools-out/web-next/.next/
