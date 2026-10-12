@@ -81,30 +81,50 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
   // Spawn
   info(`[Web] spawning ${runnerLabel} run dev in web-next/ (port ${DEV_PORT})`);
 
-  // Cross-platform spawn that handles the npm.cmd + spaces-in-PATH issue
-  // without triggering Node's DEP0190 deprecation (passing args with
-  // shell:true is deprecated because args aren't escaped).
+  // Cross-platform spawn that handles:
+  //   - Windows npm.cmd (a batch file, NOT a real executable)
+  //   - Paths with spaces (e.g. C:\Program Files\nodejs\npm.cmd)
+  //   - Node 22+ DEP0190 deprecation (shell:true with args array)
   //
-  // On Windows: npm is actually `npm.cmd` (a batch file). Node's spawn()
-  // can't execute .cmd files directly without a shell. Previously we used
-  // `shell: true` which worked BUT:
-  //   1. Triggered DEP0190 deprecation warning
-  //   2. When npm.cmd lived at `C:\Program Files\nodejs\npm.cmd`, cmd.exe
-  //      split the path on the space → `'C:\Program' is not recognized`
+  // Strategy on Windows: bypass cmd.exe entirely by spawning node.exe with
+  // the npm-cli.js script directly. This avoids:
+  //   1. The DEP0190 deprecation warning (no shell:true needed)
+  //   2. cmd.exe splitting `C:\Program Files\...` on the space (which
+  //      caused "'C:\Program' is not recognized")
+  //   3. Quote-handling ambiguities in cmd.exe /c
   //
-  // The clean fix: spawn `cmd.exe /c "<command>"` directly. cmd.exe IS
-  // the shell, so no `shell: true` is needed, no args array, no deprecation.
-  // The full command goes as a single string to /c, which handles spaces
-  // in the executable path correctly because cmd.exe parses the quoted
-  // command as one token.
+  // npm-cli.js lives next to npm.cmd in `node_modules/npm/bin/npm-cli.js`.
+  // We resolve it from the runner path (which IS the path to npm.cmd).
   //
   // On POSIX: bun/npm are real executables — spawn directly with args array.
   const isWin = process.platform === "win32";
-  const spawnArgs: [string, string[]] = isWin
-    ? [process.env.ComSpec || "cmd.exe", ["/c", `"${runner}" run dev`]]
-    : [runner, ["run", "dev"]];
+  let cmd: string;
+  let args: string[];
 
-  child = spawn(...spawnArgs, {
+  if (isWin && runnerLabel === "npm") {
+    // Find npm-cli.js next to npm.cmd.
+    // runner is like: C:\Program Files\nodejs\npm.cmd
+    // npm-cli.js is at: C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+    const npmDir = path.dirname(runner);
+    const npmCliPath = path.join(npmDir, "node_modules", "npm", "bin", "npm-cli.js");
+    if (fs.existsSync(npmCliPath)) {
+      cmd = process.execPath;  // node.exe — no spaces issue, real .exe
+      args = [npmCliPath, "run", "dev"];
+      info(`[Web] using node.exe + npm-cli.js directly (bypassing cmd.exe)`);
+    } else {
+      // Fallback: use cmd.exe with the bare command name (let PATH find it).
+      // Don't use the full path because paths with spaces break cmd.exe's /c parsing.
+      warn(`[Web] npm-cli.js not found at ${npmCliPath} — falling back to cmd.exe + bare 'npm'.`);
+      cmd = process.env.ComSpec || "cmd.exe";
+      args = ["/c", "npm run dev"];
+    }
+  } else {
+    // POSIX or bun on Windows — both are real executables
+    cmd = runner;
+    args = ["run", "dev"];
+  }
+
+  child = spawn(cmd, args, {
     cwd: WEB_NEXT_DIR,
     env: {
       ...process.env,
@@ -116,7 +136,7 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
-    // No `shell` option — we spawn cmd.exe explicitly on Windows,
+    // No `shell` option — we spawn node.exe directly on Windows,
     // and on POSIX we spawn the real binary directly.
   });
 
