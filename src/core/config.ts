@@ -279,7 +279,141 @@ export function loadConfig(): AxonizConfig {
       /* corrupt config — fall back to defaults, mirroring Python's bare except */
     }
   }
-  return cfg as unknown as AxonizConfig;
+  // Auto-rehome any stale absolute paths that reference a different user's
+  // home directory. This handles the common case where someone renames their
+  // Windows user account (e.g. akikf -> user) and every absolute path in
+  // ~/.axoniz/config.json that was stored as `C:\Users\<old_user>\.axoniz\...`
+  // becomes broken. We rewrite them in-place to the current AXONIZ_HOME and
+  // persist the cleaned config back to disk so the rehoming only happens once.
+  const typedCfg = cfg as unknown as AxonizConfig;
+  const rehomed = rehomeConfigPaths(typedCfg);
+  if (rehomed > 0) {
+    try {
+      saveConfig(typedCfg);
+    } catch {
+      /* best-effort — don't fail config load if the disk is read-only */
+    }
+  }
+  return typedCfg;
+}
+
+/**
+ * Walk every path-shaped field in the config and rewrite absolute paths that
+ * reference a stale `C:\Users\<old_user>\.axoniz\...` (or POSIX equivalent
+ * `/<old_home>/.axoniz/...`) prefix to use the current AXONIZ_HOME.
+ *
+ * Returns the number of paths that were rehomed. The caller persists the
+ * config back to disk only when >0 (so we don't churn the file on every load).
+ *
+ * Path fields covered:
+ *   - swarm_models.{decomposer, worker, critic, merger}
+ *   - top-level model_path
+ *   - llm.providers.{provider}.model_path for every provider in the catalog
+ *   - llm.providers.llamacpp.llama_bin
+ *   - llm.providers.llamacpp_server.{model_path, llama_bin}
+ *
+ * Idempotent: paths already pointing inside the current AXONIZ_HOME are
+ * returned unchanged.
+ */
+function rehomeConfigPaths(cfg: AxonizConfig): number {
+  let count = 0;
+
+  // swarm_models.{role}
+  const swarm = cfg.swarm_models as unknown as Record<string, string> | undefined;
+  if (swarm) {
+    for (const role of Object.keys(swarm) as Array<keyof typeof swarm>) {
+      const v = swarm[role];
+      if (typeof v === "string" && v) {
+        const rehomed = rehomeStalePath(v);
+        if (rehomed !== v) {
+          swarm[role] = rehomed;
+          count++;
+        }
+      }
+    }
+  }
+
+  // top-level model_path
+  const cfgAny = cfg as unknown as Record<string, unknown>;
+  if (typeof cfgAny.model_path === "string" && cfgAny.model_path) {
+    const rehomed = rehomeStalePath(cfgAny.model_path);
+    if (rehomed !== cfgAny.model_path) {
+      cfgAny.model_path = rehomed;
+      count++;
+    }
+  }
+
+  // llm.providers.{*}.{model_path, llama_bin, base_url}
+  const llm = (cfg as unknown as { llm?: Record<string, unknown> }).llm;
+  if (llm && typeof llm.providers === "object") {
+    const providers = llm.providers as Record<string, Record<string, unknown>>;
+    for (const provName of Object.keys(providers)) {
+      const prov = providers[provName] as Record<string, unknown>;
+      for (const pathField of ["model_path", "llama_bin"]) {
+        const v = prov[pathField];
+        if (typeof v === "string" && v) {
+          const rehomed = rehomeStalePath(v);
+          if (rehomed !== v) {
+            prov[pathField] = rehomed;
+            count++;
+          }
+        }
+      }
+    }
+  }
+
+  return count;
+}
+
+/**
+ * If `p` is an absolute path that contains `\.axoniz\` (or `/.axoniz/`) under
+ * a NON-CURRENT home directory, rewrite it to point inside the current
+ * AXONIZ_HOME. Examples:
+ *
+ *   on Windows, current user = "user":
+ *     rehomeStalePath("C:\\Users\\akikf\\.axoniz\\models\\x.gguf")
+ *       → "C:\\Users\\user\\.axoniz\\models\\x.gguf"
+ *
+ *   on POSIX, current $HOME = "/home/alice":
+ *     rehomeStalePath("/home/bob/.axoniz/models/x.gguf")
+ *       → "/home/alice/.axoniz/models/x.gguf"
+ *
+ * If the path is already inside the current AXONIZ_HOME, or doesn't contain
+ * a `.axoniz` segment at all, it's returned unchanged.
+ */
+function rehomeStalePath(p: string): string {
+  if (!p || typeof p !== "string") return p;
+  // Detect absolute paths cross-platform: Windows drive letter (C:\), UNC (\\),
+  // or POSIX absolute (/). Don't use path.isAbsolute because it only matches
+  // the current OS's convention — a Windows config.json read on POSIX
+  // (or vice versa) wouldn't be recognized.
+  const isAbs = /^([A-Za-z]:[\\/]|\\\\|\/)/.test(p);
+  if (!isAbs) return p;
+
+  // Split on the `.axoniz` segment. The regex matches a leading separator
+  // (`\` or `/`), then `.axoniz`, then a trailing separator.
+  const m = p.match(/[\\/]\.axoniz[\\/]/);
+  if (!m) return p;
+
+  const matchStart = m.index ?? -1;
+  if (matchStart < 0) return p;
+  const matchEnd = matchStart + m[0].length;  // one past the trailing separator
+
+  // Everything after the `.axoniz\` (or `.axoniz/`) segment.
+  const tail = p.slice(matchEnd);
+  if (!tail) return p;
+
+  // Re-attach to the current AXONIZ_HOME. path.join normalizes separators
+  // for the current OS — so a Windows config with backslash paths produces
+  // a backslash-joined result on Windows, and POSIX config produces
+  // forward-slash-joined on POSIX.
+  const candidate = path.join(AXONIZ_HOME, ...tail.split(/[\\/]/));
+
+  // Idempotent: if the input already pointed inside the current home, the
+  // candidate equals the input and we return unchanged.
+  if (candidate === p) return p;
+
+  return candidate;
 }
 
 export function saveConfig(cfg: AxonizConfig | Record<string, unknown>): void {
@@ -335,7 +469,12 @@ export function loadConfigWithAutodetect(): AxonizConfig {
     }
   }
 
-  resolveSwarmModels(cfg);
+  // NOTE: resolveSwarmModels(cfg) used to be called here at config-load
+  // time, which meant the swarm model paths were resolved (and warned about
+  // when stale) BEFORE the agent was even built — the user saw 8 stale-path
+  // warnings on every startup. Now resolution is deferred to first swarm use
+  // (src/core/intelligence/swarm.ts:936 calls it lazily). If the swarm is
+  // never invoked, the paths are never touched.
   return cfg;
 }
 
