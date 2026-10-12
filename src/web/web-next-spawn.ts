@@ -80,10 +80,31 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
 
   // Spawn
   info(`[Web] spawning ${runnerLabel} run dev in web-next/ (port ${DEV_PORT})`);
-  // Use shell:true on Windows so `npm` (which is actually `npm.cmd`) can be
-  // spawned. Without shell:true, Node throws `spawn EINVAL` for .cmd files.
-  // On POSIX, shell:true is a no-op for real binaries.
-  child = spawn(runner, ["run", "dev"], {
+
+  // Cross-platform spawn that handles the npm.cmd + spaces-in-PATH issue
+  // without triggering Node's DEP0190 deprecation (passing args with
+  // shell:true is deprecated because args aren't escaped).
+  //
+  // On Windows: npm is actually `npm.cmd` (a batch file). Node's spawn()
+  // can't execute .cmd files directly without a shell. Previously we used
+  // `shell: true` which worked BUT:
+  //   1. Triggered DEP0190 deprecation warning
+  //   2. When npm.cmd lived at `C:\Program Files\nodejs\npm.cmd`, cmd.exe
+  //      split the path on the space → `'C:\Program' is not recognized`
+  //
+  // The clean fix: spawn `cmd.exe /c "<command>"` directly. cmd.exe IS
+  // the shell, so no `shell: true` is needed, no args array, no deprecation.
+  // The full command goes as a single string to /c, which handles spaces
+  // in the executable path correctly because cmd.exe parses the quoted
+  // command as one token.
+  //
+  // On POSIX: bun/npm are real executables — spawn directly with args array.
+  const isWin = process.platform === "win32";
+  const spawnArgs: [string, string[]] = isWin
+    ? [process.env.ComSpec || "cmd.exe", ["/c", `"${runner}" run dev`]]
+    : [runner, ["run", "dev"]];
+
+  child = spawn(...spawnArgs, {
     cwd: WEB_NEXT_DIR,
     env: {
       ...process.env,
@@ -95,7 +116,8 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
-    shell: process.platform === "win32",
+    // No `shell` option — we spawn cmd.exe explicitly on Windows,
+    // and on POSIX we spawn the real binary directly.
   });
 
   // Pipe child stdout/stderr to debug logs (so we can see compile errors)
