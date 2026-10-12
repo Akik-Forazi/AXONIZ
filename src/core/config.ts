@@ -5,7 +5,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { debug } from "./debug.js";
+// NOTE: do NOT import from "./debug.js" here — it would create a circular
+// import chain (logger.ts → config.ts → debug.ts → logger.ts) and crash at
+// startup with "Cannot access 'AXONIZ_HOME' before initialization". If you
+// need to log inside config.ts, use process.stderr.write() directly.
 
 export const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
 export const MODELS_DIR = path.join(AXONIZ_HOME, "models");
@@ -376,9 +379,10 @@ export function resolveSwarmModels(cfg: AxonizConfig): void {
       //
       // Previously this fired `process.emitWarning` on every startup, which
       // printed 8 warnings (one per role × 2 passes) for paths the user
-      // long since moved/deleted. Demoted to a single debug line.
-      debug(
-        `[SwarmConfig] Model '${entry}' for role '${role}' not found in any search dir — clearing. Swarm will use the active main model for this role.`,
+      // long since moved/deleted. Demoted to a single stderr write (only
+      // visible when LOG_LEVEL=debug or stderr is captured).
+      process.stderr.write(
+        `[axovb:config] [debug] Swarm model '${entry}' for role '${role}' not found in any search dir — clearing. Swarm will use the active main model for this role.\n`,
       );
       swarm[role] = "";
     }
