@@ -168,7 +168,7 @@ async function getGoals(): Promise<GoalServiceLike | null> {
 
 /* ── Fallback system prompt (only if persona YAML fails to load) ──────────── */
 
-const FALLBACK_SYSTEM_PROMPT =
+export const FALLBACK_SYSTEM_PROMPT =
   "You are FRAZIYM AI, a local-first AI agent.\n" +
   "Execute tasks with tools. Never guess. Read before editing. Verify after changes.\n" +
   "When done, call done() with a concise summary.";

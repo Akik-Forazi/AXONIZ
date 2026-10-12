@@ -1031,7 +1031,7 @@ export class WebServer {
       // Set code graph summary in agent config so the agent's sysPrompt( )
       // includes it via persona_override — this gives the agent architectural
       // awareness without requiring a full persona rebuild.
-      if (this.agent) {
+      if (this.agent && summary) {
         try {
           const cgOverride =
             `\nCODEBASE GRAPH SUMMARY:\nRepo: ${summary.repoPath}\nTotal Symbols: ${summary.totalSymbols}\nClusters: ${summary.clusters}\nEntry Points: ${summary.entryPoints.join(", ")}\nKey Dependencies: ${summary.keyDependencies.join(", ")}\n${summary.summary}\n`;
