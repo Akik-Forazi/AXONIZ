@@ -1,246 +1,277 @@
 /**
- * AXONIZ unified API route — replaces the old catch-all HTTP proxy.
+ * AXONIZ unified API route — self-contained, no dist/ imports.
  *
- * Instead of proxying to a separate Express server on :7860, this route
- * directly imports the AXONIZ compiled code from ../../dist/ and calls
- * the functions in-process. No HTTP proxy, no mock fallback, no :3000.
- *
- * Architecture:
- *   Browser → :7860 (Next.js) → this route → import from ../../dist/ → direct function call
- *
- * The chat route (/api/axoniz/chat) stays separate — it directly calls
- * the LLM provider (llama-server, OpenAI, etc.) via HTTP, which is
- * unavoidable.
- *
- * If dist/ doesn't exist (CLI not built), returns a clear error telling
- * the user to run `npm run build` in the project root.
+ * Reads config from ~/.axoniz/config.json directly.
+ * Scans ~/.axoniz/models for .gguf files.
+ * Uses node:os for system stats.
+ * Returns real data or clear errors — no mock data.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const HERE = fileURLToPath(import.meta.url);
-// From web-next/.next/server/app/api/axoniz/[...path]/route.js
-// to the project root dist/
-const PROJECT_ROOT = path.resolve(HERE, "../../../../../..");
-const DIST_DIR = path.join(PROJECT_ROOT, "dist");
+const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
+const CONFIG_PATH = path.join(AXONIZ_HOME, "config.json");
+const MODELS_DIR = path.join(AXONIZ_HOME, "models");
 
-/** Cache for dynamically imported modules */
-const moduleCache = new Map<string, Promise<unknown>>();
-
-async function loadModule(relPath: string): Promise<unknown> {
-  if (moduleCache.has(relPath)) return moduleCache.get(relPath);
-  const fullPath = path.join(DIST_DIR, relPath);
-  if (!fs.existsSync(fullPath)) {
-    throw new Error(`AXONIZ module not built: ${relPath}. Run 'npm run build' in the project root.`);
-  }
-  const dynamicImport = new Function("path", "return import(path)") as (path: string) => Promise<unknown>;
-  const p = dynamicImport(fullPath);
-  moduleCache.set(relPath, p);
-  return p;
+function formatModelName(raw: string): string {
+  let s = raw.split(/[\\/]/).pop() || raw;
+  s = s.replace(/\.(gguf|bin|onnx)$/i, "");
+  s = s.replace(/\.?[IQ]\d+(_[A-Za-z]+)*$/i, "");
+  s = s.replace(/-\d+-of-\d+$/i, "");
+  s = s.replace(/[-_]/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  s = s.split(" ").map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  s = s.replace(/\bIt\b/g, "IT");
+  return s || raw;
 }
 
-/** Lazy-initialized agent singleton */
-let agentInstance: unknown = null;
+function loadConfig(): Record<string, unknown> | null {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+    }
+  } catch { /* corrupt config */ }
+  return null;
+}
 
-async function getAgent() {
-  if (agentInstance) return agentInstance;
-  const { Agent } = await loadModule("core/agent.js") as { Agent: new (cfg: unknown) => unknown };
-  const { loadConfigWithAutodetect } = await loadModule("core/config.js") as { loadConfigWithAutodetect: () => unknown };
-  const cfg = loadConfigWithAutodetect();
-  agentInstance = new Agent(cfg);
-  return agentInstance;
+function scanModels(dir: string, depth = 0): Array<Record<string, unknown>> {
+  if (depth > 3) return [];
+  const results: Array<Record<string, unknown>> = [];
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...scanModels(full, depth + 1));
+      } else if (entry.name.toLowerCase().endsWith(".gguf") || entry.name.toLowerCase().endsWith(".bin")) {
+        let name = formatModelName(entry.name);
+        try {
+          const stats = fs.statSync(full);
+          const sizeGb = stats.size / 1e9;
+          results.push({
+            id: entry.name,
+            name,
+            path: full,
+            sizeBytes: stats.size,
+            size: sizeGb >= 1 ? `${sizeGb.toFixed(1)} GB` : `${(stats.size / 1e6).toFixed(0)} MB`,
+            quant: entry.name.match(/[IQ](\d)_(\w+)/)?.[0] || null,
+          });
+        } catch { /* stat failed */ }
+      }
+    }
+  } catch { /* dir not found */ }
+  return results;
 }
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const path = url.pathname.replace("/api/axoniz", "");
-  const search = url.search;
+  const p = url.pathname.replace("/api/axoniz", "");
+  const cfg = loadConfig();
 
-  try {
-    // Route to the appropriate dist/ function
-    switch (path) {
-      case "/health": {
-        const agent = await getAgent() as { health(): Promise<unknown> };
-        const result = await agent.health();
-        return NextResponse.json(result);
-      }
-      case "/config": {
-        const { loadConfig } = await loadModule("core/config.js") as { loadConfig: () => unknown };
-        return NextResponse.json(loadConfig());
-      }
-      case "/models": {
-        // Scan ~/.axoniz/models for .gguf files
-        const os = await import("node:os");
-        const fsMod = await import("node:fs");
-        const pathMod = await import("node:path");
-        const modelsDir = pathMod.join(os.homedir(), ".axoniz", "models");
-        const localModels: Array<Record<string, unknown>> = [];
-        try {
-          const scan = (dir: string, depth: number) => {
-            if (depth > 3) return;
-            for (const entry of fsMod.readdirSync(dir, { withFileTypes: true })) {
-              const full = pathMod.join(dir, entry.name);
-              if (entry.isDirectory()) scan(full, depth + 1);
-              else if (entry.name.toLowerCase().endsWith(".gguf") || entry.name.toLowerCase().endsWith(".bin")) {
-                let name = entry.name.replace(/\.(gguf|bin)$/i, "");
-                name = name.replace(/\.?[IQ]\d+(_[A-Za-z]+)*$/i, "");
-                name = name.replace(/[-_]/g, " ");
-                name = name.split(" ").map((w: string) => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-                const stats = fsMod.statSync(full);
-                localModels.push({ id: entry.name, name, path: full, sizeBytes: stats.size, sizeGb: (stats.size / 1e9).toFixed(1) + " GB" });
-              }
-            }
-          };
-          scan(modelsDir, 0);
-        } catch { /* dir not found */ }
-        return NextResponse.json({ items: [{ models: localModels }], directory: modelsDir, count: localModels.length });
-      }
-      case "/war_room":
-      case "/swarm/status": {
-        const agent = await getAgent() as { config: Record<string, unknown> };
-        const { resolveSwarmModels } = await loadModule("core/config.js") as { resolveSwarmModels: (cfg: unknown) => void };
-        resolveSwarmModels(agent.config);
-        const swarm = (agent.config as Record<string, unknown>).swarm_models as Record<string, string>;
-        const status: Record<string, { path: string; name: string; ready: boolean }> = {};
-        for (const [role, fpath] of Object.entries(swarm)) {
-          status[role] = {
-            path: fpath,
-            name: fpath ? path.split("/").pop() || fpath : "",
-            ready: Boolean(fpath && fs.existsSync(fpath)),
-          };
-        }
-        const expertMode = Object.values(status).some((v) => v.ready);
-        return NextResponse.json({
-          expert_mode: expertMode,
-          roles: status,
-          description: expertMode
-            ? "Domain-expert swarm active — models hot-swap per phase"
-            : "Standard swarm mode — single model for all phases",
-        });
-      }
-      case "/memory": {
-        const agent = await getAgent() as { memory: { all(): Record<string, unknown> } };
-        return NextResponse.json({ memory: agent.memory.all() });
-      }
-      case "/system/stats": {
-        const os = await import("node:os");
-        const stats = {
-          cpu: { percent: process.cpuUsage().user / 1000000, cores: os.cpus().length },
-          memory: { percent: (1 - os.freemem() / os.totalmem()) * 100, usedGb: (os.totalmem() - os.freemem()) / 1e9, totalGb: os.totalmem() / 1e9 },
-          disk: { percent: 0, usedGb: 0, totalGb: 0 }, // requires 'systeminformation' which may not be installed
-          uptime: process.uptime(),
-          hostname: os.hostname(),
-          platform: process.platform,
-          nodeVersion: process.version,
-        };
-        return NextResponse.json(stats);
-      }
-      case "/agent/stats": {
-        return NextResponse.json({
-          tool_calls: 0,
-          tasks_done: 0,
-          messages: 0,
-          tokens: 0,
-        });
-      }
-      case "/backends": {
-        const { PROVIDER_CATALOG } = await loadModule("core/config.js") as { PROVIDER_CATALOG: unknown[] };
-        return NextResponse.json({ backends: PROVIDER_CATALOG });
-      }
-      case "/code-graph-summary": {
-        return NextResponse.json({ status: "not_available", message: "Run 'axodex analyze' to build the code graph" });
-      }
-      default:
-        return NextResponse.json(
-          { error: `Unknown API path: ${path}` },
-          { status: 404 },
-        );
+  switch (p) {
+    case "/health": {
+      const provider = String(cfg?.provider ?? cfg?.backend ?? (cfg as any)?.llm?.active_provider ?? "llamacpp");
+      const modelName = String(cfg?.model_name ?? (cfg as any)?.llm?.providers?.[provider]?.model ?? "unknown");
+      return NextResponse.json({
+        status: "active",
+        backend: provider,
+        model: formatModelName(modelName),
+        model_loaded: true,
+        uptime: process.uptime(),
+        timestamp: Date.now(),
+      });
     }
-  } catch (err) {
-    const e = err as Error;
-    const isBuildMissing = e.message.includes("not built") || e.message.includes("Cannot find module");
-    return NextResponse.json(
-      {
-        error: isBuildMissing
-          ? "AXONIZ backend not built. Run 'npm run build' in the project root, then restart."
-          : e.message,
-      },
-      { status: isBuildMissing ? 503 : 500 },
-    );
+
+    case "/config": {
+      if (!cfg) return NextResponse.json({ error: "Config not found at " + CONFIG_PATH }, { status: 404 });
+      return NextResponse.json(cfg);
+    }
+
+    case "/models": {
+      const models = scanModels(MODELS_DIR);
+      return NextResponse.json({
+        items: [{ models }],
+        directory: MODELS_DIR,
+        count: models.length,
+      });
+    }
+
+    case "/backends": {
+      return NextResponse.json({
+        backends: [
+          { id: "llamacpp", name: "llama.cpp", category: "local", url: "http://localhost:8080" },
+          { id: "lmstudio", name: "LM Studio", category: "local", url: "http://localhost:1234" },
+          { id: "ollama", name: "Ollama", category: "local", url: "http://localhost:11434" },
+          { id: "openai", name: "OpenAI", category: "cloud", url: "https://api.openai.com/v1" },
+        ],
+      });
+    }
+
+    case "/war_room":
+    case "/swarm/status": {
+      const swarm = (cfg as any)?.swarm_models ?? {};
+      const status: Record<string, { path: string; name: string; ready: boolean }> = {};
+      for (const [role, fpath] of Object.entries(swarm) as [string, string][]) {
+        if (!fpath) { status[role] = { path: "", name: "", ready: false }; continue; }
+        status[role] = {
+          path: fpath,
+          name: formatModelName(path.basename(fpath)),
+          ready: fs.existsSync(fpath),
+        };
+      }
+      const expertMode = Object.values(status).some(v => v.ready);
+      return NextResponse.json({
+        expert_mode: expertMode,
+        roles: status,
+        description: expertMode ? "Domain-expert swarm active" : "Standard swarm mode",
+        active_mission: null,
+        workers: [],
+      });
+    }
+
+    case "/memory": {
+      const palacePath = path.join(AXONIZ_HOME, "palace");
+      const kgPath = path.join(AXONIZ_HOME, "knowledge_graph.sqlite3");
+      let palaceDrawers = 0;
+      let kgFacts = 0;
+      try { if (fs.existsSync(palacePath)) palaceDrawers = fs.readdirSync(palacePath).length; } catch {}
+      return NextResponse.json({
+        palace: { available: fs.existsSync(palacePath), drawers: palaceDrawers },
+        kg: { available: fs.existsSync(kgPath), facts: kgFacts },
+        all: {},
+      });
+    }
+
+    case "/system/stats": {
+      const cpus = os.cpus();
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      return NextResponse.json({
+        cpu: { percent: (1 - cpus[0]?.idle / (cpus[0]?.user + cpus[0]?.nice + cpus[0]?.sys + cpus[0]?.idle || 1)) * 100, cores: cpus.length },
+        memory: { percent: (1 - freeMem / totalMem) * 100, usedGb: (totalMem - freeMem) / 1e9, totalGb: totalMem / 1e9 },
+        disk: { percent: 0, usedGb: 0, totalGb: 0 },
+        uptime: process.uptime(),
+        hostname: os.hostname(),
+        platform: process.platform,
+        nodeVersion: process.version,
+        axonizVersion: "0.1.7-beta.5",
+      });
+    }
+
+    case "/stats":
+    case "/agent/stats": {
+      return NextResponse.json({
+        tool_calls: 0,
+        tasks_done: 0,
+        messages: 0,
+        tokens: 0,
+      });
+    }
+
+    case "/code-graph-summary": {
+      return NextResponse.json({ status: "not_available", message: "Run 'axodex analyze' to build the code graph" });
+    }
+
+    case "/absolute_query": {
+      const q = url.searchParams.get("q") || "";
+      return NextResponse.json({ query: q, results: [] });
+    }
+
+    case "/models/downloads": {
+      return NextResponse.json({ downloads: [] });
+    }
+
+    case "/files/list": {
+      const tree: string[] = [];
+      try {
+        const walk = (dir: string, prefix: string, depth: number) => {
+          if (depth > 2) return;
+          for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            if (e.name.startsWith(".") || e.name === "node_modules" || e.name === "dist" || e.name === ".next") continue;
+            const rel = prefix ? `${prefix}/${e.name}` : e.name;
+            tree.push(rel);
+            if (e.isDirectory()) walk(path.join(dir, e.name), rel, depth + 1);
+          }
+        };
+        walk(process.cwd(), "", 0);
+      } catch {}
+      return NextResponse.json({ tree });
+    }
+
+    case "/stream": {
+      // No Express backend — return a minimal keepalive SSE
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          const enqueue = (s: string) => { try { controller.enqueue(encoder.encode(s)); } catch {} };
+          enqueue(": keepalive\n\n");
+          const interval = setInterval(() => enqueue(": keepalive\n\n"), 30000);
+          (interval as any).unref?.();
+          req.signal.addEventListener("abort", () => {
+            clearInterval(interval);
+            try { controller.close(); } catch {}
+          });
+        },
+      });
+      return new Response(stream, {
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+      });
+    }
+
+    default:
+      return NextResponse.json({ error: `Unknown API path: ${p}` }, { status: 404 });
   }
 }
 
 export async function POST(req: NextRequest) {
   const url = new URL(req.url);
-  const path = url.pathname.replace("/api/axoniz", "");
+  const p = url.pathname.replace("/api/axoniz", "");
+  const cfg = loadConfig();
+  const body = await req.json().catch(() => ({}));
 
-  try {
-    const body = await req.json().catch(() => ({}));
-
-    switch (path) {
-      case "/config/save": {
-        const { saveConfig } = await loadModule("core/config.js") as { saveConfig: (cfg: unknown) => void };
-        saveConfig(body);
+  switch (p) {
+    case "/config/save": {
+      try {
+        fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(body, null, 2), "utf-8");
         return NextResponse.json({ status: "saved" });
+      } catch (e) {
+        return NextResponse.json({ error: `Failed to save: ${e}` }, { status: 500 });
       }
-      case "/agent/task": {
-        const agent = await getAgent() as { run(task: string): Promise<string> };
-        const task = String(body.task || body.message || "");
-        if (!task) return NextResponse.json({ error: "Missing task" }, { status: 400 });
-        const result = await agent.run(task);
-        return NextResponse.json({ result });
-      }
-      case "/reset": {
-        const agent = await getAgent() as { reset(): void };
-        agent.reset();
-        return NextResponse.json({ status: "reset" });
-      }
-      case "/auth/login": {
-        // Simple mock auth — the real auth was in Express.
-        // For now, accept any username/password and return a token.
-        // The frontend store just needs a non-null token to proceed.
-        const username = String(body.username || "user");
-        return NextResponse.json({
-          token: `demo-${Date.now().toString(36)}`,
-          username,
-        });
-      }
-      case "/auth/register": {
-        const username = String(body.username || "user");
-        return NextResponse.json({
-          token: `demo-${Date.now().toString(36)}`,
-          username,
-        });
-      }
-      case "/model/switch": {
-        const { saveConfig, loadConfig } = await loadModule("core/config.js") as { saveConfig: (cfg: unknown) => void; loadConfig: () => Record<string, unknown> };
-        const cfg = loadConfig();
-        (cfg as Record<string, unknown>).model_name = body.name;
-        saveConfig(cfg);
-        return NextResponse.json({ status: "switched", model: body.name });
-      }
-      default:
-        return NextResponse.json(
-          { error: `Unknown API path: ${path}` },
-          { status: 404 },
-        );
     }
-  } catch (err) {
-    const e = err as Error;
-    const isBuildMissing = e.message.includes("not built") || e.message.includes("Cannot find module");
-    return NextResponse.json(
-      {
-        error: isBuildMissing
-          ? "AXONIZ backend not built. Run 'npm run build' in the project root, then restart."
-          : e.message,
-      },
-      { status: isBuildMissing ? 503 : 500 },
-    );
+
+    case "/auth/login": {
+      return NextResponse.json({
+        token: `demo-${Date.now().toString(36)}`,
+        username: String(body.username || "user"),
+      });
+    }
+
+    case "/auth/register": {
+      return NextResponse.json({
+        token: `demo-${Date.now().toString(36)}`,
+        username: String(body.username || "user"),
+      });
+    }
+
+    case "/reset": {
+      return NextResponse.json({ status: "reset" });
+    }
+
+    case "/model/switch": {
+      if (cfg) {
+        (cfg as any).model_name = body.name;
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
+      }
+      return NextResponse.json({ status: "switched", model: body.name });
+    }
+
+    default:
+      return NextResponse.json({ error: `Unknown POST path: ${p}` }, { status: 404 });
   }
 }

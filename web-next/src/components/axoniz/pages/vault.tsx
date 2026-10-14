@@ -197,6 +197,7 @@ function ModelCard({
 }
 
 function extractQuant(name: string): { bits: number; label: string } | null {
+  if (typeof name !== "string") return null;
   const m = name.match(/Q(\d)_(\w+)/);
   if (!m) return null;
   return { bits: Number(m[1]), label: `Q${m[1]}_${m[2]}` };
