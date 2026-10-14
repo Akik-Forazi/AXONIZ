@@ -11,8 +11,8 @@
  */
 
 import type { NextRequest } from "next/server";
-import { mockSseEventStream } from "@/lib/axoniz/mock-data";
-import type { AxonizSseEvent } from "@/lib/axoniz/api-types";
+// mock-data.ts removed
+
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -48,67 +48,12 @@ export async function GET(_req: NextRequest) {
     /* backend unreachable — fall back to mock stream */
   }
 
-  // Mock stream — emit scripted events with realistic pacing.
-  const stream = new ReadableStream({
-    start(controller) {
-      let closed = false;
-      const enqueue = (s: string) => {
-        if (closed) return;
-        try {
-          controller.enqueue(encoder.encode(s));
-        } catch {
-          closed = true;
-        }
-      };
-      const enqueueEvent = (ev: AxonizSseEvent) => {
-        const data = JSON.stringify(ev);
-        enqueue(`event: ${ev.type}\n`);
-        enqueue(`data: ${data}\n\n`);
-      };
-
-      const heartbeat = setInterval(() => enqueue(": keepalive\n\n"), 15_000);
-      heartbeat.unref?.();
-
-      _req.signal.addEventListener("abort", () => {
-        closed = true;
-        clearInterval(heartbeat);
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
-      });
-
-      const events = [...mockSseEventStream()];
-      let i = 0;
-      const next = () => {
-        if (closed) return;
-        if (i >= events.length) {
-          // Loop after a long pause so the live feed keeps moving.
-          setTimeout(() => {
-            i = 0;
-            next();
-          }, 12_000);
-          return;
-        }
-        enqueueEvent(events[i]);
-        i += 1;
-        // Pace events: tokens are quick, swarm events spaced out.
-        const ev = events[i - 1];
-        const delay =
-          ev.type === "token" ? 90 : ev.type === "tool_result" ? 600 : 380;
-        setTimeout(next, delay);
-      };
-      next();
+  // No mock stream — return a clear error.
+  return new Response(
+    JSON.stringify({ error: "Backend not reachable. Run 'npm start -- --web' to start the AXONIZ backend." }),
+    {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "x-axoniz-source": "mock",
-    },
-  });
+  );
 }

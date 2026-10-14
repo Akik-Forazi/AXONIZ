@@ -88,7 +88,7 @@ export function EventRail() {
         const r = await fetch(axonizClient.streamUrl(), { method: "GET" });
         const src = r.headers.get("x-axoniz-source");
         if (!cancelled && src) {
-          setDataSource(src as "mock" | "live");
+          setDataSource(src as "live" | "unknown");
         }
       } catch {
         /* ignore */
@@ -116,7 +116,7 @@ export function EventRail() {
                   : "bg-primary/15 text-primary"
               }`}
             >
-              {dataSource === "live" ? "LIVE" : "DEMO"}
+              "LIVE"
             </span>
           </div>
         )}

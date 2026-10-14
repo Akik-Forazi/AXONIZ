@@ -88,7 +88,7 @@ export function TopBar() {
                 <span className="hidden sm:inline">{online ? "ONLINE" : "OFFLINE"}</span>
                 <span className={`ml-1 px-1 py-0.5 rounded text-[9px] uppercase ${
                   dataSource === "live" ? "bg-accent/15 text-accent"
-                  : dataSource === "mock" ? "bg-foreground/10 text-foreground"
+                  
                   : "bg-secondary text-muted-foreground"
                 }`}>
                   {dataSource === "unknown" ? "?" : dataSource}

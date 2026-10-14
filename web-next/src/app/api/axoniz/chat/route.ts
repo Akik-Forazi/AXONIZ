@@ -23,7 +23,7 @@
  */
 
 import type { NextRequest } from "next/server";
-import { mockSseEventStream } from "@/lib/axoniz/mock-data";
+// mock-data.ts was removed — no more mock fallback
 import type { AxonizSseEvent } from "@/lib/axoniz/api-types";
 
 export const dynamic = "force-dynamic";
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   // No provider configured → mock fallback
   if (!body.baseUrl || (body.provider !== "llamacpp" && !body.baseUrl)) {
-    return mockFallback(encoder);
+    return noProviderError();
   }
 
   // Pick handler by provider
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   if (body.provider === "gemini") {
     return geminiStream(body, history, system, encoder);
   }
-  return mockFallback(encoder);
+  return noProviderError();
 }
 
 /* ============================================================
@@ -515,46 +515,17 @@ async function geminiStream(
 /* ============================================================
    Mock fallback — scripted demo stream when no provider configured
    ============================================================ */
-function mockFallback(encoder: TextEncoder): Response {
-  const stream = new ReadableStream({
-    start(controller) {
-      let closed = false;
-      const safeEnqueue = (ev: AxonizSseEvent) => {
-        if (closed) return;
-        try { enqueue(controller, encoder, ev); } catch { closed = true; }
-      };
-
-      const events = [...mockSseEventStream()];
-      let i = 0;
-      const next = () => {
-        if (closed) return;
-        if (i >= events.length) {
-          try { controller.close(); } catch { /* ignore */ }
-          return;
-        }
-        safeEnqueue(events[i]);
-        i += 1;
-        const ev = events[i - 1];
-        const delay = ev.type === "token" ? 80 : ev.type === "tool_result" ? 500 : 320;
-        setTimeout(next, delay);
-      };
-
-      safeEnqueue({
-        type: "thought",
-        value:
-          "No provider configured — using the scripted demo stream. Configure one in Settings → Providers to chat against your real LM Studio / Ollama / OpenAI / OpenRouter / Gemini / Anthropic / Groq / etc.",
-        ts: Date.now() / 1000,
-      });
-      setTimeout(next, 200);
+function noProviderError(): Response {
+  // No mock data — return a clear error telling the user to configure a provider.
+  // This replaces the old mockFallback that streamed scripted demo events.
+  return new Response(
+    JSON.stringify({
+      type: "error",
+      error: "No provider configured. Go to Settings → Providers to configure your llama-server, LM Studio, Ollama, or cloud API.",
+    }),
+    {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "x-axoniz-source": "mock",
-    },
-  });
+  );
 }

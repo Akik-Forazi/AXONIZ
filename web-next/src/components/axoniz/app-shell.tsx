@@ -241,7 +241,7 @@ function ConnectionPill({ online }: { online: boolean }) {
               className={`ml-1 px-1 py-0.5 rounded text-[9px] uppercase ${
                 source === "live"
                   ? "bg-accent/15 text-accent"
-                  : source === "mock"
+                  : source === "unknown"
                     ? "bg-primary/15 text-primary"
                     : "bg-secondary text-muted-foreground"
               }`}
@@ -253,7 +253,7 @@ function ConnectionPill({ online }: { online: boolean }) {
         <TooltipContent>
           {online ? "Agent online" : "Agent not initialized"}
           <br />
-          Data: {source === "live" ? "live backend" : source === "mock" ? "mock (no backend)" : "unknown"}
+          Data: {source === "live" ? "live backend" : source === "unknown" ? "unknown" : "unknown"}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
