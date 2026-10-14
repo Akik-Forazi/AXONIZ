@@ -67,7 +67,7 @@ export function TopBar() {
           <span className="text-muted-foreground">{providerMeta?.name ?? activeProvider}</span>
           {activeModel && (
             <span className="font-mono text-foreground/80 max-w-[200px] truncate">
-              {activeModel.length > 22 ? activeModel.slice(0, 22) + "…" : activeModel}
+              {(() => { let m = activeModel.split(/[\\/]/).pop() || activeModel; m = m.replace(/\.(gguf|bin)$/i, ""); m = m.replace(/[-_]/g, " "); m = m.split(" ").map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" "); return m.length > 22 ? m.slice(0, 22) + "…" : m; })()}
             </span>
           )}
           <Search className="w-3 h-3 text-muted-foreground" />

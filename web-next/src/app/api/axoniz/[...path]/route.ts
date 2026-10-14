@@ -75,8 +75,31 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(loadConfig());
       }
       case "/models": {
-        const { showTable } = await loadModule("core/models.js") as { showTable: () => unknown };
-        return NextResponse.json({ models: [] }); // TODO: wire to actual model list
+        // Scan ~/.axoniz/models for .gguf files
+        const os = await import("node:os");
+        const fsMod = await import("node:fs");
+        const pathMod = await import("node:path");
+        const modelsDir = pathMod.join(os.homedir(), ".axoniz", "models");
+        const localModels: Array<Record<string, unknown>> = [];
+        try {
+          const scan = (dir: string, depth: number) => {
+            if (depth > 3) return;
+            for (const entry of fsMod.readdirSync(dir, { withFileTypes: true })) {
+              const full = pathMod.join(dir, entry.name);
+              if (entry.isDirectory()) scan(full, depth + 1);
+              else if (entry.name.toLowerCase().endsWith(".gguf") || entry.name.toLowerCase().endsWith(".bin")) {
+                let name = entry.name.replace(/\.(gguf|bin)$/i, "");
+                name = name.replace(/\.?[IQ]\d+(_[A-Za-z]+)*$/i, "");
+                name = name.replace(/[-_]/g, " ");
+                name = name.split(" ").map((w: string) => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+                const stats = fsMod.statSync(full);
+                localModels.push({ id: entry.name, name, path: full, sizeBytes: stats.size, sizeGb: (stats.size / 1e9).toFixed(1) + " GB" });
+              }
+            }
+          };
+          scan(modelsDir, 0);
+        } catch { /* dir not found */ }
+        return NextResponse.json({ items: [{ models: localModels }], directory: modelsDir, count: localModels.length });
       }
       case "/war_room":
       case "/swarm/status": {

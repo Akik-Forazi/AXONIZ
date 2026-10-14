@@ -4,6 +4,19 @@ import { useEffect, useState } from "react";
 import { Search, Loader2, Check, X, Server, Cpu, Cloud } from "lucide-react";
 import { useAxonizStore, PROVIDER_CATALOG, type ProviderId } from "@/stores/axoniz-store";
 import { axonizClient } from "@/lib/axoniz/client";
+
+// Format model name — strip paths, extensions, quantization suffixes
+function formatModelName(raw: string): string {
+  let s = raw.split(/[\\/]/).pop() || raw;
+  s = s.replace(/\.(gguf|bin|onnx)$/i, "");
+  s = s.replace(/\.?[IQ]\d+(_[A-Za-z]+)*$/i, "");
+  s = s.replace(/-\d+-of-\d+$/i, "");
+  s = s.replace(/[-_]/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  s = s.split(" ").map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  s = s.replace(/\bIt\b/g, "IT");
+  return s || raw;
+}
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,6 +46,22 @@ export function ModelPicker() {
   } = useAxonizStore();
   const [query, setQuery] = useState("");
   const [tests, setTests] = useState<Record<string, ProviderTestState>>({});
+  const [localModels, setLocalModels] = useState<ModelInfo[]>([]);
+
+  // Fetch local .gguf models from ~/.axoniz/models
+  useEffect(() => {
+    fetch("/api/axoniz/models/local")
+      .then(r => r.json())
+      .then(data => {
+        if (data.models) {
+          setLocalModels(data.models.map((m: { id: string; name: string }) => ({
+            id: m.id,
+            contextLength: undefined,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [selectedProvider, setSelectedProvider] = useState<ProviderId>(activeProvider);
 
   // Auto-test the selected provider when user opens picker or switches provider.
