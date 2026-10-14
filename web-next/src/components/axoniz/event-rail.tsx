@@ -28,7 +28,6 @@ export function EventRail() {
   const [collapsed, setCollapsed] = useState(false);
   const idRef = useRef(0);
   const dataSource = useAxonizStore((s) => s.dataSource);
-  const setDataSource = useAxonizStore((s) => s.setDataSource);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,24 +79,12 @@ export function EventRail() {
     };
   }, []);
 
-  // Pull source tag once.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(axonizClient.streamUrl(), { method: "GET" });
-        const src = r.headers.get("x-axoniz-source");
-        if (!cancelled && src) {
-          setDataSource(src as "live" | "unknown");
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [setDataSource]);
+  // NOTE: The previous implementation issued a redundant `fetch(streamUrl)` on
+  // every mount just to read the x-axoniz-source response header. That produced
+  // a second long-lived SSE-style request alongside the EventSource above,
+  // doubling the /api/axoniz/stream traffic. The source tag is now read by
+  // boot.ts from the health endpoint's response headers (see useHealthQuery),
+  // so this side-effect is no longer needed.
 
   return (
     <aside

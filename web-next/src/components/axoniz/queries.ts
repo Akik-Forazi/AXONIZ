@@ -2,13 +2,30 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { axonizClient } from "@/lib/axoniz/client";
+import type { HealthResponse } from "@/lib/axoniz/api-types";
 
-/* ---------- Read queries ---------- */
+/**
+ * Health query. Polls every 30s (was 10s) and captures the x-axoniz-source
+ * response header so boot.ts can read it WITHOUT issuing a duplicate fetch.
+ * The header is attached to the returned data as the `__source` field.
+ */
 export function useHealthQuery() {
   return useQuery({
     queryKey: ["axoniz", "health"],
-    queryFn: () => axonizClient.health(),
-    refetchInterval: 10_000,
+    queryFn: async () => {
+      const res = await fetch("/api/axoniz/health", {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`health failed: ${res.status}`);
+      const data = (await res.json()) as HealthResponse & {
+        __source?: "live" | "mock";
+      };
+      const src = res.headers.get("x-axoniz-source");
+      if (src === "live" || src === "mock") data.__source = src;
+      return data;
+    },
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 }
 
@@ -16,7 +33,8 @@ export function useSystemStatsQuery() {
   return useQuery({
     queryKey: ["axoniz", "system-stats"],
     queryFn: () => axonizClient.systemStats(),
-    refetchInterval: 5_000,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
   });
 }
 
@@ -24,7 +42,8 @@ export function useAgentStatsQuery() {
   return useQuery({
     queryKey: ["axoniz", "agent-stats"],
     queryFn: () => axonizClient.agentStats(),
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 
@@ -32,6 +51,7 @@ export function useConfigQuery() {
   return useQuery({
     queryKey: ["axoniz", "config"],
     queryFn: () => axonizClient.getConfig(),
+    staleTime: 60_000,
   });
 }
 
@@ -39,7 +59,8 @@ export function useModelsQuery() {
   return useQuery({
     queryKey: ["axoniz", "models"],
     queryFn: () => axonizClient.listModels(),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 
@@ -55,7 +76,8 @@ export function useSwarmStatusQuery() {
   return useQuery({
     queryKey: ["axoniz", "swarm-status"],
     queryFn: () => axonizClient.swarmStatus(),
-    refetchInterval: 8_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 }
 
@@ -63,7 +85,8 @@ export function useWarRoomQuery() {
   return useQuery({
     queryKey: ["axoniz", "war-room"],
     queryFn: () => axonizClient.warRoom(),
-    refetchInterval: 4_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 }
 
@@ -71,6 +94,7 @@ export function useMemoryQuery() {
   return useQuery({
     queryKey: ["axoniz", "memory"],
     queryFn: () => axonizClient.memory(),
+    staleTime: 60_000,
   });
 }
 
@@ -78,7 +102,8 @@ export function useDownloadsQuery() {
   return useQuery({
     queryKey: ["axoniz", "downloads"],
     queryFn: () => axonizClient.listDownloads(),
-    refetchInterval: 2_500,
+    refetchInterval: 15_000,
+    staleTime: 5_000,
   });
 }
 

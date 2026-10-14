@@ -251,15 +251,37 @@ export function parseArgs(argv: string[]): Args {
         break;
       default:
         if (arg.startsWith("-") && arg !== "-") {
-          process.stderr.write(`unrecognized argument: ${arg}\n`);
-          process.exit(2);
+          // Pass-through for the `logs` subcommand: it has its own
+          // filter flags (--severity, --tail, --event-type, --component,
+          // --since, --until, --keep, --yes, --include-raw) which the
+          // main parser doesn't know about. We collect them as
+          // positional args so the logs subcommand can parse them.
+          if (positionalStartsWithLogs(argv, i)) {
+            a.positional.push(arg);
+          } else {
+            process.stderr.write(`unrecognized argument: ${arg}\n`);
+            process.exit(2);
+          }
+        } else {
+          a.positional.push(arg);
         }
-        a.positional.push(arg);
         break;
     }
   }
 
   return a;
+}
+
+/** True if argv[i-1] is the literal token "logs" (subcommand dispatcher). */
+function positionalStartsWithLogs(argv: string[], i: number): boolean {
+  // Find the first non-flag token before position i — that's the subcommand.
+  for (let j = 0; j < i; j++) {
+    const t = argv[j];
+    if (!t.startsWith("-")) {
+      return t.toLowerCase() === "logs" || t.toLowerCase() === "log";
+    }
+  }
+  return false;
 }
 
 /* ── Overrides ────────────────────────────────────────────────────────────── */
@@ -326,6 +348,10 @@ export const HELP = `
     ${BL}axoniz memory${R}          Show memory
     ${BL}axoniz palace${R}          Show palace status
     ${BL}axoniz health${R}          System health report
+    ${BL}axoniz logs list${R}       List diagnostic sessions (~/.axoniz/logs/*.axolog)
+    ${BL}axoniz logs show${R}       Show events from a session
+    ${BL}axoniz logs verify${R}     Check for malformed records
+    ${BL}axoniz logs cleanup${R}    Remove old sessions
 
   ${B}VERSION${R}
     ${DG}FRAZIYM:${R} ${AXONIZ_VERSION}
@@ -533,6 +559,14 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   // ── Subcommands ──
   if (pos.length > 0) {
     const cmd = pos[0].toLowerCase();
+
+    if (cmd === "logs" || cmd === "log") {
+      // Diagnostic log management — does NOT need an agent.
+      const { runLogsCmd } = await import("./logs-cmd.js");
+      const code = await runLogsCmd(pos.slice(1));
+      process.exitCode = code;
+      return;
+    }
 
     if (cmd === "model" || cmd === "models") {
       const { showTable, get: getModel } = await import("./models.js");

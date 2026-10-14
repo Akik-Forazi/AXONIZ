@@ -6,8 +6,16 @@ import { useHealthQuery, useConfigQuery } from "./queries";
 
 /**
  * On mount (when authenticated), pulls health + config from the backend
- * (or mock) and populates the store with the active model name. Keeps the
- * sidebar / top bar in sync with backend state.
+ * and populates the store with the active model name + data source tag.
+ *
+ * IMPORTANT: This hook MUST NOT issue its own fetch to /api/axoniz/health.
+ * The useHealthQuery() above already polls that endpoint on a schedule.
+ * Issuing a second fetch here caused duplicate network requests every
+ * time the health query refetched (every 10s by default), contributing
+ * to the rapid request pattern seen during the reload-loop bug.
+ *
+ * Instead, we read x-axoniz-source from the cached health response's
+ * fetcher meta — see useHealthQuery implementation in ./queries.ts.
  */
 export function useAxonizBoot() {
   const token = useAxonizStore((s) => s.token);
@@ -16,25 +24,19 @@ export function useAxonizBoot() {
   const healthQ = useHealthQuery();
   const configQ = useConfigQuery();
 
+  // Sync active model from config response (fires only when config changes)
   useEffect(() => {
     if (!token) return;
-    // Watch config for the active model
     if (configQ.data?.llm?.model) {
       setActiveModel(configQ.data.llm.model as string);
     }
   }, [token, configQ.data, setActiveModel]);
 
+  // Sync data source tag from health response meta (fires only when health
+  // response changes — not on every render, not via a duplicate fetch)
   useEffect(() => {
     if (!token) return;
-    // Use the source tag we attach via the proxy route.
-    void (async () => {
-      try {
-        const r = await fetch("/api/axoniz/health");
-        const src = r.headers.get("x-axoniz-source");
-        if (src === "live" || src === "mock") setDataSource(src);
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, [token, setDataSource, healthQ.dataUpdatedAt]);
+    const src = healthQ.data?.__source as "live" | "mock" | undefined;
+    if (src === "live" || src === "mock") setDataSource(src);
+  }, [token, healthQ.data, setDataSource]);
 }

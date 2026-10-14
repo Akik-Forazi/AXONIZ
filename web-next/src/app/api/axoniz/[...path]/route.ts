@@ -73,6 +73,11 @@ export async function GET(req: NextRequest) {
   const p = url.pathname.replace("/api/axoniz", "");
   const cfg = loadConfig();
 
+  // All responses from this proxy are tagged with x-axoniz-source: live so
+  // the UI can tell the difference between the real backend and a mock
+  // (when the real backend is offline). Read by boot.ts via useHealthQuery.
+  const liveHeaders = { "x-axoniz-source": "live" };
+
   switch (p) {
     case "/health": {
       const provider = String(cfg?.provider ?? cfg?.backend ?? (cfg as any)?.llm?.active_provider ?? "llamacpp");
@@ -84,7 +89,7 @@ export async function GET(req: NextRequest) {
         model_loaded: true,
         uptime: process.uptime(),
         timestamp: Date.now(),
-      });
+      }, { headers: liveHeaders });
     }
 
     case "/config": {
@@ -211,7 +216,8 @@ export async function GET(req: NextRequest) {
         start(controller) {
           const enqueue = (s: string) => { try { controller.enqueue(encoder.encode(s)); } catch {} };
           enqueue(": keepalive\n\n");
-          const interval = setInterval(() => enqueue(": keepalive\n\n"), 30000);
+          // 15s heartbeat — see /api/axoniz/stream/route.ts for rationale
+          const interval = setInterval(() => enqueue(": keepalive\n\n"), 15_000);
           (interval as any).unref?.();
           req.signal.addEventListener("abort", () => {
             clearInterval(interval);
@@ -220,7 +226,7 @@ export async function GET(req: NextRequest) {
         },
       });
       return new Response(stream, {
-        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "x-axoniz-source": "live" },
       });
     }
 

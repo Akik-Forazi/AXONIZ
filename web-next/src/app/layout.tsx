@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/axoniz/theme-provider";
 import { QueryProvider } from "@/components/axoniz/query-provider";
+import { TelemetryProvider } from "@/components/axoniz/telemetry-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,9 +54,11 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <QueryProvider>
-            {children}
-            <Toaster />
-            <SonnerToaster />
+            <TelemetryProvider enabled={true}>
+              {children}
+              <Toaster />
+              <SonnerToaster />
+            </TelemetryProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>

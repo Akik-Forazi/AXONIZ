@@ -24,8 +24,10 @@ export async function GET(req: NextRequest) {
       // Send initial keepalive
       enqueue(": keepalive\n\n");
 
-      // Heartbeat every 30s
-      const interval = setInterval(() => enqueue(": keepalive\n\n"), 30000);
+      // Heartbeat every 15s — tight enough to keep proxies / browsers from
+      // dropping the SSE connection (some clients time out after ~30s of
+      // silence), loose enough that it's effectively free.
+      const interval = setInterval(() => enqueue(": keepalive\n\n"), 15_000);
       (interval as any).unref?.();
 
       req.signal.addEventListener("abort", () => {

@@ -170,3 +170,6 @@ err.log
 .commandcode/
 .axo-smoke-build/
 web-next/.next/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
