@@ -178,6 +178,23 @@ export async function POST(req: NextRequest) {
         agent.reset();
         return NextResponse.json({ status: "reset" });
       }
+      case "/auth/login": {
+        // Simple mock auth — the real auth was in Express.
+        // For now, accept any username/password and return a token.
+        // The frontend store just needs a non-null token to proceed.
+        const username = String(body.username || "user");
+        return NextResponse.json({
+          token: `demo-${Date.now().toString(36)}`,
+          username,
+        });
+      }
+      case "/auth/register": {
+        const username = String(body.username || "user");
+        return NextResponse.json({
+          token: `demo-${Date.now().toString(36)}`,
+          username,
+        });
+      }
       case "/model/switch": {
         const { saveConfig, loadConfig } = await loadModule("core/config.js") as { saveConfig: (cfg: unknown) => void; loadConfig: () => Record<string, unknown> };
         const cfg = loadConfig();

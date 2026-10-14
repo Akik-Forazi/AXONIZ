@@ -1,0 +1,5 @@
+{
+  "/(auth)/benchmarks/page": "app/(auth)/benchmarks/page.js",
+  "/api/axoniz/[...path]/route": "app/api/axoniz/[...path]/route.js",
+  "/page": "app/page.js"
+}

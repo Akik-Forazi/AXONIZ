@@ -1,0 +1,3 @@
+{
+  "/(auth)/benchmarks/page": "app/(auth)/benchmarks/page.js"
+}
