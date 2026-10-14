@@ -188,7 +188,7 @@ export async function bootWeb(
   // --web flow now starts Next.js directly on the configured port.
   const { spawnWebNextOnPort } = await import("./web/web-next-spawn.js");
   const child = await spawnWebNextOnPort(port);
-  if (child) {
+  if (child && child.child) {
     const url = `http://localhost:${port}`;
     info(`[Web] dashboard ready at ${url}`);
     info(`[Web] API routes serve directly from dist/ — no Express, no proxy`);
@@ -202,11 +202,17 @@ export async function bootWeb(
     }
     // Keep the process alive — the Next.js dev server runs as a child process
     // and this function blocks until the child exits.
-    await new Promise<void>((resolve) => {
-      child.child.on("exit", () => resolve());
-    });
+    // Guard against null child (process exited before we got here).
+    const childProcess = child.child;
+    if (childProcess) {
+      await new Promise<void>((resolve) => {
+        childProcess.on("exit", () => resolve());
+      });
+    }
   } else {
-    info("[Web] could not start Next.js dashboard. Run manually: cd web-next && npm run dev");
+    info("[Web] could not start Next.js dashboard.");
+    info("[Web] Make sure web-next deps are installed: cd web-next && npm install --legacy-peer-deps");
+    info("[Web] Or run manually: cd web-next && npm run dev");
   }
 }
 
