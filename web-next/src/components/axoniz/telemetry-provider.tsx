@@ -265,7 +265,7 @@ export function TelemetryProvider({
       // Skip if focused on a password field.
       const tgt = e.target as HTMLInputElement | null;
       if (tgt && tgt.tagName === "INPUT" && tgt.getAttribute("type") === "password") return;
-      const modifiers = [];
+      const modifiers: string[] = [];
       if (e.ctrlKey) modifiers.push("Ctrl");
       if (e.metaKey) modifiers.push("Cmd");
       if (e.altKey) modifiers.push("Alt");
@@ -359,15 +359,54 @@ export function TelemetryProvider({
   useEffect(() => {
     if (!enabled) return;
     const origFetch = window.fetch;
+
+    /**
+     * Extract a URL string from any fetch() input shape:
+     *   - string  → use as-is
+     *   - URL     → use .href
+     *   - Request → use .url
+     * Returns empty string if extraction fails (we then skip logging
+     * but still call origFetch — NEVER break the caller).
+     */
+    function extractUrl(input: RequestInfo | URL): string {
+      try {
+        if (typeof input === "string") return input;
+        if (input instanceof URL) return input.href;
+        if (input instanceof Request) return input.url;
+        // Some polyfills put .url on arbitrary objects.
+        const maybeUrl = (input as { url?: unknown }).url;
+        if (typeof maybeUrl === "string") return maybeUrl;
+        return "";
+      } catch {
+        return "";
+      }
+    }
+
     const wrappedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : (input as Request).url;
-      const method = (init?.method ?? (input as Request).method ?? "GET").toUpperCase();
+      const url = extractUrl(input);
+      // If we couldn't extract a URL, skip logging entirely — but still
+      // call the original fetch. NEVER break the caller because logging
+      // failed. This was the cause of the RSC payload TypeError in
+      // https://github.com/Akik-Forazi/AXONIZ/issues/redirect-loop.
+      const canLog = url.length > 0;
+      // Skip our own diagnostic endpoint + Next.js dev-only noise endpoints
+      // to avoid recursion and to keep the log signal-to-noise high.
+      const isDiag = canLog && url.includes("/api/axoniz/diagnostics/log");
+      const isNextJsDevNoise =
+        canLog &&
+        (url.includes("/__nextjs_original-stack-frames") ||
+          url.includes("/__nextjs_flight") ||
+          url.includes("/_next/"));
+      const skipLog = !canLog || isDiag || isNextJsDevNoise;
+
+      const method =
+        (init?.method ?? (typeof input === "object" && input !== null
+          ? (input as Request).method
+          : "GET") ?? "GET").toString().toUpperCase();
       const t0 = performance.now();
-      // Skip our own diagnostic endpoint to avoid infinite recursion.
-      const isDiag = url.includes("/api/axoniz/diagnostics/log");
       try {
         const res = await origFetch(input as RequestInfo, init);
-        if (!isDiag) {
+        if (!skipLog) {
           const safe = sanitizeUrl(url);
           enqueue({
             event_type: "http_request",
@@ -385,7 +424,7 @@ export function TelemetryProvider({
         }
         return res;
       } catch (err) {
-        if (!isDiag) {
+        if (!skipLog) {
           const safe = sanitizeUrl(url);
           enqueue({
             event_type: "http_request",
