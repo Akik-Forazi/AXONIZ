@@ -186,7 +186,7 @@ export async function bootWeb(
   // The old Express server (src/web/server.ts) is no longer used for --web.
   // It can still be used standalone via WebServer if needed, but the default
   // --web flow now starts Next.js directly on the configured port.
-  const { spawnWebNextOnPort, waitForReady } = await import("./web/web-next-spawn.js");
+  const { spawnWebNextOnPort } = await import("./web/web-next-spawn.js");
   const child = await spawnWebNextOnPort(port);
   if (child) {
     const url = `http://localhost:${port}`;
