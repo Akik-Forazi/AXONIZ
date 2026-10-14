@@ -10,6 +10,7 @@ import {
   Zap,
   Check,
   Activity,
+  Play,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,24 +20,75 @@ import { toast } from "sonner";
 import { useModelsQuery, useConfigQuery, useSwitchModelMutation } from "../queries";
 import { useAxonizStore } from "@/stores/axoniz-store";
 
+/**
+ * A single model entry returned by GET /api/axoniz/models (the catch-all
+ * route's /models case). See scanModels() in [...path]/route.ts.
+ * Fields: id (filename), name (clean display name), path (full filesystem
+ * path), sizeBytes, size (string like "1.2 GB"), quant (e.g. "Q4_K_M" or null).
+ */
+interface VaultModel {
+  id: string;
+  name: string;
+  path: string;
+  sizeBytes?: number;
+  size?: string;
+  quant?: string | null;
+}
+
 export function VaultPage() {
   const { data, isLoading, refetch, isFetching } = useModelsQuery();
   const { data: config } = useConfigQuery();
   const switchModel = useSwitchModelMutation();
   const activeModel = useAxonizStore((s) => s.activeModel);
   const setActiveModel = useAxonizStore((s) => s.setActiveModel);
+  const setLlamacpp = useAxonizStore((s) => s.setLlamacpp);
+  const llamacpp = useAxonizStore((s) => s.llamacpp);
 
-  const models = data?.items?.[0]?.models ?? [];
+  // The /models endpoint returns { items: [{ models: [...] }] } — each model
+  // is an OBJECT (not a string). The previous code assumed a string and
+  // crashed on `name.match is not a function`.
+  const models: VaultModel[] = (data?.items?.[0]?.models ?? []) as VaultModel[];
   const active = activeModel ?? (config?.llm?.model as string | undefined) ?? null;
 
-  async function handleSwitch(name: string) {
-    if (name === active) return;
+  async function handleSwitch(m: VaultModel) {
+    if (m.id === active) return;
     try {
-      const res = await switchModel.mutateAsync(name);
-      setActiveModel(name);
-      toast.success(`Active model: ${name}`, {
-        description: res.status === "ok" ? "Model hot-swapped — KV cache reset." : res.error,
+      // For llamacpp: persist modelPath + baseUrl, launch llama-server, then chat works.
+      const res = await switchModel.mutateAsync(m.path ?? m.id);
+      setLlamacpp({ modelPath: m.path ?? m.id, baseUrl: llamacpp.baseUrl || "http://localhost:8080" });
+      setActiveModel(m.id);
+      toast.success(`Active model: ${m.name}`, {
+        description: res.status === "ok" ? "Persisted + will launch on next chat." : res.error,
       });
+      // Try to launch llama-server with the new model.
+      try {
+        const launchRes = await fetch("/api/axoniz/models/launch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelPath: m.path,
+            baseUrl: llamacpp.baseUrl || "http://localhost:8080",
+            nCtx: llamacpp.nCtx,
+            nGpuLayers: llamacpp.nGpuLayers,
+            nThreads: llamacpp.nThreads,
+          }),
+        });
+        const launchData = await launchRes.json();
+        if (launchRes.ok && launchData.ok) {
+          toast.success(`llama-server ready at ${launchData.baseUrl}`, {
+            description: `PID ${launchData.pid ?? "?"} · ${m.name}`,
+          });
+        } else if (!launchRes.ok) {
+          toast.error("llama-server launch failed", {
+            description: launchData.error ?? "Unknown error",
+          });
+        }
+      } catch (e) {
+        // The model switch still succeeded; just warn that launch failed.
+        toast.warning("Model switched but llama-server launch failed", {
+          description: e instanceof Error ? e.message : String(e),
+        });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Switch failed");
     }
@@ -51,7 +103,7 @@ export function VaultPage() {
             The Vault
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Local GGUF armory — {models.length} models indexed in {config?._models_dir ?? "~/.axoniz/models"}
+            Local GGUF armory — {models.length} model{models.length === 1 ? "" : "s"} indexed in {config?._models_dir ?? "~/.axoniz/models"}
           </p>
         </div>
         <Button
@@ -60,6 +112,7 @@ export function VaultPage() {
           onClick={() => refetch()}
           disabled={isFetching}
           className="h-8 gap-1.5"
+          data-axoniz-action="vault-rescan"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
           Rescan
@@ -75,12 +128,20 @@ export function VaultPage() {
                 <Skeleton className="h-8 w-full" />
               </Card>
             ))
-          : models.map((name, idx) => (
+          : models.length === 0
+            ? (
+              <div className="col-span-full p-8 rounded-md border border-border bg-secondary/30 text-[12px] text-muted-foreground">
+                No .gguf models found in <code className="font-mono text-foreground/80">~/.axoniz/models/</code>.
+                <br /><br />
+                Place .gguf files (optionally in subdirectories) under that path, then click <strong>Rescan</strong>.
+              </div>
+            )
+            : models.map((m, idx) => (
               <ModelCard
-                key={name}
-                name={name}
-                active={name === active}
-                onActivate={() => handleSwitch(name)}
+                key={m.path ?? m.id}
+                model={m}
+                active={m.id === active}
+                onActivate={() => handleSwitch(m)}
                 busy={switchModel.isPending}
                 delay={idx * 30}
               />
@@ -91,23 +152,25 @@ export function VaultPage() {
 }
 
 function ModelCard({
-  name,
+  model,
   active,
   onActivate,
   busy,
   delay,
 }: {
-  name: string;
+  model: VaultModel;
   active: boolean;
   onActivate: () => void;
   busy: boolean;
   delay: number;
 }) {
   const [expanded, setExpanded] = useState(false);
-  // Naive size estimate from filename (e.g. Q4_K_M ≈ 4-bit, ~50% of params)
-  const quant = extractQuant(name);
+  // Use the formatted display name (already a clean string) for parsing.
+  const name = model.name ?? model.id ?? "";
+  const quant = model.quant ?? extractQuant(name);
   const params = extractParams(name);
-  const sizeGb = params ? (params * (quant?.bits ?? 4) * 0.13).toFixed(1) : null;
+  const sizeGb = model.size ?? (params ? (params * (typeof quant === "string" ? 4 : (quant?.bits ?? 4)) * 0.13).toFixed(1) : null);
+  const parentDir = model.path ? model.path.split(/[\\/]/).slice(-2, -1)[0] ?? "" : "";
 
   return (
     <motion.div
@@ -117,9 +180,10 @@ function ModelCard({
     >
       <Card
         className={`surface hoverable p-4 h-full flex flex-col gap-2 cursor-pointer ${
-          active ? " border-primary/40" : ""
+          active ? "border-primary/40" : ""
         }`}
         onClick={() => setExpanded((e) => !e)}
+        data-axoniz-action={`vault-model:${name.slice(0, 20)}`}
       >
         <div className="flex items-start gap-2">
           <div
@@ -131,10 +195,10 @@ function ModelCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-mono text-xs font-medium truncate text-foreground/90">
-              {name.replace(/\.gguf$/, "")}
+              {name}
             </div>
             <div className="text-[10px] text-muted-foreground/70 font-mono truncate">
-              .gguf
+              {parentDir ? `${parentDir}/` : ""}{model.id}
             </div>
           </div>
           {active && (
@@ -153,16 +217,22 @@ function ModelCard({
           )}
           {quant && (
             <Badge variant="outline" className="h-5 px-1.5 border-white/10 bg-white/5 font-mono">
-              {quant.label}
+              {typeof quant === "string" ? quant : quant.label}
             </Badge>
           )}
           {sizeGb && (
             <Badge variant="outline" className="h-5 px-1.5 border-white/10 bg-white/5 font-mono gap-1">
               <HardDrive className="w-2.5 h-2.5" />
-              {sizeGb} GB
+              {sizeGb}{typeof sizeGb === "string" && sizeGb.includes("GB") ? "" : " GB"}
             </Badge>
           )}
         </div>
+
+        {expanded && model.path && (
+          <div className="text-[10px] text-muted-foreground/60 font-mono break-all">
+            {model.path}
+          </div>
+        )}
 
         <div className="mt-auto pt-2">
           {active ? (
@@ -185,9 +255,10 @@ function ModelCard({
               }}
               disabled={busy}
               className="w-full h-7 text-[11px] gap-1"
+              data-axoniz-action="vault-load"
             >
-              <Zap className="w-3 h-3" />
-              Load
+              <Play className="w-3 h-3" />
+              {busy ? "Loading…" : "Load & launch"}
             </Button>
           )}
         </div>
@@ -203,8 +274,10 @@ function extractQuant(name: string): { bits: number; label: string } | null {
   return { bits: Number(m[1]), label: `Q${m[1]}_${m[2]}` };
 }
 function extractParams(name: string): number | null {
+  if (typeof name !== "string") return null;
   const m = name.match(/(\d+(?:\.\d+)?)B/i) ?? name.match(/-(\d+(?:\.\d+)?)-/);
   if (!m) return null;
   const n = Number(m[1]);
   return n >= 1 && n <= 100 ? n : null;
 }
+
