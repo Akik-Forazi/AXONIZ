@@ -26,14 +26,7 @@ import { useAxonizStore } from "@/stores/axoniz-store";
  * Fields: id (filename), name (clean display name), path (full filesystem
  * path), sizeBytes, size (string like "1.2 GB"), quant (e.g. "Q4_K_M" or null).
  */
-interface VaultModel {
-  id: string;
-  name: string;
-  path: string;
-  sizeBytes?: number;
-  size?: string;
-  quant?: string | null;
-}
+type VaultModel = import("@/lib/axoniz/api-types").VaultModelEntry;
 
 export function VaultPage() {
   const { data, isLoading, refetch, isFetching } = useModelsQuery();
@@ -45,9 +38,9 @@ export function VaultPage() {
   const llamacpp = useAxonizStore((s) => s.llamacpp);
 
   // The /models endpoint returns { items: [{ models: [...] }] } — each model
-  // is an OBJECT (not a string). The previous code assumed a string and
-  // crashed on `name.match is not a function`.
-  const models: VaultModel[] = (data?.items?.[0]?.models ?? []) as VaultModel[];
+  // is an OBJECT (VaultModelEntry), not a string. The previous code assumed
+  // a string and crashed on `name.match is not a function`.
+  const models: VaultModel[] = data?.items?.[0]?.models ?? [];
   const active = activeModel ?? (config?.llm?.model as string | undefined) ?? null;
 
   async function handleSwitch(m: VaultModel) {

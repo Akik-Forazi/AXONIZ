@@ -50,9 +50,30 @@ export interface AxonizConfig {
 }
 
 /* ---------- Models / Vault ---------- */
+
+/**
+ * A single .gguf / .bin model file discovered by scanning ~/.axoniz/models.
+ * Returned by GET /api/axoniz/models (catch-all route's /models case)
+ * and GET /api/axoniz/models/local.
+ */
+export interface VaultModelEntry {
+  /** Filename (e.g. "gemma-3-1b-it.Q5_K_S.gguf"). */
+  id: string;
+  /** Clean display name (e.g. "Gemma 3 1B IT"). */
+  name: string;
+  /** Full filesystem path. */
+  path: string;
+  /** Size in bytes. */
+  sizeBytes?: number;
+  /** Human-readable size (e.g. "1.2 GB"). */
+  size?: string;
+  /** Quantization tag (e.g. "Q5_K_S") or null. */
+  quant?: string | null;
+}
+
 export interface ModelEndpoint {
   endpoint_id: string;
-  models: string[];
+  models: VaultModelEntry[];
 }
 export interface ModelsListResponse {
   items: ModelEndpoint[];
