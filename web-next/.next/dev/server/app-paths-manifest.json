@@ -1,7 +1,0 @@
-{
-  "/(auth)/settings/providers/[id]/page": "app/(auth)/settings/providers/[id]/page.js",
-  "/api/axoniz/[...path]/route": "app/api/axoniz/[...path]/route.js",
-  "/api/axoniz/chat/route": "app/api/axoniz/chat/route.js",
-  "/api/axoniz/stream/route": "app/api/axoniz/stream/route.js",
-  "/chat/page": "app/chat/page.js"
-}

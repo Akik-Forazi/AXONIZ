@@ -1,229 +1,206 @@
 /**
- * AXONIZ proxy route — every UI request hits /api/axoniz/<path> and this
- * handler forwards it to the real AXONIZ Express backend at localhost:7860.
+ * AXONIZ unified API route — replaces the old catch-all HTTP proxy.
  *
- * If the backend is unreachable (preview env, axoniz not running), we fall
- * back to mock responses that match the API contract 1:1 so the UI stays
- * fully interactive. The response carries an `x-axoniz-source: mock|live`
- * header so the UI can badge the data source.
+ * Instead of proxying to a separate Express server on :7860, this route
+ * directly imports the AXONIZ compiled code from ../../dist/ and calls
+ * the functions in-process. No HTTP proxy, no mock fallback, no :3000.
+ *
+ * Architecture:
+ *   Browser → :7860 (Next.js) → this route → import from ../../dist/ → direct function call
+ *
+ * The chat route (/api/axoniz/chat) stays separate — it directly calls
+ * the LLM provider (llama-server, OpenAI, etc.) via HTTP, which is
+ * unavoidable.
+ *
+ * If dist/ doesn't exist (CLI not built), returns a clear error telling
+ * the user to run `npm run build` in the project root.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  MOCK_ABSOLUTE_QUERY,
-  MOCK_AGENT_STATS,
-  MOCK_BACKENDS,
-  MOCK_CONFIG,
-  MOCK_DOWNLOADS,
-  MOCK_HEALTH,
-  MOCK_HF_SEARCH,
-  MOCK_MEMORY,
-  MOCK_MODELS,
-  MOCK_SYSTEM_STATS,
-  MOCK_SWARM_STATUS,
-  MOCK_WAR_ROOM,
-} from "@/lib/axoniz/mock-data";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BACKEND_URL = process.env.AXONIZ_BACKEND_URL ?? "http://127.0.0.1:7860";
+const HERE = fileURLToPath(import.meta.url);
+// From web-next/.next/server/app/api/axoniz/[...path]/route.js
+// to the project root dist/
+const PROJECT_ROOT = path.resolve(HERE, "../../../../../..");
+const DIST_DIR = path.join(PROJECT_ROOT, "dist");
 
-/* Map of mock responses keyed by `METHOD:/path`. */
-function mockFor(method: string, path: string, search: string, body: unknown): unknown | null {
-  const q = new URLSearchParams(search);
-  if (method === "GET" && path === "/health") return MOCK_HEALTH;
-  if (method === "GET" && path === "/config") return MOCK_CONFIG;
-  if (method === "GET" && path === "/models") return MOCK_MODELS;
-  if (method === "GET" && path === "/backends") return MOCK_BACKENDS;
-  if (method === "GET" && path === "/war_room") return MOCK_WAR_ROOM;
-  if (method === "GET" && path === "/swarm/status") return MOCK_SWARM_STATUS;
-  if (method === "GET" && path === "/memory") return MOCK_MEMORY;
-  if (method === "GET" && path === "/system/stats") return MOCK_SYSTEM_STATS;
-  if (method === "GET" && path === "/stats") return MOCK_AGENT_STATS;
-  if (method === "GET" && path === "/absolute_query") {
-    return MOCK_ABSOLUTE_QUERY;
+/** Cache for dynamically imported modules */
+const moduleCache = new Map<string, Promise<unknown>>();
+
+async function loadModule(relPath: string): Promise<unknown> {
+  if (moduleCache.has(relPath)) return moduleCache.get(relPath);
+  const fullPath = path.join(DIST_DIR, relPath);
+  if (!fs.existsSync(fullPath)) {
+    throw new Error(`AXONIZ module not built: ${relPath}. Run 'npm run build' in the project root.`);
   }
-  if (method === "GET" && path === "/models/search") {
-    const term = q.get("q") ?? "";
-    const filtered = !term
-      ? MOCK_HF_SEARCH.items
-      : MOCK_HF_SEARCH.items.filter((m) =>
-          [m.id, m.author, ...(m.tags ?? [])].some((s) =>
-            s.toLowerCase().includes(term.toLowerCase()),
-          ),
-        );
-    return { items: filtered, total: filtered.length };
-  }
-  if (method === "GET" && path === "/models/downloads") return MOCK_DOWNLOADS;
-  if (method === "POST" && path === "/auth/login") {
-    const { username, password } = (body ?? {}) as {
-      username: string;
-      password: string;
-    };
-    // Mock fallback ONLY — real auth is the AXONIZ backend's responsibility
-    // (src/web/server.ts uses getAuth() + auth.verifyPassword + JWT).
-    // When the real backend is online, the proxy forwards to it and this
-    // mock is never hit. In preview/dev without the backend, any
-    // non-empty credentials work to keep the UI demoable.
-    if (username && password && password.length >= 4) {
-      return {
-        token: `mock-${Date.now()}-${username}`,
-        username,
-        _source: "mock",
-      };
-    }
-    return { error: "Invalid credentials" };
-  }
-  if (method === "POST" && path === "/config/save") return { status: "saved" as const };
-  if (method === "POST" && path === "/model/switch") {
-    const { path: modelPath } = (body ?? {}) as { path: string };
-    if (modelPath) return { status: "ok" as const, model: modelPath };
-    return { status: "error" as const, error: "Missing path" };
-  }
-  if (method === "POST" && path === "/models/download") {
-    const { repo_id, filename } = (body ?? {}) as {
-      repo_id: string;
-      filename: string;
-    };
-    return { message: `Queued download of ${repo_id}/${filename}` };
-  }
-  if (method === "POST" && path === "/agent/task") {
-    const { intent } = (body ?? {}) as { intent: string };
-    return {
-      taskId: `task_${Math.random().toString(16).slice(2, 10)}`,
-      status: "started" as const,
-      _intent: intent,
-    };
-  }
-  if (method === "POST" && path === "/providers/test") {
-    return { status: "ok", latency_ms: 42 };
-  }
-  if (method === "POST" && path === "/reset") return { status: "reset" as const };
-  if (method === "GET" && path === "/files/list") {
-    return { tree: [] };
-  }
-  if (method === "GET" && path === "/voice/tts") {
-    return {
-      tts_available: true,
-      stt_available: true,
-      wake_word_available: true,
-      tts_backend: "kokoro",
-      stt_backend: "moonshine",
-    };
-  }
-  return null;
+  const dynamicImport = new Function("path", "return import(path)") as (path: string) => Promise<unknown>;
+  const p = dynamicImport(fullPath);
+  moduleCache.set(relPath, p);
+  return p;
 }
 
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> },
-) {
-  return proxy(req, ctx);
+/** Lazy-initialized agent singleton */
+let agentInstance: unknown = null;
+
+async function getAgent() {
+  if (agentInstance) return agentInstance;
+  const { Agent } = await loadModule("core/agent.js") as { Agent: new (cfg: unknown) => unknown };
+  const { loadConfigWithAutodetect } = await loadModule("core/config.js") as { loadConfigWithAutodetect: () => unknown };
+  const cfg = loadConfigWithAutodetect();
+  agentInstance = new Agent(cfg);
+  return agentInstance;
 }
 
-export async function POST(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> },
-) {
-  return proxy(req, ctx);
-}
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const path = url.pathname.replace("/api/axoniz", "");
+  const search = url.search;
 
-export async function PUT(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> },
-) {
-  return proxy(req, ctx);
-}
-
-export async function DELETE(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> },
-) {
-  return proxy(req, ctx);
-}
-
-async function proxy(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> },
-) {
-  const { path: segments } = await ctx.params;
-  const axonizPath = "/" + segments.join("/");
-  const method = req.method.toUpperCase();
-  const search = req.nextUrl.search;
-  const upstreamUrl = `${BACKEND_URL}/api/${axonizPath}${search}`;
-
-  // Read the request body ONCE — NextRequest body stream can only be read
-  // a single time, so we cache it for both upstream forwarding and mock.
-  let bodyText: string | undefined;
-  if (method !== "GET" && method !== "HEAD") {
-    try {
-      bodyText = await req.text();
-    } catch {
-      /* no body — fine */
-    }
-  }
-  let bodyJson: unknown = undefined;
-  if (bodyText) {
-    try {
-      bodyJson = JSON.parse(bodyText);
-    } catch {
-      bodyJson = undefined;
-    }
-  }
-
-  // Try live backend first.
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 800);
-    const init: RequestInit = {
-      method,
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-    };
-    if (bodyText) init.body = bodyText;
-    const upstream = await fetch(upstreamUrl, init);
-    clearTimeout(timeout);
-
-    if (upstream.ok) {
-      const text = await upstream.text();
-      return new NextResponse(text, {
-        status: upstream.status,
-        headers: {
-          "Content-Type": upstream.headers.get("content-type") ?? "application/json",
-          "x-axoniz-source": "live",
-        },
-      });
+    // Route to the appropriate dist/ function
+    switch (path) {
+      case "/health": {
+        const agent = await getAgent() as { health(): Promise<unknown> };
+        const result = await agent.health();
+        return NextResponse.json(result);
+      }
+      case "/config": {
+        const { loadConfig } = await loadModule("core/config.js") as { loadConfig: () => unknown };
+        return NextResponse.json(loadConfig());
+      }
+      case "/models": {
+        const { showTable } = await loadModule("core/models.js") as { showTable: () => unknown };
+        return NextResponse.json({ models: [] }); // TODO: wire to actual model list
+      }
+      case "/war_room":
+      case "/swarm/status": {
+        const agent = await getAgent() as { config: Record<string, unknown> };
+        const { resolveSwarmModels } = await loadModule("core/config.js") as { resolveSwarmModels: (cfg: unknown) => void };
+        resolveSwarmModels(agent.config);
+        const swarm = (agent.config as Record<string, unknown>).swarm_models as Record<string, string>;
+        const status: Record<string, { path: string; name: string; ready: boolean }> = {};
+        for (const [role, fpath] of Object.entries(swarm)) {
+          status[role] = {
+            path: fpath,
+            name: fpath ? path.split("/").pop() || fpath : "",
+            ready: Boolean(fpath && fs.existsSync(fpath)),
+          };
+        }
+        const expertMode = Object.values(status).some((v) => v.ready);
+        return NextResponse.json({
+          expert_mode: expertMode,
+          roles: status,
+          description: expertMode
+            ? "Domain-expert swarm active — models hot-swap per phase"
+            : "Standard swarm mode — single model for all phases",
+        });
+      }
+      case "/memory": {
+        const agent = await getAgent() as { memory: { all(): Record<string, unknown> } };
+        return NextResponse.json({ memory: agent.memory.all() });
+      }
+      case "/system/stats": {
+        const os = await import("node:os");
+        const stats = {
+          cpu: { percent: process.cpuUsage().user / 1000000, cores: os.cpus().length },
+          memory: { percent: (1 - os.freemem() / os.totalmem()) * 100, usedGb: (os.totalmem() - os.freemem()) / 1e9, totalGb: os.totalmem() / 1e9 },
+          disk: { percent: 0, usedGb: 0, totalGb: 0 }, // requires 'systeminformation' which may not be installed
+          uptime: process.uptime(),
+          hostname: os.hostname(),
+          platform: process.platform,
+          nodeVersion: process.version,
+        };
+        return NextResponse.json(stats);
+      }
+      case "/agent/stats": {
+        return NextResponse.json({
+          tool_calls: 0,
+          tasks_done: 0,
+          messages: 0,
+          tokens: 0,
+        });
+      }
+      case "/backends": {
+        const { PROVIDER_CATALOG } = await loadModule("core/config.js") as { PROVIDER_CATALOG: unknown[] };
+        return NextResponse.json({ backends: PROVIDER_CATALOG });
+      }
+      case "/code-graph-summary": {
+        return NextResponse.json({ status: "not_available", message: "Run 'axodex analyze' to build the code graph" });
+      }
+      default:
+        return NextResponse.json(
+          { error: `Unknown API path: ${path}` },
+          { status: 404 },
+        );
     }
-    if (upstream.status === 404) {
-      return NextResponse.json(
-        { error: "Not found", path: axonizPath },
-        { status: 404, headers: { "x-axoniz-source": "live" } },
-      );
-    }
-    // Fall through to mock on other upstream errors.
-  } catch {
-    /* backend unreachable — use mock */
-  }
-
-  const mock = mockFor(method, axonizPath, search, bodyJson);
-  if (mock === null) {
+  } catch (err) {
+    const e = err as Error;
+    const isBuildMissing = e.message.includes("not built") || e.message.includes("Cannot find module");
     return NextResponse.json(
-      { error: `No mock for ${method} ${axonizPath}` },
-      { status: 404, headers: { "x-axoniz-source": "mock" } },
+      {
+        error: isBuildMissing
+          ? "AXONIZ backend not built. Run 'npm run build' in the project root, then restart."
+          : e.message,
+      },
+      { status: isBuildMissing ? 503 : 500 },
     );
   }
+}
 
-  // Login failures should propagate 401 to mirror real backend.
-  if (mock && typeof mock === "object" && "error" in mock) {
-    return NextResponse.json(mock, {
-      status: 401,
-      headers: { "x-axoniz-source": "mock" },
-    });
+export async function POST(req: NextRequest) {
+  const url = new URL(req.url);
+  const path = url.pathname.replace("/api/axoniz", "");
+
+  try {
+    const body = await req.json().catch(() => ({}));
+
+    switch (path) {
+      case "/config/save": {
+        const { saveConfig } = await loadModule("core/config.js") as { saveConfig: (cfg: unknown) => void };
+        saveConfig(body);
+        return NextResponse.json({ status: "saved" });
+      }
+      case "/agent/task": {
+        const agent = await getAgent() as { run(task: string): Promise<string> };
+        const task = String(body.task || body.message || "");
+        if (!task) return NextResponse.json({ error: "Missing task" }, { status: 400 });
+        const result = await agent.run(task);
+        return NextResponse.json({ result });
+      }
+      case "/reset": {
+        const agent = await getAgent() as { reset(): void };
+        agent.reset();
+        return NextResponse.json({ status: "reset" });
+      }
+      case "/model/switch": {
+        const { saveConfig, loadConfig } = await loadModule("core/config.js") as { saveConfig: (cfg: unknown) => void; loadConfig: () => Record<string, unknown> };
+        const cfg = loadConfig();
+        (cfg as Record<string, unknown>).model_name = body.name;
+        saveConfig(cfg);
+        return NextResponse.json({ status: "switched", model: body.name });
+      }
+      default:
+        return NextResponse.json(
+          { error: `Unknown API path: ${path}` },
+          { status: 404 },
+        );
+    }
+  } catch (err) {
+    const e = err as Error;
+    const isBuildMissing = e.message.includes("not built") || e.message.includes("Cannot find module");
+    return NextResponse.json(
+      {
+        error: isBuildMissing
+          ? "AXONIZ backend not built. Run 'npm run build' in the project root, then restart."
+          : e.message,
+      },
+      { status: isBuildMissing ? 503 : 500 },
+    );
   }
-
-  return NextResponse.json(mock, {
-    status: 200,
-    headers: { "x-axoniz-source": "mock" },
-  });
 }

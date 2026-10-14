@@ -180,9 +180,34 @@ export async function bootWeb(
   host = "localhost",
   openBrowser = true,
 ): Promise<void> {
-  const { WebServer } = await import("./web/server.js");
-  const ws = new WebServer({ agent, host, port });
-  await ws.start(openBrowser);
+  // New architecture: single Next.js server on :7860. No Express, no :3000,
+  // no proxy. The Next.js API routes import AXONIZ code directly from dist/.
+  //
+  // The old Express server (src/web/server.ts) is no longer used for --web.
+  // It can still be used standalone via WebServer if needed, but the default
+  // --web flow now starts Next.js directly on the configured port.
+  const { spawnWebNextOnPort, waitForReady } = await import("./web/web-next-spawn.js");
+  const child = await spawnWebNextOnPort(port);
+  if (child) {
+    const url = `http://localhost:${port}`;
+    info(`[Web] dashboard ready at ${url}`);
+    info(`[Web] API routes serve directly from dist/ — no Express, no proxy`);
+    if (openBrowser) {
+      try {
+        const { openInBrowser } = await import("./web/open_browser.js");
+        await openInBrowser(url);
+      } catch {
+        /* openInBrowser is optional */
+      }
+    }
+    // Keep the process alive — the Next.js dev server runs as a child process
+    // and this function blocks until the child exits.
+    await new Promise<void>((resolve) => {
+      child.child.on("exit", () => resolve());
+    });
+  } else {
+    info("[Web] could not start Next.js dashboard. Run manually: cd web-next && npm run dev");
+  }
 }
 
 /* ── Full boot sequence ───────────────────────────────────────────────────── */

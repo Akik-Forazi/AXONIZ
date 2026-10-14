@@ -1,18 +1,12 @@
 /**
- * Spawns the AXONIZ Next.js dashboard (web-next/) as a child process and
- * waits for it to be ready before resolving.
+ * Spawns the AXONIZ Next.js dashboard on the configured port (default 7860).
  *
- * `axoniz --web` now serves the new Next.js UI from `web-next/` instead
- * of the legacy scraped static files at `src/web/static/`. The Express
- * backend stays on :7860 (where all `/api/*` routes live); the Next.js
- * dev server runs on :3000; the Express server proxies all non-API GET
- * requests to :3000 so users only need to remember one port.
- *
- * Resolution priority:
- *   1. `bun run dev`  — preferred (fastest dev server on the planet)
- *   2. `npm run dev`  — fallback if bun isn't on PATH
- *   3. Give up gracefully — Express keeps serving the legacy static UI
- *      with a clear log line telling the operator to install bun or npm.
+ * New architecture (single server, no proxy):
+ *   - Next.js runs on :7860 (was :3000)
+ *   - No Express server, no proxy
+ *   - Next.js API routes import AXONIZ code directly from dist/
+ *   - Chat API route directly calls the LLM provider (HTTP, unavoidable)
+ *   - Agent/memory/swarm API routes call AXONIZ functions in-process (CODE, not HTTP)
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -27,8 +21,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
 export const WEB_NEXT_DIR = path.join(REPO_ROOT, "web-next");
 
-const DEV_PORT = Number(process.env.AXONIZ_WEB_NEXT_PORT ?? 3000);
-const DEV_URL = `http://localhost:${DEV_PORT}`;
+const DEFAULT_PORT = 7860;
 const READY_TIMEOUT_MS = 60_000;
 const READY_POLL_INTERVAL_MS = 500;
 
@@ -40,107 +33,61 @@ export interface SpawnedDevServer {
   child: ChildProcess;
 }
 
-/**
- * Spawn `bun run dev` (or `npm run dev`) in web-next/ and resolve once
- * the dev server answers a HEAD request. If web-next/ doesn't exist,
- * resolves null (the caller should fall back to the legacy static UI
- * and log a warning).
- */
-export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
-  // If already spawned in this process, return the cached handle
+export async function spawnWebNextOnPort(port: number = DEFAULT_PORT): Promise<SpawnedDevServer | null> {
+  const devUrl = `http://localhost:${port}`;
+
   if (child && !child.killed) {
-    return { url: DEV_URL, port: DEV_PORT, child };
+    return { url: devUrl, port, child };
   }
 
-  // Verify web-next/ exists
   if (!fs.existsSync(WEB_NEXT_DIR)) {
-    warn(
-      `[Web] web-next/ not found at ${WEB_NEXT_DIR} — falling back to legacy static UI. Run 'git pull' or clone the dashboard into web-next/.`,
-    );
+    warn(`[Web] web-next/ not found at ${WEB_NEXT_DIR}.`);
     return null;
   }
   if (!fs.existsSync(path.join(WEB_NEXT_DIR, "package.json"))) {
-    warn(
-      `[Web] web-next/package.json missing — directory looks malformed. Falling back to legacy static UI.`,
-    );
+    warn(`[Web] web-next/package.json missing.`);
     return null;
   }
 
-  // Pick a runner
   const bunBin = resolveCommand("bun");
   const npmBin = resolveCommand("npm");
   const runner = bunBin ?? npmBin;
   if (!runner) {
-    warn(
-      `[Web] Neither 'bun' nor 'npm' is on PATH — cannot start the Next.js dev server. Falling back to legacy static UI. Install bun (recommended) or Node.js.`,
-    );
+    warn(`[Web] Neither 'bun' nor 'npm' is on PATH.`);
     return null;
   }
   const runnerLabel = bunBin ? "bun" : "npm";
 
-  // Spawn
-  info(`[Web] spawning ${runnerLabel} run dev in web-next/ (port ${DEV_PORT})`);
+  info(`[Web] spawning ${runnerLabel} run dev in web-next/ (port ${port})`);
 
-  // Cross-platform spawn that handles:
-  //   - Windows npm.cmd (a batch file, NOT a real executable)
-  //   - Paths with spaces (e.g. C:\Program Files\nodejs\npm.cmd)
-  //   - Node 22+ DEP0190 deprecation (shell:true with args array)
-  //
-  // Strategy on Windows: bypass cmd.exe entirely by spawning node.exe with
-  // the npm-cli.js script directly. This avoids:
-  //   1. The DEP0190 deprecation warning (no shell:true needed)
-  //   2. cmd.exe splitting `C:\Program Files\...` on the space (which
-  //      caused "'C:\Program' is not recognized")
-  //   3. Quote-handling ambiguities in cmd.exe /c
-  //
-  // npm-cli.js lives next to npm.cmd in `node_modules/npm/bin/npm-cli.js`.
-  // We resolve it from the runner path (which IS the path to npm.cmd).
-  //
-  // On POSIX: bun/npm are real executables — spawn directly with args array.
   const isWin = process.platform === "win32";
   let cmd: string;
   let args: string[];
 
   if (isWin && runnerLabel === "npm") {
-    // Find npm-cli.js next to npm.cmd.
-    // runner is like: C:\Program Files\nodejs\npm.cmd
-    // npm-cli.js is at: C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
     const npmDir = path.dirname(runner);
     const npmCliPath = path.join(npmDir, "node_modules", "npm", "bin", "npm-cli.js");
     if (fs.existsSync(npmCliPath)) {
-      cmd = process.execPath;  // node.exe — no spaces issue, real .exe
+      cmd = process.execPath;
       args = [npmCliPath, "run", "dev"];
-      info(`[Web] using node.exe + npm-cli.js directly (bypassing cmd.exe)`);
+      info(`[Web] using node.exe + npm-cli.js directly`);
     } else {
-      // Fallback: use cmd.exe with the bare command name (let PATH find it).
-      // Don't use the full path because paths with spaces break cmd.exe's /c parsing.
-      warn(`[Web] npm-cli.js not found at ${npmCliPath} — falling back to cmd.exe + bare 'npm'.`);
       cmd = process.env.ComSpec || "cmd.exe";
       args = ["/c", "npm run dev"];
     }
   } else {
-    // POSIX or bun on Windows — both are real executables
     cmd = runner;
     args = ["run", "dev"];
   }
 
   child = spawn(cmd, args, {
     cwd: WEB_NEXT_DIR,
-    env: {
-      ...process.env,
-      PORT: String(DEV_PORT),
-      // Suppress the auto-open behavior of Next's dev server; the
-      // Express proxy opens the browser to :7860 once it's ready.
-      NEXT_TELEMETRY_DISABLED: "1",
-    },
+    env: { ...process.env, PORT: String(port), NEXT_TELEMETRY_DISABLED: "1" },
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
-    // No `shell` option — we spawn node.exe directly on Windows,
-    // and on POSIX we spawn the real binary directly.
   });
 
-  // Pipe child stdout/stderr to debug logs (so we can see compile errors)
   child.stdout?.on("data", (chunk: Buffer) => {
     const line = chunk.toString().trim();
     if (line) info(`[web-next] ${line}`);
@@ -150,35 +97,27 @@ export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
     if (line) warn(`[web-next] ${line}`);
   });
   child.on("exit", (code, signal) => {
-    warn(
-      `[Web] Next.js dev server exited (code=${code} signal=${signal}). ` +
-        `Subsequent proxied requests will 502. Restart 'axoniz --web' to relaunch.`,
-    );
+    warn(`[Web] Next.js exited (code=${code} signal=${signal}).`);
     child = null;
   });
 
-  // Wait for the dev server to respond
-  const ready = await waitForReady(DEV_URL, READY_TIMEOUT_MS);
-  if (!ready) {
-    warn(
-      `[Web] Next.js dev server did not become ready within ${READY_TIMEOUT_MS / 1000}s — proxying may 502 until it's up.`,
-    );
+  const ready = await waitForReady(devUrl, READY_TIMEOUT_MS);
+  if (ready) {
+    info(`[Web] dashboard ready at ${devUrl}`);
   } else {
-    info(`[Web] Next.js dashboard ready at ${DEV_URL}`);
+    warn(`[Web] dashboard not ready within ${READY_TIMEOUT_MS / 1000}s.`);
   }
 
-  return { url: DEV_URL, port: DEV_PORT, child };
+  return { url: devUrl, port, child };
 }
 
-/** Stop the spawned Next.js dev server (called on SIGINT/SIGTERM). */
+export async function spawnWebNext(): Promise<SpawnedDevServer | null> {
+  return spawnWebNextOnPort(DEFAULT_PORT);
+}
+
 export function stopWebNext(): void {
   if (child && !child.killed) {
-    try {
-      child.kill("SIGTERM");
-      info("[Web] Next.js dev server stopped");
-    } catch {
-      /* ignore */
-    }
+    try { child.kill("SIGTERM"); info("[Web] stopped"); } catch { /* ignore */ }
   }
   child = null;
 }
@@ -188,12 +127,8 @@ async function waitForReady(url: string, timeoutMs: number): Promise<boolean> {
   while (Date.now() < deadline) {
     try {
       const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(2000) });
-      // Next dev server returns 200 on /, or 404 on / without a route — either
-      // means it's responding.
       if (res.status < 500) return true;
-    } catch {
-      /* not ready yet — try again */
-    }
+    } catch { /* not ready */ }
     await new Promise((r) => setTimeout(r, READY_POLL_INTERVAL_MS));
   }
   return false;
