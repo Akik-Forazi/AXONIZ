@@ -156,9 +156,21 @@ function parseFilters(args: string[]): Filters {
 
 function applyFilters(events: LogEvent[], f: Filters): LogEvent[] {
   let out = events.filter(e => !e.__raw); // drop broken for filtering
-  if (f.severity) out = out.filter(e => (e.severity ?? "").toLowerCase() === f.severity);
-  if (f.event_type) out = out.filter(e => e.event_type === f.event_type);
-  if (f.component) out = out.filter(e => (e.component ?? "").includes(f.component));
+  // Extract locals before closures — TypeScript's control-flow narrowing
+  // does not propagate captured variables into closures, so we capture
+  // them as consts here to keep the strict-mode compiler happy.
+  if (f.severity) {
+    const sev = f.severity;
+    out = out.filter(e => (e.severity ?? "").toLowerCase() === sev);
+  }
+  if (f.event_type) {
+    const et = f.event_type;
+    out = out.filter(e => e.event_type === et);
+  }
+  if (f.component) {
+    const comp = f.component;
+    out = out.filter(e => (e.component ?? "").includes(comp));
+  }
   if (f.since) {
     const t = Date.parse(f.since);
     if (!Number.isNaN(t)) out = out.filter(e => e.timestamp_utc && Date.parse(e.timestamp_utc) >= t);
