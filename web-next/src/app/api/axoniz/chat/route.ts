@@ -81,11 +81,15 @@ export async function POST(req: NextRequest) {
     { role: "user" as const, content: body.message },
   ];
 
-  // No baseUrl → bail with a helpful error.
-  // Note: for llamacpp, the caller MUST pass baseUrl (default http://localhost:8080)
-  // because the store's llamacpp.baseUrl isn't reachable from this server-side route
-  // (the store lives in the browser). The frontend client (use-chat-stream.ts) is
-  // responsible for passing baseUrl from the store.
+  // Auto-default the baseUrl for llamacpp — the user's llama-server runs at
+  // http://localhost:8080 by convention. If the frontend didn't send one
+  // (e.g. store hydration race, or user never opened Settings), use the
+  // default rather than 400'ing. This was a common crash: the user picked
+  // a model in the Vault but the chat then bailed with "No provider configured".
+  if (!body.baseUrl && body.provider === "llamacpp") {
+    body.baseUrl = "http://localhost:8080";
+  }
+
   if (!body.baseUrl) {
     return noProviderError();
   }
@@ -116,7 +120,12 @@ async function openAIStream(
   messages: Array<{ role: string; content: string }>,
   encoder: TextEncoder,
 ) {
-  const url = `${body.baseUrl!.replace(/\/$/, "")}/chat/completions`;
+  // llama-server (llama.cpp) serves OpenAI-compatible routes under /v1/.
+  // Cloud providers' baseUrls already include /v1 (e.g. https://api.openai.com/v1).
+  // The previous code did ${baseUrl}/chat/completions — which worked for cloud
+  // providers but 404'd for llama-server (which only serves /v1/chat/completions).
+  const pathPrefix = body.provider === "llamacpp" ? "/v1" : "";
+  const url = `${body.baseUrl!.replace(/\/+$/, "")}${pathPrefix}/chat/completions`;
   const payload = {
     model: body.model || "gpt-4o-mini",
     messages,

@@ -276,11 +276,33 @@ export async function POST(req: NextRequest) {
     }
 
     case "/model/switch": {
+      // The client sends { path } (from use-switch-model-mutation →
+      // axonizClient.switchModel(path) → postJson("/model/switch", { path })).
+      // The previous code read body.name (which was undefined) and stored
+      // model_name = undefined — corrupting config.json. Now we read both:
+      //   - path → persisted as model_path (the .gguf file path)
+      //   - name → persisted as model_name (the display name, optional)
       if (cfg) {
-        (cfg as any).model_name = body.name;
+        const newPath = typeof body.path === "string" ? body.path : undefined;
+        const newName = typeof body.name === "string" ? body.name : undefined;
+        if (newPath) (cfg as any).model_path = newPath;
+        if (newName) (cfg as any).model_name = newName;
+        // For llamacpp, also persist into the nested llm.providers.llamacpp.model
+        // so the agent's loadModel step picks it up.
+        try {
+          const llm = (cfg as any).llm;
+          if (llm && llm.providers && llm.providers.llamacpp) {
+            if (newPath) llm.providers.llamacpp.model_path = newPath;
+            if (newName) llm.providers.llamacpp.model = newName;
+          }
+        } catch { /* ignore nested-set failure */ }
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
       }
-      return NextResponse.json({ status: "switched", model: body.name });
+      return NextResponse.json({
+        status: "ok",
+        model: body.name ?? body.path ?? "(unknown)",
+        path: body.path,
+      });
     }
 
     case "/models/download": {
