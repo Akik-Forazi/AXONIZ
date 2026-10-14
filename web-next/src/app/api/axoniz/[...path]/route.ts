@@ -167,6 +167,7 @@ export async function GET(req: NextRequest) {
     case "/agent/stats": {
       return NextResponse.json({
         tool_calls: 0,
+        tasks_completed: 0,
         tasks_done: 0,
         messages: 0,
         tokens: 0,
@@ -223,6 +224,11 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    case "/models/search": {
+      const q = url.searchParams.get("q") || "";
+      return NextResponse.json({ items: [], query: q });
+    }
+
     default:
       return NextResponse.json({ error: `Unknown API path: ${p}` }, { status: 404 });
   }
@@ -269,6 +275,16 @@ export async function POST(req: NextRequest) {
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
       }
       return NextResponse.json({ status: "switched", model: body.name });
+    }
+
+    case "/models/download": {
+      return NextResponse.json({ status: "not_implemented", message: "Use 'axoniz model download' CLI command" });
+    }
+
+    case "/agent/task": {
+      const task = String(body.task || body.message || "");
+      if (!task) return NextResponse.json({ error: "Missing task" }, { status: 400 });
+      return NextResponse.json({ result: "Use /api/axoniz/chat for chat, or run the agent via CLI" });
     }
 
     default:
