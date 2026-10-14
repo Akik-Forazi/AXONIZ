@@ -28,6 +28,13 @@ interface ModelInfo {
   pricing?: { prompt?: number; completion?: number };
 }
 
+interface LocalModelInfo {
+  id: string;
+  name: string;
+  size: string;
+  path: string;
+}
+
 interface ProviderTestState {
   status: "idle" | "loading" | "ok" | "error";
   latencyMs?: number;
@@ -46,22 +53,58 @@ export function ModelPicker() {
   } = useAxonizStore();
   const [query, setQuery] = useState("");
   const [tests, setTests] = useState<Record<string, ProviderTestState>>({});
-  const [localModels, setLocalModels] = useState<ModelInfo[]>([]);
+  const [localModels, setLocalModels] = useState<LocalModelInfo[]>([]);
+  const [launching, setLaunching] = useState<string | null>(null); // path being launched
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const { setLlamacpp, llamacpp } = useAxonizStore();
 
   // Fetch local .gguf models from ~/.axoniz/models
   useEffect(() => {
     fetch("/api/axoniz/models/local")
       .then(r => r.json())
       .then(data => {
-        if (data.models) {
-          setLocalModels(data.models.map((m: { id: string; name: string }) => ({
-            id: m.id,
-            contextLength: undefined,
-          })));
+        if (Array.isArray(data.models)) {
+          setLocalModels(data.models);
         }
       })
       .catch(() => {});
   }, []);
+
+  /** Launch llama-server with the chosen .gguf, then mark as active. */
+  async function launchLocalModel(m: LocalModelInfo) {
+    setLaunching(m.path);
+    setLaunchError(null);
+    try {
+      const res = await fetch("/api/axoniz/models/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modelPath: m.path,
+          baseUrl: llamacpp.baseUrl || "http://localhost:8080",
+          nCtx: llamacpp.nCtx,
+          nGpuLayers: llamacpp.nGpuLayers,
+          nThreads: llamacpp.nThreads,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `Failed to launch model (HTTP ${res.status})`);
+      }
+      // Persist model path + baseUrl so the chat route knows where to send.
+      setLlamacpp({ modelPath: m.path });
+      setProvider("llamacpp", { model: m.id });
+      pickModel("llamacpp", m.id);
+      toast.success(`Loaded ${m.name}`, {
+        description: `llama-server ready at ${data.baseUrl || llamacpp.baseUrl}`,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLaunchError(msg);
+      toast.error(`Failed to launch ${m.name}`, { description: msg });
+    } finally {
+      setLaunching(null);
+    }
+  }
   const [selectedProvider, setSelectedProvider] = useState<ProviderId>(activeProvider);
 
   // Auto-test the selected provider when user opens picker or switches provider.
@@ -275,6 +318,65 @@ export function ModelPicker() {
                     />
                   );
                 })}
+
+                {/* Local .gguf models from ~/.axoniz/models (llamacpp only) */}
+                {selectedProvider === "llamacpp" && localModels.length > 0 && (
+                  <div>
+                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+                      Local vault · {localModels.length} model{localModels.length === 1 ? "" : "s"}
+                    </div>
+                    {launchError && (
+                      <div className="mx-2 mb-1 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-[11px] text-destructive font-mono break-words">
+                        {launchError}
+                      </div>
+                    )}
+                    {localModels
+                      .filter(m => !query || m.name.toLowerCase().includes(query.toLowerCase()) || m.id.toLowerCase().includes(query.toLowerCase()))
+                      .map(m => {
+                        const isActive = m.id === activeModel && selectedProvider === activeProvider;
+                        const isLaunching = launching === m.path;
+                        return (
+                          <button
+                            key={m.path}
+                            onClick={() => launchLocalModel(m)}
+                            disabled={isLaunching}
+                            data-axoniz-action={`launch-model:${m.id}`}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
+                              isActive ? "bg-foreground/5" : "hover:bg-secondary"
+                            } ${isLaunching ? "opacity-60 cursor-wait" : ""}`}
+                          >
+                            {isActive ? (
+                              <Check className="w-3.5 h-3.5 text-foreground shrink-0" />
+                            ) : isLaunching ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            ) : (
+                              <div className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
+                                <span className="text-[9px] font-mono text-muted-foreground">▶</span>
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="font-mono text-[12px] text-foreground/90 truncate">{m.name}</div>
+                              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70 mt-0.5">
+                                <span className="font-mono">{m.size}</span>
+                                <span className="truncate">{m.path.split(/[\\/]/).slice(-2).join("/")}</span>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {/* Empty state: llamacpp selected but no local models found */}
+                {selectedProvider === "llamacpp" && localModels.length === 0 && test?.status !== "loading" && (
+                  <div className="p-4">
+                    <div className="rounded-md border border-border bg-secondary/30 p-3 text-[11px] text-muted-foreground">
+                      No .gguf models found in <code className="font-mono text-foreground/80">~/.axoniz/models/</code>.
+                      <br /><br />
+                      Place .gguf files (optionally in subdirectories) under that path, then re-open this picker.
+                    </div>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </div>

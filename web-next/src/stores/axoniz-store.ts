@@ -27,9 +27,15 @@ export interface ProviderConfig {
 }
 
 export interface LlamacppConfig {
+  /** Path to the .gguf model file on disk (e.g. ~/.axoniz/models/FRAZIYM-AI/.../model.gguf). */
   modelPath: string;
+  /** llama-server base URL — defaults to http://localhost:8080. */
+  baseUrl: string;
+  /** Context window size. */
   nCtx: number;
+  /** Number of GPU layers (-1 = all). */
   nGpuLayers: number;
+  /** Number of CPU threads. */
   nThreads: number;
 }
 
@@ -270,6 +276,7 @@ export const DEFAULT_PROVIDERS: Record<ProviderId, ProviderConfig> =
 
 const DEFAULT_LLAMACPP: LlamacppConfig = {
   modelPath: "~/.axoniz/models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
+  baseUrl: "http://localhost:8080",
   nCtx: 8192,
   nGpuLayers: 0,
   nThreads: 8,

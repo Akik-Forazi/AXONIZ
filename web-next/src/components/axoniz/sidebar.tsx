@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   MessageSquare, Bot, Boxes, Anvil, Network, BrainCircuit,
   GitBranch, Search, Gauge, Activity, Settings as SettingsIcon,
-  ChevronRight, type LucideIcon,
+  ChevronRight, FileText, type LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAxonizStore } from "@/stores/axoniz-store";
@@ -35,6 +35,7 @@ const WORKSPACE_NAV: NavItem[] = [
 const SYSTEM_NAV: NavItem[] = [
   { id: "benchmarks", label: "Benchmarks", icon: Gauge, href: "/benchmarks" },
   { id: "system", label: "System", icon: Activity, href: "/system" },
+  { id: "diagnostics", label: "Diagnostics", icon: FileText, href: "/diagnostics" },
   { id: "settings", label: "Settings", icon: SettingsIcon, href: "/settings" },
 ];
 

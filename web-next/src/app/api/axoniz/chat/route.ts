@@ -81,8 +81,12 @@ export async function POST(req: NextRequest) {
     { role: "user" as const, content: body.message },
   ];
 
-  // No provider configured → mock fallback
-  if (!body.baseUrl || (body.provider !== "llamacpp" && !body.baseUrl)) {
+  // No baseUrl → bail with a helpful error.
+  // Note: for llamacpp, the caller MUST pass baseUrl (default http://localhost:8080)
+  // because the store's llamacpp.baseUrl isn't reachable from this server-side route
+  // (the store lives in the browser). The frontend client (use-chat-stream.ts) is
+  // responsible for passing baseUrl from the store.
+  if (!body.baseUrl) {
     return noProviderError();
   }
 
