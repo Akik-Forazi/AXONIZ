@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { Sparkles, Code, BookOpen, Lightbulb, User, Bot, Copy, Check, RefreshCw, AlertCircle, ArrowUp, Square, Brain, Globe, Mic, Paperclip } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { useAxonizStore } from "@/stores/axoniz-store";
 import { useChatStream, type ChatMessage } from "../zai-chat/use-chat-stream";
 import { useConversations } from "../zai-chat/use-conversations";
@@ -18,36 +19,41 @@ const SUGGESTIONS = [
 ];
 
 export function ChatSection() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const activeId = params.id;  // ChatGPT-style: chat ID comes from the URL
   const {
-    conversations, active, activeId, loading,
+    conversations, active, loading,
     newConversation, selectConversation, deleteConversation,
     renameConversation, updateMessages,
   } = useConversations();
 
-  // When a chat is selected from the sidebar, just switch the active
-  // conversation in-place. Do NOT navigate to /chat/s/<id> — that's the
-  // read-only shared view page. The URL stays at /chat and the
-  // conversation changes.
+  // When a chat is selected from the sidebar, navigate to /chat/s/<id>.
+  // ChatGPT-style: the URL bar always shows the chat ID.
   const handleSelect = useCallback((id: string) => {
     selectConversation(id);
-  }, [selectConversation]);
+    router.push(`/chat/s/${id}`);
+  }, [selectConversation, router]);
 
-  // Only auto-create a new chat AFTER the backend list has loaded AND
-  // there are genuinely zero chats. The previous code created a new chat
-  // on every page mount because conversations is [] during the initial
-  // async load — that's why you'd see 4 POST /api/axoniz/chats calls
-  // in 2 minutes (one per page navigation).
+  // When "New chat" is clicked, create a new chat + navigate to it.
+  const handleNew = useCallback(async () => {
+    const conv = await newConversation();
+    if (conv?.id) {
+      router.push(`/chat/s/${conv.id}`);
+    }
+  }, [newConversation, router]);
+
+  // Auto-create a new chat if we're at /chat (no ID in URL) with no chats.
+  // When at /chat/s/<id>, don't auto-create — just load that chat.
   useEffect(() => {
     if (!loading && conversations.length === 0 && !activeId) {
-      void newConversation();
+      void handleNew();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, conversations.length, activeId]);
 
-  // Pass the chatId to useChatStream so it can load/save from JSONL.
-  // This replaces the old `initialMessages` approach — messages now
-  // reload from ~/.axoniz/db/chats/<id>.jsonl on mount, so navigating
-  // away and back doesn't lose state.
+  // Pass the chatId from the URL to useChatStream so it loads/saves
+  // from ~/.axoniz/db/chats/<id>.jsonl.
   const stream = useChatStream(activeId);
 
   const handleSend = (content: string) => {

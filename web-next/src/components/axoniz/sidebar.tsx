@@ -142,11 +142,9 @@ export function Sidebar() {
               {recentChats.map((c) => {
                 const active = c.id === activeChatId;
                 return (
-                  <button
+                  <Link
                     key={c.id}
-                    onClick={() => {
-                      setActiveChatId(c.id);
-                    }}
+                    href={c.kind === "agent" ? `/agent/s/${c.id}` : `/chat/s/${c.id}`}
                     data-axoniz-action={`select-chat:${c.id.slice(0, 20)}`}
                     className={`flex items-center gap-2 px-2.5 h-7 rounded-md text-[12px] transition-colors text-left truncate w-full ${
                       active
@@ -157,7 +155,7 @@ export function Sidebar() {
                     <MessageSquare className="w-3 h-3 shrink-0 opacity-60" />
                     <span className="truncate flex-1">{c.title || "Untitled"}</span>
                     {c.kind === "agent" && <Bot className="w-2.5 h-2.5 shrink-0 opacity-40" />}
-                  </button>
+                  </Link>
                 );
               })}
             </div>
