@@ -214,7 +214,9 @@ export function AgentPage() {
           model: activeModel || cfg.model || undefined,
           history: messages
             .filter((m) => m.id !== "welcome")
-            .slice(-6)
+            .slice(-20)  // cap at last 20 messages — was 6, but that's
+                          // too short for multi-step agent workflows
+                          // and the cap matters for CPU inference cost
             .map((m) => ({ role: m.role, content: m.content })),
         }),
         signal: controller.signal,

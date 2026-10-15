@@ -28,7 +28,14 @@ import type { AxonizSseEvent } from "@/lib/axoniz/api-types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
+// 10-minute handler timeout — local models on CPU are SLOW. A 4B model at
+// 10 tok/s generates 600 tokens in 60s; a 7B at 5 tok/s generates only 300.
+// Long answers (code, explanations) easily blow past 60s. Cloud providers
+// are much faster, so this only adds headroom for the slow case.
+//
+// Override via env: AXONIZ_CHAT_TIMEOUT_MS=1200000 (20 min) etc.
+export const maxDuration = Number(process.env.AXONIZ_CHAT_TIMEOUT_MS ?? 600_000) / 1000;
 
 interface ChatBody {
   message: string;
@@ -45,7 +52,11 @@ interface ChatBody {
 const AXONIZ_SYSTEM =
   "You are AXONIZ — an autonomous local agentic system operating 100% offline via small local models when possible. You reason with precision, propose concrete next actions, and write production-quality code. Reply in Markdown.";
 
-const TIMEOUT_MS = 60_000;
+// Upstream fetch timeout — same value as maxDuration above, but in ms.
+// Set via AXONIZ_CHAT_TIMEOUT_MS env (default 600_000 = 10 min).
+// Long because local models on CPU can take 30-60s just for prompt
+// processing before the first token streams out.
+const TIMEOUT_MS = Number(process.env.AXONIZ_CHAT_TIMEOUT_MS ?? 600_000);
 
 function enqueue(
   controller: ReadableStreamDefaultController,
@@ -143,7 +154,33 @@ async function openAIStream(
       };
 
       (async () => {
+        // Heartbeat: emit a 'thinking' SSE event every 5s while we wait
+        // for the upstream fetch to resolve OR while the model is
+        // generating tokens. This tells the client the connection is
+        // still alive — without this, a 30-60s time-to-first-token
+        // window on CPU inference looks like a hung request.
+        let lastHeartbeat = Date.now();
+        const heartbeat = setInterval(() => {
+          const elapsed = Math.round((Date.now() - lastHeartbeat) / 1000);
+          safeEnqueue({
+            type: "thinking",
+            value: `still working… ${elapsed}s elapsed`,
+            ts: Date.now() / 1000,
+          });
+          // Don't update lastHeartbeat — we want the cumulative elapsed
+          // time since the request started, not since the last heartbeat.
+        }, 5_000);
+        (heartbeat as unknown as { unref?: () => void }).unref?.();
+
         try {
+          // Tell the client we've started the upstream fetch — they'll
+          // see this immediately so they know the request is in flight
+          // even before TTFT.
+          safeEnqueue({
+            type: "thinking",
+            value: "sending request to model server…",
+            ts: Date.now() / 1000,
+          });
           const upstream = await fetch(url, {
             method: "POST",
             headers: {
@@ -164,9 +201,17 @@ async function openAIStream(
               ts: Date.now() / 1000,
             });
             safeEnqueue({ type: "done", summary: "Failed", ts: Date.now() / 1000 });
+            clearInterval(heartbeat);
             controller.close();
             return;
           }
+          // Tell the client the upstream responded — they'll see this
+          // right before the first token streams.
+          safeEnqueue({
+            type: "thinking",
+            value: "model is generating tokens…",
+            ts: Date.now() / 1000,
+          });
           const reader = upstream.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
@@ -198,7 +243,7 @@ async function openAIStream(
           const msg = e.message ?? "";
           let friendly: string;
           if (name === "TimeoutError" || name === "AbortError") {
-            friendly = `Upstream timed out after 60s. The model may have hung or is generating a very long response. Check the Servers page for live logs from ${body.baseUrl}.`;
+            friendly = `Upstream timed out after ${Math.round(TIMEOUT_MS / 1000)}s. The model may have hung or is generating a very long response. Check the Servers page for live logs from ${body.baseUrl}.`;
           } else if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("Failed to fetch") || name === "TypeError") {
             friendly = `Could not reach ${body.provider} server at ${url}. The model server is not running — go to the Servers page and click "Start server", or verify the baseUrl in Settings.`;
           } else {
@@ -211,6 +256,7 @@ async function openAIStream(
           });
           safeEnqueue({ type: "done", summary: "Failed", ts: Date.now() / 1000 });
         } finally {
+          clearInterval(heartbeat);
           try { controller.close(); } catch { /* already closed */ }
         }
       })();

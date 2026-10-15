@@ -77,7 +77,11 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               message: content,
-              history,
+              // Cap history to last 20 messages — local models on CPU take
+              // 5-30s+ processing a 5K-token prompt before the first token.
+              // Sending the entire 50-message chat history turns every
+              // request into a minute-long TTFT.
+              history: history.slice(-20),
               provider: activeProvider,
               baseUrl: activeProvider === "llamacpp" ? llamacpp.baseUrl || provider.baseUrl : provider.baseUrl,
               apiKey: provider.apiKey,
@@ -118,6 +122,17 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId ? { ...m, content: acc, pending: false } : m
+                    )
+                  );
+                } else if (ev.type === "thinking" && typeof ev.value === "string") {
+                  // Heartbeat — show the model is still working. Don't
+                  // pollute the message content; replace the pending
+                  // placeholder text so the user sees live status.
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantId
+                        ? { ...m, content: acc || `⏳ ${ev.value}`, pending: true }
+                        : m
                     )
                   );
                 } else if (ev.type === "thought" && typeof ev.value === "string") {
