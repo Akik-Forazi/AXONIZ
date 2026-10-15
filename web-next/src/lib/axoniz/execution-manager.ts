@@ -87,10 +87,10 @@ function getDb(): DatabaseSync {
     `);
     // Migration: add new columns if they don't exist (for databases
     // created before idempotency/claiming was added).
-    try { db.exec("ALTER TABLE executions ADD COLUMN idempotency_key TEXT"); } catch { /* already exists */ }
-    try { db.exec("ALTER TABLE executions ADD COLUMN claimed_by TEXT"); } catch { /* already exists */ }
-    try { db.exec("ALTER TABLE executions ADD COLUMN claimed_at REAL"); } catch { /* already exists */ }
-    try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_exec_idempotency ON executions(idempotency_key) WHERE idempotency_key IS NOT NULL"); } catch { /* already exists */ }
+    try { dbInstance.exec("ALTER TABLE executions ADD COLUMN idempotency_key TEXT"); } catch { /* already exists */ }
+    try { dbInstance.exec("ALTER TABLE executions ADD COLUMN claimed_by TEXT"); } catch { /* already exists */ }
+    try { dbInstance.exec("ALTER TABLE executions ADD COLUMN claimed_at REAL"); } catch { /* already exists */ }
+    try { dbInstance.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_exec_idempotency ON executions(idempotency_key) WHERE idempotency_key IS NOT NULL"); } catch { /* already exists */ }
   }
   return dbInstance;
 }

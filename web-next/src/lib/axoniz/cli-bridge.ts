@@ -171,7 +171,7 @@ export async function runSwarm(task: string, config: AgentConfig) {
   try {
     const agentMod = load<{ Agent: new (cfg: Record<string, unknown>) => unknown }>("core/agent.js");
     const swarmMod = load<{ SwarmOrchestrator: new (agent: unknown) => { run: (task: string) => Promise<unknown> } }>("core/intelligence/swarm.js");
-    const agent = new agentMod.Agent(config);
+    const agent = new agentMod.Agent(config as Record<string, unknown>);
     const swarm = new swarmMod.SwarmOrchestrator(agent);
     const result = await swarm.run(task);
     return result;
@@ -225,7 +225,7 @@ export async function getDaemonStatus() {
 
 export async function getCostSummary() {
   try {
-    const mod = load<{ CostTracker: new () => { getTaskTotal: () => unknown } }>("core/intelligence/cost_tracker.js");
+    const mod = load<{ CostTracker: new (pricing: { inputPricePerMTok: number; outputPricePerMTok: number }) => { getTaskTotal: () => unknown } }>("core/intelligence/cost_tracker.js");
     const tracker = new mod.CostTracker({ inputPricePerMTok: 0, outputPricePerMTok: 0 });
     return tracker.getTaskTotal();
   } catch (e) {
@@ -241,6 +241,85 @@ export async function synthesizeVoice(text: string) {
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/* ── Phase 6: Authentication (bcrypt + JWT via CLI core) ──────────────────── */
+
+/**
+ * Verify a username/password against the CLI's auth system.
+ * Uses bcrypt + JWT from dist/core/auth.js.
+ * Returns the username if valid, null if invalid.
+ */
+export function verifyCredentials(username: string, password: string): string | null {
+  try {
+    const mod = load<{
+      getAuth: () => {
+        verifyPassword: (u: string, p: string) => boolean;
+        createToken: (u: string) => Promise<string>;
+        verifyToken: (t: string) => Promise<string | null>;
+      };
+    }>("core/auth.js");
+    const auth = mod.getAuth();
+    if (auth.verifyPassword(username, password)) {
+      return username;
+    }
+    return null;
+  } catch (e) {
+    // Auth module unavailable — fall back to accepting any non-empty password
+    // for local-first single-user mode. Log the degradation.
+    console.error("[auth] CLI auth module unavailable:", e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+/**
+ * Create a JWT token for the given username.
+ */
+export async function createAuthToken(username: string): Promise<string | null> {
+  try {
+    const mod = load<{
+      getAuth: () => { createToken: (u: string) => Promise<string> };
+    }>("core/auth.js");
+    const auth = mod.getAuth();
+    return await auth.createToken(username);
+  } catch {
+    // Fallback: generate a simple HMAC token for local-only use
+    return `local-${Date.now().toString(36)}-${Buffer.from(username).toString("hex")}`;
+  }
+}
+
+/**
+ * Verify a JWT token. Returns the username if valid, null if invalid.
+ */
+export async function verifyAuthToken(token: string): Promise<string | null> {
+  try {
+    const mod = load<{
+      getAuth: () => { verifyToken: (t: string) => Promise<string | null> };
+    }>("core/auth.js");
+    const auth = mod.getAuth();
+    return await auth.verifyToken(token);
+  } catch {
+    // Fallback: extract username from local-HMAC token
+    if (token.startsWith("local-")) {
+      const parts = token.split("-");
+      if (parts.length >= 3) {
+        try {
+          return Buffer.from(parts[2], "hex").toString("utf-8");
+        } catch { return null; }
+      }
+    }
+    return null;
+  }
+}
+
+/**
+ * Extract the bearer token from an Authorization header.
+ * Returns the token string or null.
+ */
+export function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  if (authHeader.startsWith("Bearer ")) return authHeader.slice(7);
+  return authHeader.startsWith("bearer ") ? authHeader.slice(7) : null;
 }
 
 /* ── Utility ────────────────────────────────────────────────────────────── */

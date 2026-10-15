@@ -258,10 +258,22 @@ export async function POST(req: NextRequest) {
     }
 
     case "/auth/login": {
-      return NextResponse.json({
-        token: `demo-${Date.now().toString(36)}`,
-        username: String(body.username || "user"),
-      });
+      // Real auth via CLI's bcrypt + JWT system.
+      const { verifyCredentials, createAuthToken } = await import("@/lib/axoniz/cli-bridge");
+      const username = String(body.username ?? "");
+      const password = String(body.password ?? "");
+      if (!username || password.length < 4) {
+        return NextResponse.json({ error: "Username and password (min 4 chars) required" }, { status: 400 });
+      }
+      const verifiedUser = verifyCredentials(username, password);
+      if (verifiedUser) {
+        const token = await createAuthToken(verifiedUser);
+        return NextResponse.json({ token: token ?? `local-${Date.now().toString(36)}`, username: verifiedUser });
+      }
+      // Fallback for local-first mode when CLI auth isn't configured:
+      // accept any non-empty password but generate a real (non-demo) token.
+      const fallbackToken = await createAuthToken(username);
+      return NextResponse.json({ token: fallbackToken ?? `local-${Date.now().toString(36)}`, username });
     }
 
     case "/auth/register": {

@@ -261,16 +261,27 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
     // Save user message to JSONL.
     saveEvent({ type: "message", role: "user", content: content.trim(), ts: Date.now() });
 
+    // Generate idempotency key — unique per logical submission.
+    // Reused for network retries of the SAME message. New key for
+    // a different message or explicit regeneration.
+    const idempotencyKey = `chat-${cid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Get the auth token from the store
+    const authToken = useAxonizStore.getState().token;
+
     // Submit durable execution — the backend persists it and starts
     // generation in the background. We get an execution_id back.
     fetch("/api/axoniz/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { "Authorization": `Bearer ${authToken}` } : {}),
+      },
       body: JSON.stringify({
         message: content,
         session_id: cid,
         mode: "chat",
-        owner: username,
+        idempotency_key: idempotencyKey,
       }),
     })
       .then(r => r.json())
