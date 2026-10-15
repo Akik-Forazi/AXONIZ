@@ -157,3 +157,35 @@ The diagnostics tests import from `../dist/core/diagnostics.js`, so
 compiled output) but should be documented in the test command's
 help text or wired as a `pretest` script.
 
+### 5. Minimum Node version is 22 (not 20)
+
+`web-next/src/lib/axoniz/execution-manager.ts` imports
+`{ DatabaseSync } from "node:sqlite"`, which is only available in
+Node 22.5+. The `package.json` `engines.node` field has been updated
+from `>=20.11` to `>=22` to reflect this. The CI matrix dropped the
+Node 20.x leg accordingly — Node 20.x builds fail with
+`ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module: node:sqlite`
+during `next build`'s "Collecting page data" step.
+
+### 6. Test #10 and #18 cross-platform script-string bug (FIXED)
+
+The two fault-injection tests that fork child Node processes via
+`execSync` previously used template-literal substitution of Windows
+paths directly into a generated JS source string. JS string-literal
+escape parsing eats backslashes (`\U` → `U`, `\r` → CR, etc.),
+mangling `process.env.HOME` so the child wrote to a non-existent
+path and the parent's `readdirSync` failed with ENOENT.
+
+Fixed by:
+- Calling `JSON.stringify()` on the path / username values that get
+  interpolated into the script string (so backslashes are properly
+  escaped for JS string-literal parsing).
+- Passing the script via `execSync`'s `input` option (stdin) instead
+  of via `-e "<escaped script>"`, which sidesteps shell quoting
+  issues entirely. The child is invoked as
+  `node --input-type=module` with the script piped to its stdin.
+
+This fix is verified on Linux (28/28 pass) and was pushed; the
+Windows CI re-run will confirm the fix.
+
+

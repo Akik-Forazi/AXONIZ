@@ -191,9 +191,20 @@ test("9. error severity events are recorded with stack-like details", () => {
 
 test("10. abrupt process termination leaves parseable records", () => {
   // Fork a child that writes 10 events then exits with SIGKILL.
+  // Use JSON.stringify() on the PATH values so backslashes in Windows
+  // paths (C:\\Users\\runner\\...) are properly escaped when the
+  // path is interpolated into the generated script string. Without
+  // this, JS string-literal escape parsing eats the backslashes
+  // (\\U -> U, \\r -> CR, etc.) and the child sets HOME to a mangled
+  // path that doesn't exist, causing ENOENT on the parent's
+  // readdirSync call. We use JSON.stringify() on the path values
+  // (not the whole script) because we still want real newlines in
+  // the script source for the ESM parser.
+  const diagPath = JSON.stringify(path.resolve("dist/core/diagnostics.js"));
+  const homeLit = JSON.stringify(tmpHome);
   const script = `
-    import { getDiagLogger } from "${path.resolve("dist/core/diagnostics.js")}";
-    process.env.HOME = "${tmpHome}";
+    import { getDiagLogger } from ${diagPath};
+    process.env.HOME = ${homeLit};
     const log = getDiagLogger("abrupt");
     for (let i = 0; i < 10; i++) {
       log.emit({ component: "test", event_type: "tick", details: { i } });
@@ -201,7 +212,10 @@ test("10. abrupt process termination leaves parseable records", () => {
     // Flush by NOT calling close — simulate abrupt termination.
     process.exit(0);
   `;
-  execSync(`node --input-type=module -e "${script.replace(/"/g, '\\"')}"`, {
+  // Pass script via stdin to avoid shell-escaping issues with both
+  // backslashes (Windows paths) and quotes (script content).
+  execSync(`node --input-type=module`, {
+    input: script,
     env: { ...process.env, HOME: tmpHome },
   });
   // Find the file
@@ -387,18 +401,26 @@ test("17. log file rotates after size threshold (simulated)", () => {
 
 test("18. multiple processes write to separate files (different usernames)", () => {
   // Spawn two children with different usernames — verify they write
-  // to different files.
-  const script = (username) => `
-    process.env.HOME = "${tmpHome}";
-    import("${path.resolve("dist/core/diagnostics.js")}").then(async (mod) => {
-      const log = mod.getDiagLogger("${username}");
-      log.emit({ component: "child", event_type: "tick", details: { user: "${username}" } });
+  // to different files. Use JSON.stringify() on path/arg values so
+  // Windows backslashes are properly escaped in the generated script
+  // string. We pass the script via stdin to avoid shell-escaping
+  // issues with both backslashes and quotes.
+  const diagPath = JSON.stringify(path.resolve("dist/core/diagnostics.js"));
+  const homeLit = JSON.stringify(tmpHome);
+  const script = (username) => {
+    const u = JSON.stringify(username);
+    return `
+    process.env.HOME = ${homeLit};
+    import(${diagPath}).then(async (mod) => {
+      const log = mod.getDiagLogger(${u});
+      log.emit({ component: "child", event_type: "tick", details: { user: ${u} } });
       log.close();
       mod._setDiagLoggerForTest(null);
     });
   `;
-  execSync(`node --input-type=module -e "${script("alice").replace(/"/g, '\\"')}"`);
-  execSync(`node --input-type=module -e "${script("bob").replace(/"/g, '\\"')}"`);
+  };
+  execSync(`node --input-type=module`, { input: script("alice") });
+  execSync(`node --input-type=module`, { input: script("bob") });
   const dir = path.join(tmpHome, ".axoniz", "logs");
   const files = fs.readdirSync(dir).filter(f => f.endsWith(".axolog"));
   assert.ok(files.length >= 2);
