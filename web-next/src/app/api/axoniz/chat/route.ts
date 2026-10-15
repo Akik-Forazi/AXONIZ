@@ -1,30 +1,29 @@
 /**
- * POST /api/axoniz/chat — UNIFIED chat route using the CLI's Agent.
+ * POST /api/axoniz/chat — UNIFIED chat route using the durable execution system.
  *
- * This is the CANONICAL chat route. It does NOT construct OpenAI HTTP
- * requests directly — it calls the CLI's Agent.chatStream() which
- * internally uses get_backend() to pick the right backend class
- * (LlamaCppBackend, OpenAICompatibleBackend, etc.) based on
- * ~/.axoniz/config.json's llm.active_provider.
+ * This route does NOT stream directly from the LLM. Instead it:
+ * 1. Submits a durable execution to the execution manager (persisted to SQLite)
+ * 2. The execution runner starts in the background (survives browser disconnect)
+ * 3. Returns the execution ID so the frontend can reconnect via SSE
  *
- * Execution path:
- *   Web UI → this route → cli-bridge.ts → dist/core/agent.js →
- *   Agent.chatStream() → get_backend() → configured backend class →
- *   actual LLM provider → streaming tokens back as SSE.
+ * The frontend then calls GET /api/axoniz/executions/[id]/stream to get
+ * live events. If the browser disconnects, the execution continues.
+ * On reconnect, the frontend sends the last seq it received and gets
+ * all missed events.
  *
- * Body: { message, history?, mode? }
- *   mode: "chat" (default) → streaming chat via Agent.chatStream()
- *         "agent" → full agent loop via Agent.run() (with tools)
+ * Body: { message, session_id, mode? }
+ * Returns: { execution_id, state: "queued" }
  *
- * SSE events:
- *   event: thinking  — status updates
- *   event: token     — streamed tokens { value: "..." }
- *   event: done      — completion { summary: "..." }
- *   event: error      — failure { error: "..." }
+ * This is the ChatGPT-style durable generation model:
+ * - Generation is NOT tied to the HTTP request
+ * - Browser can disconnect, refresh, close — generation continues
+ * - Reconnect via execution_id + event cursor
  */
 
-import type { NextRequest } from "next/server";
-import { streamAgentChat, execAgent, loadCliConfig } from "@/lib/axoniz/cli-bridge";
+import { NextRequest, NextResponse } from "next/server";
+import { submitExecution } from "@/lib/axoniz/execution-manager";
+import { runExecution } from "@/lib/axoniz/execution-runner";
+import { loadCliConfig } from "@/lib/axoniz/cli-bridge";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,8 +31,9 @@ export const maxDuration = 600;
 
 interface ChatBody {
   message: string;
-  history?: Array<{ role: string; content: string }>;
+  session_id?: string;
   mode?: "chat" | "agent";
+  owner?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -41,77 +41,50 @@ export async function POST(req: NextRequest) {
   try {
     body = (await req.json()) as ChatBody;
   } catch {
-    return new Response("Invalid JSON", { status: 400 });
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
   if (!body.message?.trim()) {
-    return new Response("Missing message", { status: 400 });
+    return NextResponse.json({ error: "message required" }, { status: 400 });
+  }
+  if (!body.session_id) {
+    return NextResponse.json({ error: "session_id required — pass the chat/agent ID from the URL" }, { status: 400 });
   }
 
-  const mode = body.mode ?? "chat";
-  const encoder = new TextEncoder();
+  // Load the CLI config to record which provider/model was used at submission time
+  const cliConfig = loadCliConfig();
+  const llm = (cliConfig as Record<string, unknown>)?.llm as { active_provider?: string; providers?: Record<string, { model_name?: string; model_path?: string }> } | undefined;
+  const provider = llm?.active_provider ?? "llamacpp";
+  const providerCfg = llm?.providers?.[provider];
+  const model = providerCfg?.model_name ?? providerCfg?.model_path ?? undefined;
 
-  const stream = new ReadableStream({
-    start(controller) {
-      let closed = false;
-      const enqueue = (eventType: string, data: Record<string, unknown>) => {
-        if (closed) return;
-        try {
-          const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
-          controller.enqueue(encoder.encode(payload));
-        } catch { closed = true; }
-      };
-
-      (async () => {
-        // Heartbeat — tell the user we're working
-        enqueue("thinking", { type: "thinking", value: "loading CLI agent + backend…", ts: Date.now() / 1000 });
-        const heartbeat = setInterval(() => {
-          enqueue("thinking", { type: "thinking", value: `still working…`, ts: Date.now() / 1000 });
-        }, 5_000);
-        (heartbeat as unknown as { unref?: () => void }).unref?.();
-
-        try {
-          if (mode === "agent") {
-            // Full agent loop — tools, memory, swarm
-            enqueue("thinking", { type: "thinking", value: "running agent loop…", ts: Date.now() / 1000 });
-            const result = await execAgent(body.message);
-            // Stream the result as one big token (agent.run() is not a generator)
-            enqueue("token", { type: "token", value: result.result, ts: Date.now() / 1000 });
-          } else {
-            // Streaming chat — tokens from Agent.chatStream()
-            enqueue("thinking", { type: "thinking", value: "streaming from backend…", ts: Date.now() / 1000 });
-            for await (const tok of streamAgentChat(body.message, body.history)) {
-              enqueue("token", { type: "token", value: tok, ts: Date.now() / 1000 });
-            }
-          }
-          enqueue("done", { type: "done", summary: "Response complete", ts: Date.now() / 1000 });
-        } catch (err) {
-          const e = err as Error;
-          const name = e.name;
-          const msg = e.message ?? "";
-          let friendly: string;
-          if (name === "TimeoutError" || name === "AbortError") {
-            friendly = `Upstream timed out. Check the Servers page for live logs.`;
-          } else if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || name === "TypeError") {
-            friendly = `Could not reach the model server. Is it running? Check Servers page.`;
-          } else {
-            friendly = `${name}: ${msg}`;
-          }
-          enqueue("error", { type: "error", error: friendly, ts: Date.now() / 1000 });
-          enqueue("done", { type: "done", summary: "Failed", ts: Date.now() / 1000 });
-        } finally {
-          clearInterval(heartbeat);
-          try { controller.close(); } catch { /* already closed */ }
-        }
-      })();
-    },
+  // 1. Persist the execution BEFORE starting generation.
+  //    If the server crashes here, the execution is in "queued" state
+  //    and recovery will find it on restart.
+  const exec = submitExecution({
+    session_id: body.session_id,
+    mode: body.mode ?? "chat",
+    prompt: body.message,
+    provider,
+    model,
+    owner: body.owner,
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "x-axoniz-source": "live",
-    },
+  // 2. Start the execution runner in the background.
+  //    This call does NOT block — the HTTP response returns immediately
+  //    with the execution ID. The runner calls the CLI's Agent.chatStream()
+  //    and persists tokens to SQLite as they arrive.
+  runExecution(exec.id).catch((e) => {
+    console.error(`[chat] runner error for ${exec.id}:`, e);
   });
+
+  // 3. Return the execution ID — the frontend uses this to:
+  //    - GET /api/axoniz/executions/[id]/stream (live SSE)
+  //    - GET /api/axoniz/executions/[id]/events?since=N (reconnect after disconnect)
+  //    - POST /api/axoniz/executions/[id]/cancel (cancel)
+  return NextResponse.json({
+    execution_id: exec.id,
+    state: exec.state,
+    session_id: exec.session_id,
+    mode: exec.mode,
+  }, { status: 201 });
 }
