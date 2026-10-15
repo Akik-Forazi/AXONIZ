@@ -314,6 +314,12 @@ interface UiState extends AuthState {
   setActiveModel: (m: string | null) => void;
   setActiveProvider: (p: ProviderId) => void;
   setDataSource: (s: "mock" | "live") => void;
+
+  /** Currently active chat ID — used by /chat to know which saved chat to
+   *  sync to. Set when user creates a new chat or selects one from history,
+   *  or when they land on /chat/s/<id> and click "Continue in chat". */
+  activeChatId: string | null;
+  setActiveChatId: (id: string | null) => void;
 }
 
 export const useAxonizStore = create<UiState>()(
@@ -328,6 +334,7 @@ export const useAxonizStore = create<UiState>()(
       providers: DEFAULT_PROVIDERS,
       llamacpp: DEFAULT_LLAMACPP,
       modelPickerOpen: false,
+      activeChatId: null,
 
       setAuth: (token, username) => set({ token, username }),
       logout: () => set({ token: null, username: null }),
@@ -351,6 +358,7 @@ export const useAxonizStore = create<UiState>()(
       setActiveModel: (activeModel) => set({ activeModel }),
       setActiveProvider: (activeProvider) => set({ activeProvider }),
       setDataSource: (dataSource) => set({ dataSource }),
+      setActiveChatId: (activeChatId) => set({ activeChatId: activeChatId ?? null }),
       setProvider: (id, patch) =>
         set((s) => ({
           providers: {
@@ -372,6 +380,7 @@ export const useAxonizStore = create<UiState>()(
         activeProvider: s.activeProvider,
         providers: s.providers,
         llamacpp: s.llamacpp,
+        activeChatId: s.activeChatId,
       }),
       version: 7,
       migrate: () => ({

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bot, Send, Loader2, User } from "lucide-react";
+import { Bot, Send, Loader2, User, Brain, Wrench, FileCode, Clock, Zap, CheckCircle2, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -31,22 +31,85 @@ export function AgentPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [tokensReceived, setTokensReceived] = useState(0);
+  const [currentThought, setCurrentThought] = useState<string | null>(null);
+  const [actionSteps, setActionSteps] = useState<Array<{ kind: string; text: string; ts: number }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const startTimeRef = useRef<number | null>(null);
 
   const { activeProvider, activeModel, providers, llamacpp } = useAxonizStore();
   const cfg = providers[activeProvider];
   const meta = PROVIDER_CATALOG.find((p) => p.id === activeProvider)!;
 
+  // Live timer while busy.
+  useEffect(() => {
+    if (!busy) return;
+    const interval = setInterval(() => {
+      if (startTimeRef.current !== null) {
+        setElapsedMs(Date.now() - startTimeRef.current);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [busy]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, currentThought, actionSteps]);
+
+  /**
+   * Parse the streamed text for "thinking" markers + tool-call fences that
+   * reasoning-trained models (Qwen3, DeepSeek-R1, etc.) emit. When detected,
+   * split them out into the live progress panel so the user sees what the
+   * model is working on instead of just watching tokens scroll by.
+   */
+  function parseStreamedText(text: string) {
+    // Reasoning: <think>...</think> or <thought>...</thought>
+    const thinkMatch = text.match(/<(?:think|thought)>([\s\S]*?)<\/(?:think|thought)>/);
+    if (thinkMatch) {
+      setCurrentThought(thinkMatch[1].trim());
+    } else {
+      // No closed tag yet — maybe an open one being streamed.
+      const openMatch = text.match(/<(?:think|thought)>([\s\S]*)$/);
+      if (openMatch) {
+        setCurrentThought(openMatch[1].trim() + "…");
+      }
+    }
+
+    // Tool calls: ```tool_call ... ``` or ```bash ... ```
+    const toolCallBlocks = text.match(/```(?:tool_call|bash|sh)\n([\s\S]*?)```/g);
+    if (toolCallBlocks) {
+      for (const block of toolCallBlocks) {
+        const body = block.replace(/^```(?:tool_call|bash|sh)\n/, "").replace(/```$/, "").trim();
+        if (!actionSteps.some(s => s.text === body)) {
+          setActionSteps(prev => [...prev, { kind: "tool", text: body, ts: Date.now() }]);
+        }
+      }
+    }
+
+    // Diffs: ```diff ... ```
+    const diffBlocks = text.match(/```diff\n([\s\S]*?)```/g);
+    if (diffBlocks) {
+      for (const block of diffBlocks) {
+        const body = block.replace(/^```diff\n/, "").replace(/```$/, "").trim();
+        if (!actionSteps.some(s => s.text === body)) {
+          setActionSteps(prev => [...prev, { kind: "diff", text: body, ts: Date.now() }]);
+        }
+      }
+    }
+  }
 
   async function sendGoal() {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
     setBusy(true);
+    setElapsedMs(0);
+    setTokensReceived(0);
+    setCurrentThought(null);
+    setActionSteps([]);
+    startTimeRef.current = Date.now();
 
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: text, ts: Date.now() };
     const assistantId = `a-${Date.now()}`;
@@ -102,17 +165,30 @@ export function AgentPage() {
             const ev = JSON.parse(payload);
             if (ev.type === "token" && typeof ev.value === "string") {
               acc += ev.value;
+              setTokensReceived((n) => n + 1);
+              parseStreamedText(acc);
+              // Strip <think>/<thought> blocks from the displayed response —
+              // they go in the "Live thoughts" panel instead.
+              const display = acc
+                .replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/g, "")
+                .replace(/<(?:think|thought)>[\s\S]*$/g, "(thinking…)")
+                .trim();
               setMessages((prev) =>
-                prev.map((m) => (m.id === assistantId ? { ...m, content: acc, streaming: false } : m)),
+                prev.map((m) => (m.id === assistantId ? { ...m, content: display, streaming: false } : m)),
               );
             } else if (ev.type === "done") {
+              const finalDisplay = acc
+                .replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/g, "")
+                .replace(/<(?:think|thought)>[\s\S]*$/g, "")
+                .trim();
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
-                    ? { ...m, content: acc || ev.summary || "(no response)", streaming: false }
+                    ? { ...m, content: finalDisplay || ev.summary || "(no response)", streaming: false }
                     : m,
                 ),
               );
+              setCurrentThought(null);
             } else if (ev.type === "error") {
               setMessages((prev) =>
                 prev.map((m) =>
@@ -139,6 +215,8 @@ export function AgentPage() {
       );
     } finally {
       setBusy(false);
+      startTimeRef.current = null;
+      setCurrentThought(null);
       abortRef.current = null;
     }
   }
@@ -153,10 +231,75 @@ export function AgentPage() {
         <h2 className="text-[13px] font-medium flex items-center gap-2">
           <Bot className="w-3.5 h-3.5" />Agent
         </h2>
-        <Badge variant="outline" className="font-mono text-[10px] border-border bg-secondary text-secondary-foreground gap-1.5">
-          {meta.name}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {/* Live status panel — shows elapsed time + tokens received while busy */}
+          {busy && (
+            <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {(elapsedMs / 1000).toFixed(1)}s
+              </span>
+              <span className="flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                {tokensReceived} tok
+              </span>
+              {currentThought && (
+                <span className="flex items-center gap-1 text-violet-500">
+                  <Brain className="w-3 h-3 animate-pulse" />
+                  thinking
+                </span>
+              )}
+            </div>
+          )}
+          <Badge variant="outline" className="font-mono text-[10px] border-border bg-secondary text-secondary-foreground gap-1.5">
+            {meta.name}
+          </Badge>
+        </div>
       </div>
+
+      {/* Live thoughts panel — shown when the model is reasoning */}
+      {currentThought && (
+        <div className="px-4 py-2 border-b border-violet-500/20 bg-violet-500/5">
+          <div className="flex items-center gap-2 text-[11px] text-violet-400 mb-1">
+            <Brain className="w-3 h-3 animate-pulse" />
+            <span className="font-mono uppercase tracking-wider">Live reasoning</span>
+          </div>
+          <div className="text-[12px] text-foreground/70 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
+            {currentThought}
+          </div>
+        </div>
+      )}
+
+      {/* Action steps panel — shown when the model emits tool calls or diffs */}
+      {actionSteps.length > 0 && (
+        <div className="px-4 py-2 border-b border-border bg-secondary/20">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-2">
+            <Wrench className="w-3 h-3" />
+            <span className="font-mono uppercase tracking-wider">
+              {actionSteps.length} step{actionSteps.length === 1 ? "" : "s"} proposed
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {actionSteps.map((step, i) => (
+              <div key={i} className="rounded-md border border-border bg-background/60 overflow-hidden">
+                <div className="px-2 py-1 border-b border-border/50 flex items-center gap-2 text-[10px]">
+                  {step.kind === "diff" ? <FileCode className="w-3 h-3" /> : <Wrench className="w-3 h-3" />}
+                  <span className="font-mono uppercase tracking-wider text-muted-foreground">
+                    {step.kind === "diff" ? "file change" : "tool call"}
+                  </span>
+                  <span className="font-mono text-muted-foreground/60 ml-auto">
+                    +{step.text.split("\n").filter(l => l.startsWith("+")).length}/-{step.text.split("\n").filter(l => l.startsWith("-")).length}
+                  </span>
+                </div>
+                <pre className="text-[11px] font-mono p-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
+                  {step.text.slice(0, 600)}
+                  {step.text.length > 600 ? "\n…" : ""}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl">
         {messages.map((msg) => (

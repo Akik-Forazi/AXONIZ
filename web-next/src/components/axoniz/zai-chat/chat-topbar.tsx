@@ -135,8 +135,33 @@ export function ChatTopBar() {
 
       <div className="ml-auto flex items-center gap-1">
         <button
+          onClick={async () => {
+            // Use the store's activeChatId (set by useConversations) to
+            // build the shareable URL.
+            const activeChatId = useAxonizStore.getState().activeChatId;
+            if (!activeChatId) {
+              // No active chat — save the current conversation first by
+              // triggering the conversations hook. The simplest fallback
+              // is to just copy the /chat URL.
+              try {
+                await navigator.clipboard.writeText(`${window.location.origin}/chat`);
+                return;
+              } catch { /* ignore */ }
+            }
+            const url = `${window.location.origin}/chat/s/${activeChatId}`;
+            try {
+              await navigator.clipboard.writeText(url);
+              // Flash a check mark — simple inline state via class swap.
+              const btn = document.activeElement as HTMLElement | null;
+              if (btn) {
+                btn.classList.add("text-accent");
+                setTimeout(() => btn?.classList.remove("text-accent"), 1500);
+              }
+            } catch { /* clipboard blocked — user copies URL from address bar */ }
+          }}
           className="size-9 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground"
           title="Share"
+          data-axoniz-action="share-chat"
         >
           <Share2 className="size-4" />
         </button>
