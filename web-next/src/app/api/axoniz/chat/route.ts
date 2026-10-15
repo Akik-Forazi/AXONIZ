@@ -34,6 +34,7 @@ interface ChatBody {
   session_id?: string;
   mode?: "chat" | "agent";
   owner?: string;
+  idempotency_key?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
     provider,
     model,
     owner: body.owner,
+    idempotency_key: body.idempotency_key,
   });
 
   // 2. Start the execution runner in the background.

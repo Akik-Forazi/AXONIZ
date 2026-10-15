@@ -8,10 +8,9 @@ import { useHealthQuery, useConfigQuery } from "./queries";
  * On mount (when authenticated), pulls health + config from the backend
  * and populates the store with the active model name + data source tag.
  *
- * ALSO loads the persistent DB config from ~/.axoniz/db/config.json
- * (via GET /api/axoniz/db/config) and syncs provider API keys + models
- * + llamacpp settings into the store. This way, keys saved in the DB
- * survive browser cache clears and are shared across browsers.
+ * Config now loads from ~/.axoniz/config.json (the CLI's canonical config)
+ * via GET /api/axoniz/config/cli — the SAME file the CLI uses. No more
+ * ~/.axoniz/db/config.json duplicate. API keys are redacted by the API.
  */
 export function useAxonizBoot() {
   const token = useAxonizStore((s) => s.token);
@@ -23,40 +22,53 @@ export function useAxonizBoot() {
   const healthQ = useHealthQuery();
   const configQ = useConfigQuery();
 
-  // Load DB config on mount (once per authentication).
+  // Load CLI config on mount (once per authentication).
   useEffect(() => {
     if (!token) return;
-    fetch("/api/axoniz/db/config")
+    // Load from the CLI's canonical config: ~/.axoniz/config.json
+    // API keys are redacted by the GET /api/axoniz/config/cli endpoint.
+    fetch("/api/axoniz/config/cli")
       .then(r => r.ok ? r.json() : null)
       .then((data) => {
-        if (!data) return;
-        // Sync provider configs from DB → store.
-        if (data.providers) {
-          for (const [id, cfg] of Object.entries(data.providers)) {
-            const pc = cfg as { enabled?: boolean; baseUrl?: string; apiKey?: string; model?: string };
-            if (pc.apiKey || pc.baseUrl || pc.model) {
-              setProvider(id as never, {
-                enabled: pc.enabled ?? false,
-                baseUrl: pc.baseUrl ?? "",
-                apiKey: pc.apiKey ?? "",
-                model: pc.model ?? "",
-              });
-            }
+        if (!data || data.error) return;
+        // Extract provider config from CLI's schema:
+        // data.llm.active_provider = "llamacpp"
+        // data.llm.providers.{provider}.{model_path, base_url, api_key, model_name}
+        const llm = data.llm;
+        if (!llm) return;
+        const activeProvider = llm.active_provider ?? "llamacpp";
+        setActiveProvider(activeProvider);
+        // Sync each provider's settings to the store
+        const providers = llm.providers ?? {};
+        for (const [id, cfg] of Object.entries(providers)) {
+          const pc = cfg as { enabled?: boolean; base_url?: string; api_key?: string; model_name?: string; model_path?: string };
+          // Only update if the provider has actual config (skip empty defaults)
+          const baseUrl = pc.base_url ?? "";
+          const apiKey = pc.api_key === "[REDACTED]" ? "" : (pc.api_key ?? "");
+          const model = pc.model_name ?? pc.model_path ?? "";
+          if (baseUrl || apiKey || model) {
+            setProvider(id as never, {
+              enabled: id === activeProvider,
+              baseUrl,
+              apiKey,
+              model,
+            });
           }
         }
-        // Sync llamacpp settings from DB → store.
-        if (data.llamacpp) {
-          setLlamacpp(data.llamacpp);
-        }
-        // Sync active provider + model from DB → store.
-        if (data.activeProvider) {
-          setActiveProvider(data.activeProvider);
-        }
-        if (data.activeModel) {
-          setActiveModel(data.activeModel);
+        // Sync llamacpp-specific settings
+        const llamacppCfg = providers.llamacpp ?? {};
+        setLlamacpp({
+          modelPath: llamacppCfg.model_path ?? "",
+          baseUrl: providers.llamacpp_server?.base_url ?? "http://localhost:8080",
+          nCtx: llamacppCfg.n_ctx ?? 8192,
+          nGpuLayers: llamacppCfg.n_gpu_layers ?? 0,
+          nThreads: 8,
+        });
+        if (llamacppCfg.model_name || llamacppCfg.model_path) {
+          setActiveModel(llamacppCfg.model_name ?? llamacppCfg.model_path ?? null);
         }
       })
-      .catch(() => { /* DB not yet created — defaults are fine */ });
+      .catch(() => { /* config not yet created — defaults are fine */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -68,8 +80,7 @@ export function useAxonizBoot() {
     }
   }, [token, configQ.data, setActiveModel]);
 
-  // Sync data source tag from health response meta (fires only when health
-  // response changes — not on every render, not via a duplicate fetch)
+  // Sync data source tag from health response meta
   useEffect(() => {
     if (!token) return;
     const src = healthQ.data?.__source as "live" | "mock" | undefined;

@@ -1,12 +1,31 @@
 "use client";
 /**
- * useChatStream — hook for SSE streaming chat against /api/axoniz/chat.
+ * useChatStream — durable chat hook backed by the execution system.
  *
- * Now backed by JSONL storage at ~/.axoniz/db/chats/<id>.jsonl:
- *   - Each token is saved to disk in real-time via POST /api/axoniz/chats/[id]/events
- *   - When the user navigates away and comes back, messages reload from the JSONL file
- *   - The fetch continues in the background even after component unmount
- *   - No lost state — the chat survives navigation
+ * Architecture:
+ *   send(content)
+ *     → POST /api/axoniz/chat { message, session_id, mode }
+ *     → Returns { execution_id }
+ *     → Connect EventSource to /api/axoniz/executions/[id]/stream?since=0
+ *
+ *   On events:
+ *     token → append to messages
+ *     thinking → show status indicator
+ *     state_change → update isStreaming
+ *     done → mark complete
+ *     error → show error
+ *
+ *   On mount (with chatId):
+ *     → Load messages from JSONL via GET /api/axoniz/chats/[id]/events
+ *     → Check if there's an active execution for this session
+ *     → If so, reconnect to the SSE stream (no new generation)
+ *     → If completed, show the persisted output
+ *
+ *   Browser disconnect:
+ *     → Execution continues on the backend (SQLite-persisted)
+ *     → On reconnect, GET /api/axoniz/executions/[id]/events?since=N
+ *       returns all missed events
+ *     → No duplicate generation
  *
  * Returns: { messages, isStreaming, send, stop, regenerate, clear, setMessages }
  */
@@ -39,6 +58,9 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const chatIdRef = useRef<string | null>(null);
+  const executionIdRef = useRef<string | null>(null);
+  const lastSeqRef = useRef<number>(0);
+  const esRef = useRef<EventSource | null>(null);
 
   const {
     activeProvider,
@@ -46,26 +68,22 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
     providers,
     llamacpp,
     setDataSource,
+    username,
   } = useAxonizStore();
 
-  // Load messages from JSONL file when chatId changes.
-  // This is the fix for "chat clears on navigation" — the messages
-  // reload from disk, not from React state (which was lost on unmount).
+  // Load messages from JSONL when chatId changes.
+  // Also check if there's an active execution to reconnect to.
   useEffect(() => {
     chatIdRef.current = chatId;
     if (!chatId) {
       setMessages([]);
       return;
     }
-    // Fetch the JSONL events and reconstruct messages.
+    // Load persisted messages from JSONL.
     fetch(`/api/axoniz/chats/${chatId}/events`)
       .then(r => r.ok ? r.json() : null)
       .then((data) => {
-        if (!data || !data.messages) {
-          setMessages([]);
-          return;
-        }
-        // Reconstruct messages from JSONL events.
+        if (!data?.messages) { setMessages([]); return; }
         const msgs: ChatMessage[] = data.messages.map((m: { id: string; role: string; content: string; timestamp: number; error?: boolean }) => ({
           id: m.id,
           role: m.role as "user" | "assistant" | "system",
@@ -74,199 +92,233 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
           error: m.error,
         }));
         setMessages(msgs);
-        // If the last event was a token (no done/error after it),
-        // the stream was interrupted — mark as still streaming.
-        // (For now, just set streaming=false — the user can resend.)
+        // Check if the last message is still pending (assistant streaming was interrupted)
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.role === "assistant" && lastMsg.pending) {
+          // The generation was interrupted — show it as an error/stopped
+          setMessages(prev => prev.map(m =>
+            m.id === lastMsg.id ? { ...m, pending: false, content: m.content || "(interrupted)" } : m
+          ));
+        }
       })
       .catch(() => setMessages([]));
   }, [chatId]);
 
-  /** Save a single event to the JSONL file (fire-and-forget). */
-  const saveEvent = useCallback((event: {
-    type: string;
-    role?: string;
-    content: string;
-    ts: number;
-  }) => {
+  /** Connect to the execution's SSE stream. */
+  const connectStream = useCallback((executionId: string, sinceSeq: number) => {
+    // Close any existing connection.
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    executionIdRef.current = executionId;
+    lastSeqRef.current = sinceSeq;
+
+    const es = new EventSource(`/api/axoniz/executions/${executionId}/stream?since=${sinceSeq}`);
+    esRef.current = es;
+
+    es.addEventListener("status", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.state === "completed" || data.state === "failed" || data.state === "cancelled") {
+          setIsStreaming(false);
+          // If there's output, show it as the final assistant message
+          if (data.output) {
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === "assistant" && last.pending) {
+                return prev.map(m => m.id === last.id ? { ...m, content: data.output, pending: false } : m);
+              }
+              return prev;
+            });
+          }
+          es.close();
+        }
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("token", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.value) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === "assistant" && last.pending) {
+              // Append to existing pending assistant message
+              return prev.map(m => m.id === last.id ? { ...m, content: m.content + data.value, pending: false } : m);
+            }
+            // Create new assistant message
+            return [...prev, {
+              id: `asst-${Date.now()}`,
+              role: "assistant" as const,
+              content: data.value,
+              timestamp: Date.now(),
+              pending: false,
+            }];
+          });
+        }
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("thinking", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === "assistant" && (last.pending || !last.content)) {
+            return prev.map(m => m.id === last.id ? { ...m, content: `⏳ ${data.value}`, pending: true } : m);
+          }
+          return prev;
+        });
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("state_change", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.state === "running") setIsStreaming(true);
+        if (["completed", "failed", "cancelled"].includes(data.state)) {
+          setIsStreaming(false);
+          es.close();
+        }
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("error", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        const errorText = data.error || "Unknown error";
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === "assistant" && last.pending) {
+            return prev.map(m => m.id === last.id ? { ...m, content: `⚠ ${errorText}`, pending: false, error: true } : m);
+          }
+          return [...prev, {
+            id: `err-${Date.now()}`,
+            role: "assistant" as const,
+            content: `⚠ ${errorText}`,
+            timestamp: Date.now(),
+            error: true,
+          }];
+        });
+        setIsStreaming(false);
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("done", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        setIsStreaming(false);
+        // If the execution has a final output, ensure it's shown
+        if (data.state === "completed") {
+          setMessages(prev => prev.map(m =>
+            m.pending ? { ...m, pending: false } : m
+          ));
+        }
+      } catch { /* ignore */ }
+      es.close();
+    });
+
+    es.onerror = () => {
+      // EventSource auto-reconnects. Don't set isStreaming=false here.
+    };
+  }, []);
+
+  /** Save an event to the JSONL file (fire-and-forget). */
+  const saveEvent = useCallback((event: { type: string; role?: string; content: string; ts: number }) => {
     const cid = chatIdRef.current;
     if (!cid) return;
-    // Fire-and-forget — don't block the UI thread.
     fetch(`/api/axoniz/chats/${cid}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
-      keepalive: true,  // survives page unload
-    }).catch(() => { /* offline — ignore */ });
+      keepalive: true,
+    }).catch(() => { /* offline */ });
   }, []);
 
-  const send = useCallback(
-    (content: string) => {
-      if (!content.trim() || isStreaming) return;
+  const send = useCallback((content: string) => {
+    if (!content.trim() || isStreaming) return;
+    const cid = chatIdRef.current;
+    if (!cid) return;
 
-      const userMsg: ChatMessage = {
-        id: uid(),
-        role: "user",
-        content: content.trim(),
-        timestamp: Date.now(),
-      };
-      const assistantId = uid();
-      const assistantMsg: ChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        timestamp: Date.now(),
-        pending: true,
-      };
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-      setIsStreaming(true);
+    const userMsg: ChatMessage = {
+      id: uid(),
+      role: "user",
+      content: content.trim(),
+      timestamp: Date.now(),
+    };
+    const assistantId = uid();
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      timestamp: Date.now(),
+      pending: true,
+    };
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
+    setIsStreaming(true);
 
-      // Save the user message to JSONL immediately.
-      saveEvent({ type: "message", role: "user", content: content.trim(), ts: Date.now() });
+    // Save user message to JSONL.
+    saveEvent({ type: "message", role: "user", content: content.trim(), ts: Date.now() });
 
-      const provider = providers[activeProvider];
-      const history = [...messages, userMsg]
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-
-      const ac = new AbortController();
-      abortRef.current = ac;
-
-      (async () => {
-        try {
-          const res = await fetch("/api/axoniz/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: content,
-              history: history.slice(-20),
-              provider: activeProvider,
-              baseUrl: activeProvider === "llamacpp" ? llamacpp.baseUrl || provider.baseUrl : provider.baseUrl,
-              apiKey: provider.apiKey,
-              model: activeModel || provider.model || undefined,
-            }),
-            signal: ac.signal,
-          });
-
-          const source = res.headers.get("x-axoniz-source");
-          if (source === "live") setDataSource("live");
-          else if (source === "mock") setDataSource("mock");
-
-          if (!res.ok || !res.body) {
-            throw new Error(`HTTP ${res.status}`);
-          }
-
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          let acc = "";
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const chunks = buffer.split("\n\n");
-            buffer = chunks.pop() ?? "";
-            for (const chunk of chunks) {
-              const lines = chunk.split("\n");
-              const dataLine = lines.find((l) => l.startsWith("data:"));
-              if (!dataLine) continue;
-              const payloadStr = dataLine.slice(5).trim();
-              if (!payloadStr || payloadStr === "[DONE]") continue;
-              try {
-                const ev = JSON.parse(payloadStr);
-                if (ev.type === "token" && typeof ev.value === "string") {
-                  acc += ev.value;
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantId ? { ...m, content: acc, pending: false } : m
-                    )
-                  );
-                  // Save each token to JSONL (fire-and-forget).
-                  saveEvent({ type: "token", content: ev.value, ts: Date.now() });
-                } else if (ev.type === "thinking" && typeof ev.value === "string") {
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantId
-                        ? { ...m, content: acc || `⏳ ${ev.value}`, pending: true }
-                        : m
-                    )
-                  );
-                } else if (ev.type === "done") {
-                  // Don't overwrite an error message that was set by an
-                  // earlier 'error' event.
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantId
-                        ? {
-                            ...m,
-                            pending: false,
-                            content: m.error
-                              ? m.content
-                              : (acc || ev.summary || "(empty)"),
-                          }
-                        : m
-                    )
-                  );
-                  // Save the final message to JSONL.
-                  if (!messages.find(m => m.id === assistantId)?.error) {
-                    saveEvent({ type: "done", content: acc, ts: Date.now() });
-                  }
-                } else if (ev.type === "error") {
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantId
-                        ? { ...m, pending: false, error: true, content: `⚠ ${ev.error || "Unknown error"}` }
-                        : m
-                    )
-                  );
-                  // Save the error to JSONL.
-                  saveEvent({ type: "error", content: `⚠ ${ev.error || "Unknown error"}`, ts: Date.now() });
-                }
-              } catch {
-                /* skip malformed */
-              }
-            }
-          }
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, pending: false } : m)),
-          );
-        } catch (err) {
-          const e = err as Error;
-          if (e.name === "AbortError") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, pending: false, content: m.content || "(stopped)" }
-                  : m
-              )
-            );
-          } else {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, pending: false, error: true, content: `⚠ ${e.message}` }
-                  : m
-              )
-            );
-          }
-          // Save the error/stop to JSONL.
-          saveEvent({ type: "error", content: e.name === "AbortError" ? "(stopped)" : `⚠ ${e.message}`, ts: Date.now() });
-        } finally {
+    // Submit durable execution — the backend persists it and starts
+    // generation in the background. We get an execution_id back.
+    fetch("/api/axoniz/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: content,
+        session_id: cid,
+        mode: "chat",
+        owner: username,
+      }),
+    })
+      .then(r => r.json())
+      .then((data: { execution_id?: string; error?: string }) => {
+        if (data.error) {
+          setMessages(prev => prev.map(m =>
+            m.id === assistantId ? { ...m, content: `⚠ ${data.error}`, pending: false, error: true } : m
+          ));
           setIsStreaming(false);
-          abortRef.current = null;
+          return;
         }
-      })();
-    },
-    [isStreaming, messages, activeProvider, activeModel, providers, llamacpp, setDataSource, saveEvent]
-  );
+        if (!data.execution_id) {
+          setMessages(prev => prev.map(m =>
+            m.id === assistantId ? { ...m, content: "⚠ No execution_id returned", pending: false, error: true } : m
+          ));
+          setIsStreaming(false);
+          return;
+        }
+        // Connect to the execution's SSE stream — events come from
+        // the durable journal, not directly from the LLM.
+        connectStream(data.execution_id, 0);
+      })
+      .catch((err) => {
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId ? { ...m, content: `⚠ ${err.message}`, pending: false, error: true } : m
+        ));
+        setIsStreaming(false);
+      });
+  }, [isStreaming, username, connectStream, saveEvent]);
 
   const stop = useCallback(() => {
-    abortRef.current?.abort();
+    const execId = executionIdRef.current;
+    if (execId) {
+      // Request cancellation on the backend — this targets the actual
+      // execution, not just the SSE stream.
+      fetch(`/api/axoniz/executions/${execId}/cancel`, { method: "POST" })
+        .catch(() => { /* ignore */ });
+    }
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    setIsStreaming(false);
   }, []);
 
   const regenerate = useCallback(() => {
-    setMessages((prev) => {
-      const lastUser = [...prev].reverse().find((m) => m.role === "user");
+    setMessages(prev => {
+      const lastUser = [...prev].reverse().find(m => m.role === "user");
       if (lastUser) {
         const filtered = prev.slice(0, prev.lastIndexOf(lastUser));
         setMessages(filtered);
@@ -278,15 +330,19 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
 
   const clear = useCallback(() => {
     setMessages([]);
+    if (esRef.current) { esRef.current.close(); esRef.current = null; }
   }, []);
 
-  return {
-    messages,
-    isStreaming,
-    send,
-    stop,
-    regenerate,
-    clear,
-    setMessages,
-  };
+  // Cleanup on unmount — close SSE but DON'T cancel the execution.
+  // The execution continues on the backend.
+  useEffect(() => {
+    return () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+    };
+  }, []);
+
+  return { messages, isStreaming, send, stop, regenerate, clear, setMessages };
 }

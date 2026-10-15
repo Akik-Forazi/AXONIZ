@@ -62,8 +62,13 @@ function getDb(): DatabaseSync {
         updated_at REAL,
         completed_at REAL,
         owner TEXT DEFAULT 'anon',
-        recovery_note TEXT
+        recovery_note TEXT,
+        idempotency_key TEXT,
+        claimed_by TEXT,
+        claimed_at REAL
       );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_exec_idempotency ON executions(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +85,12 @@ function getDb(): DatabaseSync {
       CREATE INDEX IF NOT EXISTS idx_exec_state ON executions(state);
       CREATE INDEX IF NOT EXISTS idx_exec_session ON executions(session_id);
     `);
+    // Migration: add new columns if they don't exist (for databases
+    // created before idempotency/claiming was added).
+    try { db.exec("ALTER TABLE executions ADD COLUMN idempotency_key TEXT"); } catch { /* already exists */ }
+    try { db.exec("ALTER TABLE executions ADD COLUMN claimed_by TEXT"); } catch { /* already exists */ }
+    try { db.exec("ALTER TABLE executions ADD COLUMN claimed_at REAL"); } catch { /* already exists */ }
+    try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_exec_idempotency ON executions(idempotency_key) WHERE idempotency_key IS NOT NULL"); } catch { /* already exists */ }
   }
   return dbInstance;
 }
@@ -115,6 +126,9 @@ export interface Execution {
   completed_at?: number;
   owner: string;
   recovery_note?: string;
+  idempotency_key?: string;
+  claimed_by?: string;
+  claimed_at?: number;
 }
 
 export interface ExecutionEvent {
@@ -134,7 +148,13 @@ function genId(): string {
 
 // ── Core operations ────────────────────────────────────────────────────────
 
-/** Submit a new execution. Returns the execution record. */
+/**
+ * Submit a new execution. Returns the execution record.
+ * If an idempotency_key is provided and an execution with the same key
+ * already exists, returns the existing execution instead of creating a
+ * duplicate. This prevents duplicate generation when a client retries
+ * after a network timeout.
+ */
 export function submitExecution(opts: {
   session_id: string;
   mode: ExecutionMode;
@@ -142,15 +162,65 @@ export function submitExecution(opts: {
   provider?: string;
   model?: string;
   owner?: string;
+  idempotency_key?: string;
 }): Execution {
   const db = getDb();
-  const id = genId();
   const now = Date.now() / 1000;
-  db.prepare(`
-    INSERT INTO executions (id, session_id, mode, state, prompt, provider, model, created_at, owner)
-    VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?)
-  `).run(id, opts.session_id, opts.mode, opts.prompt, opts.provider ?? null, opts.model ?? null, now, opts.owner ?? "anon");
+
+  // Check for existing execution with same idempotency key.
+  if (opts.idempotency_key) {
+    const existing = db.prepare("SELECT * FROM executions WHERE idempotency_key = ?").get(opts.idempotency_key) as Record<string, unknown> | undefined;
+    if (existing) {
+      // Return the existing execution — no duplicate generation.
+      return rowToExecution(existing);
+    }
+  }
+
+  const id = genId();
+  try {
+    db.prepare(`
+      INSERT INTO executions (id, session_id, mode, state, prompt, provider, model, created_at, owner, idempotency_key)
+      VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)
+    `).run(id, opts.session_id, opts.mode, opts.prompt, opts.provider ?? null, opts.model ?? null, now, opts.owner ?? "anon", opts.idempotency_key ?? null);
+  } catch (e) {
+    // UNIQUE constraint violation — another concurrent request with the
+    // same idempotency key won. Return the existing execution.
+    if (opts.idempotency_key) {
+      const existing = db.prepare("SELECT * FROM executions WHERE idempotency_key = ?").get(opts.idempotency_key) as Record<string, unknown> | undefined;
+      if (existing) return rowToExecution(existing);
+    }
+    throw e;
+  }
   return getExecution(id)!;
+}
+
+/**
+ * Transactionally claim an execution for running. Prevents two workers
+ * from running the same execution concurrently. Uses SQLite's
+ * atomic UPDATE...WHERE to ensure only one worker succeeds.
+ * Returns true if this worker claimed it, false if another worker already did.
+ */
+export function claimExecution(executionId: string, workerId: string): boolean {
+  const db = getDb();
+  const now = Date.now() / 1000;
+  // Atomically claim: only claim if state is 'queued' or 'interrupted'
+  // and not already claimed (or claim is stale > 5 minutes).
+  const result = db.prepare(`
+    UPDATE executions
+    SET claimed_by = ?, claimed_at = ?, state = 'running', started_at = ?, updated_at = ?
+    WHERE id = ? AND (
+      (state = 'queued' AND (claimed_by IS NULL OR claimed_at < ?))
+      OR (state = 'interrupted' AND (claimed_by IS NULL OR claimed_at < ?))
+    )
+  `).run(workerId, now, now, now, executionId, now - 300, now - 300);
+  return Number(result.changes) > 0;
+}
+
+/** Release a claim (on completion, failure, or crash recovery). */
+export function releaseClaim(executionId: string): void {
+  const db = getDb();
+  const now = Date.now() / 1000;
+  db.prepare("UPDATE executions SET claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ?").run(now, executionId);
 }
 
 /** Get an execution by ID. */
@@ -175,7 +245,8 @@ export function transitionState(id: string, newState: ExecutionState, extra?: { 
     sets.push("completed_at = ?"); vals.push(now);
   }
   vals.push(id);
-  db.prepare(`UPDATE executions SET ${sets.join(", ")} WHERE id = ?`).run(...vals);
+  // Cast values to SQL-compatible types
+  db.prepare(`UPDATE executions SET ${sets.join(", ")} WHERE id = ?`).run(...vals.map(v => v as string | number));
 }
 
 /** Request cancellation. Does not immediately cancel — sets cancel_requested. */
@@ -277,6 +348,9 @@ function rowToExecution(row: Record<string, unknown>): Execution {
     completed_at: row.completed_at ? Number(row.completed_at) : undefined,
     owner: String(row.owner ?? "anon"),
     recovery_note: row.recovery_note ? String(row.recovery_note) : undefined,
+    idempotency_key: row.idempotency_key ? String(row.idempotency_key) : undefined,
+    claimed_by: row.claimed_by ? String(row.claimed_by) : undefined,
+    claimed_at: row.claimed_at ? Number(row.claimed_at) : undefined,
   };
 }
 
