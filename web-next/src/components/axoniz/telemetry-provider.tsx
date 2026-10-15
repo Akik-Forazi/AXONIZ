@@ -33,6 +33,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useAxonizStore } from "@/stores/axoniz-store";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -135,9 +136,15 @@ export interface TelemetryProviderProps {
 
 export function TelemetryProvider({
   children,
-  username,
+  username: usernameProp,
   enabled = true,
 }: TelemetryProviderProps) {
+  // Read the username from the auth store so the .axolog filename
+  // uses the real logged-in user (e.g. 'akik' or 'axoniz') instead
+  // of 'anon'. Falls back to the username prop if provided, then to
+  // 'anon' if neither source has one.
+  const storeUsername = useAxonizStore((s) => s.username);
+  const username = usernameProp ?? storeUsername ?? "anon";
   const queueRef = useRef<TelemetryEvent[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFlushRef = useRef(0);

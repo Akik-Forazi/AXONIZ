@@ -193,11 +193,20 @@ async function openAIStream(
           safeEnqueue({ type: "done", summary: "Response complete", ts: Date.now() / 1000 });
         } catch (err) {
           const e = err as Error;
+          // Translate opaque fetch errors into actionable messages.
+          const name = e.name;
+          const msg = e.message ?? "";
+          let friendly: string;
+          if (name === "TimeoutError" || name === "AbortError") {
+            friendly = `Upstream timed out after 60s. The model may have hung or is generating a very long response. Check the Servers page for live logs from ${body.baseUrl}.`;
+          } else if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED") || msg.includes("Failed to fetch") || name === "TypeError") {
+            friendly = `Could not reach ${body.provider} server at ${url}. The model server is not running — go to the Servers page and click "Start server", or verify the baseUrl in Settings.`;
+          } else {
+            friendly = `${name}: ${msg}`;
+          }
           safeEnqueue({
             type: "error",
-            error: e.name === "TimeoutError" || e.name === "AbortError"
-              ? "Upstream timed out (60s). Is the model loaded?"
-              : e.message,
+            error: friendly,
             ts: Date.now() / 1000,
           });
           safeEnqueue({ type: "done", summary: "Failed", ts: Date.now() / 1000 });

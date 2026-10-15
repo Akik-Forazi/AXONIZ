@@ -58,7 +58,15 @@ export async function spawnWebNextOnPort(port: number = DEFAULT_PORT): Promise<S
   }
   const runnerLabel = bunBin ? "bun" : "npm";
 
-  info(`[Web] spawning ${runnerLabel} run dev in web-next/ (port ${port})`);
+  // Production mode: when AXONIZ_WEB_PROD=1 is set in the env, spawn
+  // `next start` (compiled .next/) instead of `next dev` (Turbopack).
+  // The user must run `npm run build` in web-next/ first to generate
+  // the .next/ directory. Production mode has NO first-load compilation
+  // overhead — every API route returns in <50ms instead of 1-2s.
+  const useProd = process.env.AXONIZ_WEB_PROD === "1";
+  const displayLabel = useProd ? "start (production)" : "run dev";
+
+  info(`[Web] spawning ${runnerLabel} ${displayLabel} in web-next/ (port ${port})`);
 
   const isWin = process.platform === "win32";
   let cmd: string;
@@ -69,20 +77,27 @@ export async function spawnWebNextOnPort(port: number = DEFAULT_PORT): Promise<S
     const npmCliPath = path.join(npmDir, "node_modules", "npm", "bin", "npm-cli.js");
     if (fs.existsSync(npmCliPath)) {
       cmd = process.execPath;
-      args = [npmCliPath, "run", "dev"];
+      args = useProd
+        ? [npmCliPath, "run", "start:prod"]
+        : [npmCliPath, "run", "dev"];
       info(`[Web] using node.exe + npm-cli.js directly`);
     } else {
       cmd = process.env.ComSpec || "cmd.exe";
-      args = ["/c", "npm run dev"];
+      args = useProd ? ["/c", "npm run start:prod"] : ["/c", "npm run dev"];
     }
   } else {
     cmd = runner;
-    args = ["run", "dev"];
+    args = useProd ? ["run", "start:prod"] : ["run", "dev"];
   }
 
   child = spawn(cmd, args, {
     cwd: WEB_NEXT_DIR,
-    env: { ...process.env, PORT: String(port), NEXT_TELEMETRY_DISABLED: "1" },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      NEXT_TELEMETRY_DISABLED: "1",
+      ...(useProd ? { NODE_ENV: "production" } : {}),
+    },
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
     windowsHide: true,
