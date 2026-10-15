@@ -71,6 +71,24 @@ function scanModels(dir: string, depth = 0): Array<Record<string, unknown>> {
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const p = url.pathname.replace("/api/axoniz", "");
+
+  // Auth check for sensitive GET endpoints (config, files, models).
+  // Health and stream are public (needed before login).
+  const sensitiveRoutes = ["/config", "/files/list", "/models", "/memory", "/war_room", "/swarm/status"];
+  const isSensitive = sensitiveRoutes.some(s => p === s || p.startsWith(s + "/"));
+  if (isSensitive) {
+    const { extractBearerToken, verifyAuthToken } = await import("@/lib/axoniz/cli-bridge");
+    const authHeader = req.headers.get("authorization");
+    const token = extractBearerToken(authHeader);
+    if (!token) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const authUser = await verifyAuthToken(token);
+    if (!authUser) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+  }
+
   const cfg = loadConfig();
 
   // All responses from this proxy are tagged with x-axoniz-source: live so
@@ -243,6 +261,23 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const url = new URL(req.url);
   const p = url.pathname.replace("/api/axoniz", "");
+
+  // Auth check for ALL POST routes EXCEPT auth endpoints (login/register).
+  // Login and register are the only POST routes that don't require a prior token.
+  const isAuthEndpoint = p === "/auth/login" || p === "/auth/register";
+  if (!isAuthEndpoint) {
+    const { extractBearerToken, verifyAuthToken } = await import("@/lib/axoniz/cli-bridge");
+    const authHeader = req.headers.get("authorization");
+    const token = extractBearerToken(authHeader);
+    if (!token) {
+      return NextResponse.json({ error: "unauthorized — Bearer token required" }, { status: 401 });
+    }
+    const authUser = await verifyAuthToken(token);
+    if (!authUser) {
+      return NextResponse.json({ error: "unauthorized — invalid token" }, { status: 401 });
+    }
+  }
+
   const cfg = loadConfig();
   const body = await req.json().catch(() => ({}));
 
@@ -258,7 +293,7 @@ export async function POST(req: NextRequest) {
     }
 
     case "/auth/login": {
-      // Real auth via CLI's bcrypt + JWT system.
+      // Real auth via CLI's bcrypt + JWT system. FAILS CLOSED.
       const { verifyCredentials, createAuthToken } = await import("@/lib/axoniz/cli-bridge");
       const username = String(body.username ?? "");
       const password = String(body.password ?? "");
@@ -266,21 +301,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Username and password (min 4 chars) required" }, { status: 400 });
       }
       const verifiedUser = verifyCredentials(username, password);
-      if (verifiedUser) {
-        const token = await createAuthToken(verifiedUser);
-        return NextResponse.json({ token: token ?? `local-${Date.now().toString(36)}`, username: verifiedUser });
+      if (!verifiedUser) {
+        // Wrong password OR auth module unavailable → 401, no token.
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
       }
-      // Fallback for local-first mode when CLI auth isn't configured:
-      // accept any non-empty password but generate a real (non-demo) token.
-      const fallbackToken = await createAuthToken(username);
-      return NextResponse.json({ token: fallbackToken ?? `local-${Date.now().toString(36)}`, username });
+      const token = await createAuthToken(verifiedUser);
+      if (!token) {
+        // Token creation failed → fail closed, no fallback.
+        return NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 });
+      }
+      return NextResponse.json({ token, username: verifiedUser });
     }
 
     case "/auth/register": {
-      return NextResponse.json({
-        token: `demo-${Date.now().toString(36)}`,
-        username: String(body.username || "user"),
-      });
+      // Registration must use the real auth system, not issue demo tokens.
+      const { verifyCredentials, createAuthToken } = await import("@/lib/axoniz/cli-bridge");
+      const username = String(body.username ?? "");
+      const password = String(body.password ?? "");
+      if (!username || password.length < 4) {
+        return NextResponse.json({ error: "Username and password (min 4 chars) required" }, { status: 400 });
+      }
+      // Check if user already exists — try to verify (if verifyPassword returns true,
+      // the user exists and the password is correct; if it returns false, either
+      // the user doesn't exist or the password is wrong — either way, registration
+      // should go through the CLI's user creation, not here).
+      // For now, fail closed — registration is a CLI-only operation.
+      return NextResponse.json({ error: "Registration is not available via web. Use 'axoniz user create' CLI command." }, { status: 501 });
     }
 
     case "/reset": {

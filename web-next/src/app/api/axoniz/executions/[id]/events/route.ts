@@ -1,6 +1,8 @@
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 /**
  * GET /api/axoniz/executions/[id]/events — get events since a cursor.
  *
+
  * Query params: since=<seq> — only events with seq > since
  *
  * Returns: { events: [...], latest_seq: N }
@@ -13,6 +15,8 @@ import { getEvents, getExecution } from "@/lib/axoniz/execution-manager";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
   const exec = getExecution(id);
   if (!exec) return NextResponse.json({ error: "not found" }, { status: 404 });

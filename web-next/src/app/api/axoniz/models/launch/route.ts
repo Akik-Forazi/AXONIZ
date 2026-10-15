@@ -1,3 +1,4 @@
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 /**
  * POST /api/axoniz/models/launch
  *
@@ -5,6 +6,7 @@
  * and pipes its stdout/stderr through the ServerProcessManager so the
  * dashboard can show the live output.
  *
+
  * The process is NOT detached (so we can capture its output) — but
  * Node's HTTP server keeps running as long as the API route handler
  * is alive, which is enough for development. (For production, you'd
@@ -98,6 +100,8 @@ async function waitForHealthy(baseUrl: string, timeoutMs: number): Promise<boole
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   let body: LaunchBody;
   try {
     body = (await req.json()) as LaunchBody;

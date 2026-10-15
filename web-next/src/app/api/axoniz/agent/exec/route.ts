@@ -1,6 +1,8 @@
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 /**
  * POST /api/axoniz/agent/exec
  *
+
  * Runs the FULL agent loop via the CLI's Agent class (dist/core/agent.js).
  * The agent loop:
  *   1. Takes the user's goal
@@ -21,6 +23,9 @@ export const runtime = "nodejs";
 export const maxDuration = 600;
 
 export async function POST(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   let body: { goal: string; provider?: string; baseUrl?: string; apiKey?: string; model?: string; workspace?: string };
   try {
     body = (await req.json()) as typeof body;
@@ -38,7 +43,7 @@ export async function POST(req: NextRequest) {
     model: body.model,
   };
   try {
-    const result = await execAgent(body.goal, config);
+    const result = await execAgent(body.goal, config as Record<string, unknown>);
     return NextResponse.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -1,6 +1,9 @@
+import { requireAuth } from "@/lib/axoniz/auth-guard";
+import { NextResponse } from "next/server";
 /**
  * GET /api/axoniz/executions/[id]/stream — SSE stream of live events.
  *
+
  * 1. Sends all events since `since` query param (replay missed events).
  * 2. Polls for new events every 200ms and streams them live.
  * 3. Closes when the execution reaches a terminal state.
@@ -16,6 +19,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
   const encoder = new TextEncoder();
   const sinceSeq = Number(new URL(req.url).searchParams.get("since") ?? "0");

@@ -1,11 +1,14 @@
 /** POST /api/axoniz/models/stop — kills the running local model server. */
 import { NextRequest, NextResponse } from "next/server";
 import { getServerMgr } from "@/lib/axoniz/server-mgr";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const mgr = getServerMgr();
   const before = mgr.status;
   if (!before.running) {

@@ -248,7 +248,8 @@ export async function synthesizeVoice(text: string) {
 /**
  * Verify a username/password against the CLI's auth system.
  * Uses bcrypt + JWT from dist/core/auth.js.
- * Returns the username if valid, null if invalid.
+ * Returns the username if valid, null if invalid OR if auth module is unavailable.
+ * FAILS CLOSED — never issues a token when auth can't be verified.
  */
 export function verifyCredentials(username: string, password: string): string | null {
   try {
@@ -263,17 +264,17 @@ export function verifyCredentials(username: string, password: string): string | 
     if (auth.verifyPassword(username, password)) {
       return username;
     }
-    return null;
+    return null;  // Wrong password → no token
   } catch (e) {
-    // Auth module unavailable — fall back to accepting any non-empty password
-    // for local-first single-user mode. Log the degradation.
-    console.error("[auth] CLI auth module unavailable:", e instanceof Error ? e.message : String(e));
+    // Auth module unavailable — FAIL CLOSED. No fallback.
+    console.error("[auth] CLI auth module unavailable — FAILING CLOSED:", e instanceof Error ? e.message : String(e));
     return null;
   }
 }
 
 /**
  * Create a JWT token for the given username.
+ * Returns null if the auth module is unavailable — NEVER creates a local- fallback.
  */
 export async function createAuthToken(username: string): Promise<string | null> {
   try {
@@ -282,32 +283,32 @@ export async function createAuthToken(username: string): Promise<string | null> 
     }>("core/auth.js");
     const auth = mod.getAuth();
     return await auth.createToken(username);
-  } catch {
-    // Fallback: generate a simple HMAC token for local-only use
-    return `local-${Date.now().toString(36)}-${Buffer.from(username).toString("hex")}`;
+  } catch (e) {
+    // FAIL CLOSED — no local- token fallback.
+    console.error("[auth] Token creation failed — FAILING CLOSED:", e instanceof Error ? e.message : String(e));
+    return null;
   }
 }
 
 /**
- * Verify a JWT token. Returns the username if valid, null if invalid.
+ * Verify a JWT token. Returns the username if valid, null if invalid
+ * OR if the auth module is unavailable.
+ * NEVER accepts local- tokens or any token without cryptographic verification.
  */
 export async function verifyAuthToken(token: string): Promise<string | null> {
+  // Reject forged local- tokens immediately.
+  if (token.startsWith("local-") || token.startsWith("demo-")) {
+    return null;
+  }
   try {
     const mod = load<{
       getAuth: () => { verifyToken: (t: string) => Promise<string | null> };
     }>("core/auth.js");
     const auth = mod.getAuth();
     return await auth.verifyToken(token);
-  } catch {
-    // Fallback: extract username from local-HMAC token
-    if (token.startsWith("local-")) {
-      const parts = token.split("-");
-      if (parts.length >= 3) {
-        try {
-          return Buffer.from(parts[2], "hex").toString("utf-8");
-        } catch { return null; }
-      }
-    }
+  } catch (e) {
+    // Auth module unavailable — FAIL CLOSED. No fallback verification.
+    console.error("[auth] Token verification failed — FAILING CLOSED:", e instanceof Error ? e.message : String(e));
     return null;
   }
 }
