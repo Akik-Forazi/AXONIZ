@@ -143,10 +143,23 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
                     )
                   );
                 } else if (ev.type === "done") {
+                  // Don't overwrite an error message that was set by an
+                  // earlier 'error' event — the user needs to SEE the
+                  // actual error (e.g. "⚠ Upstream 401 Unauthorized —
+                  // Missing Authentication header"), not just "Failed".
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId
-                        ? { ...m, pending: false, content: acc || ev.summary || "(empty)" }
+                        ? {
+                            ...m,
+                            pending: false,
+                            // Only overwrite content if it's empty (no
+                            // tokens streamed + no prior error). If an
+                            // error event already set the content, keep it.
+                            content: m.error
+                              ? m.content
+                              : (acc || ev.summary || "(empty)"),
+                          }
                         : m
                     )
                   );
