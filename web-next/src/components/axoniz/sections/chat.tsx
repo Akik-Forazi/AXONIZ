@@ -4,11 +4,9 @@ import { useEffect, useRef, useCallback } from "react";
 import { Sparkles, Code, BookOpen, Lightbulb, User, Bot, Copy, Check, RefreshCw, AlertCircle, ArrowUp, Square, Brain, Globe, Mic, Paperclip } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAxonizStore } from "@/stores/axoniz-store";
 import { useChatStream, type ChatMessage } from "../zai-chat/use-chat-stream";
 import { useConversations } from "../zai-chat/use-conversations";
-import { ChatSidebar } from "../zai-chat/chat-sidebar";
 import { Markdown } from "../zai-chat/markdown";
 import { cn } from "@/lib/utils";
 
@@ -25,14 +23,14 @@ export function ChatSection() {
     newConversation, selectConversation, deleteConversation,
     renameConversation, updateMessages,
   } = useConversations();
-  const router = useRouter();
 
-  // When a chat is selected from the sidebar, NAVIGATE to /chat/s/<id>
-  // so the URL reflects the active chat (like z.ai's /c/<id> links).
+  // When a chat is selected from the sidebar, just switch the active
+  // conversation in-place. Do NOT navigate to /chat/s/<id> — that's the
+  // read-only shared view page. The URL stays at /chat and the
+  // conversation changes.
   const handleSelect = useCallback((id: string) => {
     selectConversation(id);
-    router.push(`/chat/s/${id}`);
-  }, [selectConversation, router]);
+  }, [selectConversation]);
 
   // Only auto-create a new chat AFTER the backend list has loaded AND
   // there are genuinely zero chats. The previous code created a new chat
@@ -79,19 +77,7 @@ export function ChatSection() {
   }, [stream.messages, stick]);
 
   return (
-    <div className="h-full flex">
-      {/* Saved conversations sidebar — list of all chats, links to
-          /chat/s/<id> for sharing. Hidden when main sidebar is collapsed
-          to avoid double-rail on small screens. */}
-      <ChatSidebar
-        conversations={conversations}
-        activeId={activeId}
-        onNew={() => void newConversation()}
-        onSelect={(id) => handleSelect(id)}
-        onDelete={(id) => void deleteConversation(id)}
-        onRename={(id, title) => renameConversation(id, title)}
-      />
-      <div className="flex-1 min-w-0 flex flex-col">
+    <div className="h-full flex flex-col">
       {hasMessages ? (
         <>
           <div ref={scrollRef} className="flex-1 overflow-y-auto">
@@ -168,7 +154,6 @@ export function ChatSection() {
           <ChatInput onSend={handleSend} onStop={stream.stop} isStreaming={stream.isStreaming} />
         </>
       )}
-      </div>
     </div>
   );
 }

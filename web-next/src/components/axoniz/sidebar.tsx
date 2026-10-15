@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   MessageSquare, Bot, Boxes, Anvil, Network, BrainCircuit,
   GitBranch, Search, Gauge, Activity, Settings as SettingsIcon,
-  ChevronRight, FileText, Server, type LucideIcon,
+  ChevronRight, FileText, Server, Plus, type LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAxonizStore } from "@/stores/axoniz-store";
@@ -16,6 +16,13 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   href: string;
+}
+
+interface ChatMeta {
+  id: string;
+  title: string;
+  updatedAt: number;
+  kind?: string;
 }
 
 const PRIMARY_NAV: NavItem[] = [
@@ -53,6 +60,25 @@ export function Sidebar() {
   const pathname = usePathname();
   const collapsed = useAxonizStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useAxonizStore((s) => s.setSidebarCollapsed);
+  const activeChatId = useAxonizStore((s) => s.activeChatId);
+  const setActiveChatId = useAxonizStore((s) => s.setActiveChatId);
+  const [recentChats, setRecentChats] = useState<ChatMeta[]>([]);
+
+  // Fetch recent chats when on /chat or /agent.
+  const showChats = pathname === "/chat" || pathname.startsWith("/chat/s") ||
+                     pathname === "/agent" || pathname.startsWith("/agent/s");
+
+  useEffect(() => {
+    if (!showChats || collapsed) return;
+    fetch("/api/axoniz/chats")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.chats) {
+          setRecentChats(data.chats.slice(0, 10));  // top 10
+        }
+      })
+      .catch(() => {});
+  }, [showChats, collapsed, activeChatId]);
 
   // Auto-collapse on smaller viewports.
   useEffect(() => {
@@ -105,6 +131,38 @@ export function Sidebar() {
         <div className="flex flex-col gap-0.5">
           {PRIMARY_NAV.map(renderItem)}
         </div>
+
+        {/* Recent chats — shown inline when on /chat or /agent */}
+        {showChats && !collapsed && recentChats.length > 0 && (
+          <div className="mt-1">
+            <div className="px-2 text-[10px] uppercase tracking-widest text-muted-foreground/50 mb-1">
+              Recent
+            </div>
+            <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+              {recentChats.map((c) => {
+                const active = c.id === activeChatId;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setActiveChatId(c.id);
+                    }}
+                    data-axoniz-action={`select-chat:${c.id.slice(0, 20)}`}
+                    className={`flex items-center gap-2 px-2.5 h-7 rounded-md text-[12px] transition-colors text-left truncate w-full ${
+                      active
+                        ? "bg-foreground/5 text-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <MessageSquare className="w-3 h-3 shrink-0 opacity-60" />
+                    <span className="truncate flex-1">{c.title || "Untitled"}</span>
+                    {c.kind === "agent" && <Bot className="w-2.5 h-2.5 shrink-0 opacity-40" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {!collapsed && (
           <div className="px-2 text-[10px] uppercase tracking-widest text-muted-foreground/50 mt-1">
