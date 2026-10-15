@@ -48,8 +48,8 @@ function load<T>(relPath: string): T {
 /* ── Phase 1: Agent + Tools ─────────────────────────────────────────────── */
 
 export interface AgentConfig {
-  provider: string;
-  workspace: string;
+  provider?: string;
+  workspace?: string;
   model?: string;
   baseUrl?: string;
   apiKey?: string;
@@ -60,19 +60,60 @@ export interface AgentConfig {
   nGpuLayers?: number;
 }
 
-export async function createAgent(config: AgentConfig) {
-  const mod = load<{ Agent: new (cfg: Record<string, unknown>) => unknown }>("core/agent.js");
-  return new mod.Agent(config);
+/** Load the CLI's canonical config from ~/.axoniz/config.json */
+export function loadCliConfig(): Record<string, unknown> {
+  try {
+    const mod = load<{ loadConfig: () => Record<string, unknown> }>("core/config.js");
+    return mod.loadConfig();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
+/** Save config to ~/.axoniz/config.json (the CLI's canonical config) */
+export function saveCliConfig(cfg: Record<string, unknown>): void {
+  try {
+    const mod = load<{ saveConfig: (cfg: Record<string, unknown>) => void }>("core/config.js");
+    mod.saveConfig(cfg);
+  } catch (e) {
+    // ignore
+  }
+}
+
+/** Create an Agent from the CLI's canonical config */
+export function createAgent(config?: Record<string, unknown>) {
+  const mod = load<{ Agent: new (cfg: Record<string, unknown>) => { chatStream: (msg: string) => AsyncGenerator<string>; run: (task: string) => Promise<string>; health: () => Promise<unknown> } }>("core/agent.js");
+  const cfg = config ?? loadCliConfig();
+  return new mod.Agent(cfg);
+}
+
+/** Stream chat tokens from the CLI's Agent.chatStream() */
+export async function* streamAgentChat(message: string, history?: Array<{ role: string; content: string }>): AsyncGenerator<string> {
+  const agent = createAgent();
+  // Agent.chatStream() is an async generator yielding token strings
+  for await (const tok of agent.chatStream(message)) {
+    yield tok;
+  }
+}
+
+/** Run the full agent loop (with tools, memory, swarm) */
 export async function execAgent(
   goal: string,
-  config: AgentConfig,
-): Promise<{ result: string; steps?: unknown[] }> {
-  const mod = load<{ Agent: new (cfg: Record<string, unknown>) => { run: (goal: string) => Promise<string> } }>("core/agent.js");
-  const a = new mod.Agent(config);
-  const result = await a.run(goal);
+  config?: Record<string, unknown>,
+): Promise<{ result: string }> {
+  const agent = createAgent(config);
+  const result = await agent.run(goal);
   return { result };
+}
+
+/** Check backend health */
+export async function checkBackendHealth(): Promise<unknown> {
+  try {
+    const agent = createAgent();
+    return await agent.health();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /* ── Phase 2: Memory ────────────────────────────────────────────────────── */
