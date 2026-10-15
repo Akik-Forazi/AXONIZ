@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { Bot, Send, Loader2, User, Brain, Wrench, FileCode, Clock, Zap, CheckCircle2, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -28,10 +29,12 @@ const INITIAL: ChatMessage[] = [
 ];
 
 export function AgentPage() {
+  // Read chatId from the URL params (ChatGPT-style /agent/s/<id>).
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const sessionId = params.id;  // from /agent/s/<id>
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  // Save queue — debounced PUT so we don't write on every streamed token.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -105,43 +108,27 @@ export function AgentPage() {
   }
 
   /**
-   * Load the most recent agent session (if any) from the backend, or
-   * create a fresh one if none exists. The agent page persists the full
-   * goal-conversation history to ~/.axoniz/chats/<id>.json with
-   * kind:'agent' — same store as chat, different discriminator.
+   * Load messages from the JSONL file for the current session ID
+   * (which comes from the URL /agent/s/<id>). The session was already
+   * created by the /agent redirect — we just load the messages here.
    */
-  async function loadOrCreateSession() {
+  async function loadMessages() {
+    if (!sessionId) return;
     setSessionLoading(true);
     try {
-      const r = await fetch("/api/axoniz/chats");
-      const data = await r.json();
-      // Pick the most recent agent session.
-      const agentChat = (data.chats ?? []).find((c: { kind?: string }) => c.kind === "agent");
-      if (agentChat) {
-        // Load full messages.
-        const full = await fetch(`/api/axoniz/chats/${agentChat.id}`);
-        if (full.ok) {
-          const record = await full.json();
-          setSessionId(record.id);
-          if (Array.isArray(record.messages) && record.messages.length > 0) {
-            setMessages(record.messages);
-          }
-        }
-      } else {
-        // Create a new agent session.
-        const create = await fetch("/api/axoniz/chats", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: "axoniz", kind: "agent" }),
-        });
-        if (create.ok) {
-          const record = await create.json();
-          setSessionId(record.id);
+      const r = await fetch(`/api/axoniz/chats/${sessionId}/events`);
+      if (r.ok) {
+        const data = await r.json();
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages);
         }
       }
-    } catch { /* offline — operate without backend */ }
+    } catch { /* offline */ }
     finally { setSessionLoading(false); }
   }
+
+  // Load messages when the session ID changes (from URL params).
+  useEffect(() => { void loadMessages(); }, [sessionId]);
 
   /** Debounced save of the current messages to the backend. */
   function scheduleSave() {
@@ -173,9 +160,6 @@ export function AgentPage() {
   // Keep a ref to messages so the debounced save doesn't capture a stale value.
   const messagesRef = useRef(messages);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
-
-  // Load the agent session on mount.
-  useEffect(() => { void loadOrCreateSession(); }, []);
 
   async function sendGoal() {
     const text = input.trim();

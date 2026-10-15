@@ -52,8 +52,16 @@ interface ChatBody {
   maxTokens?: number;
 }
 
-const AXONIZ_SYSTEM =
-  "You are AXONIZ — an autonomous local agentic system operating 100% offline via small local models when possible. You reason with precision, propose concrete next actions, and write production-quality code. Reply in Markdown.";
+// Compact system prompt — optimized for small models (2-4B params)
+// with 4-8K context windows. Includes a minimal tool schema so the
+// agent can call tools without blowing up the context.
+//
+// Total: ~80 tokens (was ~56 without tools). Stays compact even
+// with the tool schema appended.
+const AXONIZ_SYSTEM = `You are AXONIZ, a local AI agent.
+Tools: file_read(path), file_write(path,content), bash(cmd), web_search(q).
+To call a tool, output: <tool>name(args)</tool>
+Wait for results. Reply in Markdown. Be concise.`;
 
 // Upstream fetch timeout — same value as maxDuration above, but in ms.
 // Set via AXONIZ_CHAT_TIMEOUT_MS env (default 600_000 = 10 min).

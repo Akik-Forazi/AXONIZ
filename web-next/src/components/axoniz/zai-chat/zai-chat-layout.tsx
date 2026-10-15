@@ -37,9 +37,9 @@ export function ZaiChatLayout() {
     updateMessages,
   } = useConversations();
 
-  // Get messages from active conversation (or empty for new)
-  const initialMessages = active?.messages ?? [];
-  const stream = useChatStream(initialMessages);
+  // Pass the active chat ID to useChatStream (ChatGPT-style — the hook
+  // loads messages from JSONL on disk, not from in-memory state).
+  const stream = useChatStream(activeId);
 
   // When the active conversation changes, reset the stream hook's messages
   // by replacing its state. We use a key on the layout to remount.
