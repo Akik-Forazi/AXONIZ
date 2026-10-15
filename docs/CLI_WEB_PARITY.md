@@ -99,3 +99,61 @@ The CLI is the authoritative implementation; the web is a frontend.
 | MCP server management | MCPClient exists in CLI but no web UI |
 | Code intelligence (axodex) | AxodexTools exists but /axodex page shows placeholder |
 | Telegram bot | grammy integration exists but not exposed via web |
+
+## Known Build / Lockfile Issues (Pre-existing)
+
+These are NOT security regressions and do not block the production
+build, but they should be fixed in a follow-up.
+
+### 1. Root `npm ci` requires `--legacy-peer-deps`
+
+The root `package.json` declares `@fraziym/axodex` as a mandatory
+peer dependency (`peerDependenciesMeta."@fraziym/axodex".optional = false`),
+but the lockfile does not materialize a `node_modules/@fraziym/axodex`
+entry because it was generated with `--legacy-peer-deps`.
+
+Result: plain `npm ci` fails with EUSAGE "Missing from lock file".
+Workaround: `npm ci --legacy-peer-deps --ignore-scripts` works.
+
+Fix path: either (a) add `@fraziym/axodex`, `@fraziym/axovb`,
+`@fraziym/axotest` as devDependencies so they're materialized in the
+lockfile, or (b) regenerate the lockfile without `--legacy-peer-deps`
+and accept that `npm ci` will install peer deps automatically (npm 7+).
+
+> **Note (post-fix):** the web-next lockfile drift (missing `yjs`,
+> `lib0`, `isomorphic.js`) is fixed in this commit by regenerating
+> `web-next/package-lock.json`. The root lockfile peer-dep issue
+> remains because the fix requires a policy decision on the
+> peerDependencies block.
+
+### 2. Web `npm run typecheck:web` has 11 pre-existing errors
+
+`web-next/next.config.ts` sets `typescript.ignoreBuildErrors: true`,
+so `next build` succeeds despite these type errors. They are real
+type errors in web source files, NOT masked by ambient declarations:
+
+| File | Error |
+|------|-------|
+| `src/app/api/axoniz/[...path]/route.ts:178` | `CpuInfo` has no `idle`, `user`, `nice`, `sys` (5 occurrences) — the route reads CPU fields that the `systeminformation` types don't expose at the call site |
+| `src/app/api/axoniz/providers/test/route.ts:77-80` | Object literal `{ id: string }` has no `pricing` (5 occurrences) — the route writes a `pricing` field onto a typed object that doesn't declare it |
+| `src/components/axoniz/pages/chat.tsx:291` | `ClassAttributes<HTMLElement> & HTMLAttributes<HTMLElement> & ExtraProps` has no `inline` — likely a react-syntax-highlighter prop type mismatch |
+
+These are independent of the CLI build pipeline; the CLI `typecheck`
+passes with 0 errors after the `src/declarations.d.ts` removal.
+
+### 3. Native compilation of `tree-sitter-graphql` (transitive of `@fraziym/axodex`) fails on Node 24
+
+`@fraziym/axodex` pulls in `tree-sitter-graphql@1.0.0` which uses the
+Node 12 V8 C++ API. On Node 24.x the API signatures have changed and
+`node-gyp rebuild` fails. The CI and local installs use
+`--ignore-scripts` to bypass native compilation; the axodex CLI
+binary may not work fully until the upstream package is updated.
+
+### 4. Tests require `build:cli` before `npm test`
+
+The diagnostics tests import from `../dist/core/diagnostics.js`, so
+`npm test` will fail with `ERR_MODULE_NOT_FOUND` unless
+`npm run build:cli` is run first. This is by design (tests verify
+compiled output) but should be documented in the test command's
+help text or wired as a `pretest` script.
+

@@ -155,7 +155,13 @@ axonix.egg-info/
 .claude/
 .axodex/
 __pycache__/
-.github/
+# Exclude everything under .github/ EXCEPT workflow files, which we need
+# tracked so CI runs. Git negation cannot re-include children of an
+# excluded directory, so we use .github/* (excludes contents, not the
+# dir itself) and then re-include .github/workflows/.
+.github/*
+!.github/workflows/
+!.github/workflows/**
 
 node_modules
 
