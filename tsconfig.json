@@ -20,5 +20,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "_pyref", "src/web/static"]
+  "exclude": ["node_modules", "dist", "_pyref", "src/web/static", "src/web/server.ts"]
 }
