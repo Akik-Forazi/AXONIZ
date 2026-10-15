@@ -29,6 +29,10 @@ const INITIAL: ChatMessage[] = [
 
 export function AgentPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // Save queue — debounced PUT so we don't write on every streamed token.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -100,6 +104,79 @@ export function AgentPage() {
     }
   }
 
+  /**
+   * Load the most recent agent session (if any) from the backend, or
+   * create a fresh one if none exists. The agent page persists the full
+   * goal-conversation history to ~/.axoniz/chats/<id>.json with
+   * kind:'agent' — same store as chat, different discriminator.
+   */
+  async function loadOrCreateSession() {
+    setSessionLoading(true);
+    try {
+      const r = await fetch("/api/axoniz/chats");
+      const data = await r.json();
+      // Pick the most recent agent session.
+      const agentChat = (data.chats ?? []).find((c: { kind?: string }) => c.kind === "agent");
+      if (agentChat) {
+        // Load full messages.
+        const full = await fetch(`/api/axoniz/chats/${agentChat.id}`);
+        if (full.ok) {
+          const record = await full.json();
+          setSessionId(record.id);
+          if (Array.isArray(record.messages) && record.messages.length > 0) {
+            setMessages(record.messages);
+          }
+        }
+      } else {
+        // Create a new agent session.
+        const create = await fetch("/api/axoniz/chats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "axoniz", kind: "agent" }),
+        });
+        if (create.ok) {
+          const record = await create.json();
+          setSessionId(record.id);
+        }
+      }
+    } catch { /* offline — operate without backend */ }
+    finally { setSessionLoading(false); }
+  }
+
+  /** Debounced save of the current messages to the backend. */
+  function scheduleSave() {
+    if (!sessionId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const currentMessages = messagesRef.current;
+      const firstUser = currentMessages.find(m => m.role === "user");
+      const title = firstUser
+        ? (firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? "…" : ""))
+        : "New agent goal";
+      try {
+        await fetch(`/api/axoniz/chats/${sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            messages: currentMessages,
+            provider: activeProvider,
+            model: activeModel,
+            kind: "agent",
+          }),
+          keepalive: true,
+        });
+      } catch { /* offline — drop */ }
+    }, 600);
+  }
+
+  // Keep a ref to messages so the debounced save doesn't capture a stale value.
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Load the agent session on mount.
+  useEffect(() => { void loadOrCreateSession(); }, []);
+
   async function sendGoal() {
     const text = input.trim();
     if (!text || busy) return;
@@ -115,6 +192,7 @@ export function AgentPage() {
     const assistantId = `a-${Date.now()}`;
     const assistantMsg: ChatMessage = { id: assistantId, role: "assistant", content: "", streaming: true, ts: Date.now() };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    scheduleSave();
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -189,6 +267,8 @@ export function AgentPage() {
                 ),
               );
               setCurrentThought(null);
+              // Final save after the stream completes.
+              scheduleSave();
             } else if (ev.type === "error") {
               setMessages((prev) =>
                 prev.map((m) =>
@@ -204,6 +284,7 @@ export function AgentPage() {
       setMessages((prev) =>
         prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
       );
+      scheduleSave();
     } catch (err) {
       const e = err as Error;
       setMessages((prev) =>
@@ -213,6 +294,7 @@ export function AgentPage() {
             : m,
         ),
       );
+      scheduleSave();
     } finally {
       setBusy(false);
       startTimeRef.current = null;

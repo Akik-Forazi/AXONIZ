@@ -17,17 +17,34 @@ const SUGGESTIONS = [
 ];
 
 export function ChatSection() {
-  const { conversations, active, activeId, newConversation, selectConversation, deleteConversation, renameConversation, updateMessages } = useConversations();
+  const {
+    conversations, active, activeId, loading,
+    newConversation, selectConversation, deleteConversation,
+    renameConversation, updateMessages,
+  } = useConversations();
 
+  // Only auto-create a new chat AFTER the backend list has loaded AND
+  // there are genuinely zero chats. The previous code created a new chat
+  // on every page mount because conversations is [] during the initial
+  // async load — that's why you'd see 4 POST /api/axoniz/chats calls
+  // in 2 minutes (one per page navigation).
   useEffect(() => {
-    if (conversations.length === 0) newConversation();
-  }, []);
+    if (!loading && conversations.length === 0 && !activeId) {
+      void newConversation();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, conversations.length, activeId]);
 
   const initialMessages: ChatMessage[] = active?.messages ?? [];
   const stream = useChatStream(initialMessages);
 
   const handleSend = (content: string) => {
-    if (!activeId) { newConversation(); setTimeout(() => stream.send(content), 0); return; }
+    if (!activeId) {
+      // Fire-and-forget create + send. The setTimeout waits for the
+      // next tick so newConversation's setState has applied.
+      void newConversation().then(() => setTimeout(() => stream.send(content), 0));
+      return;
+    }
     stream.send(content);
   };
 

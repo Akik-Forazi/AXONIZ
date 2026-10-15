@@ -18,12 +18,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { username?: string } = {};
+  let body: { username?: string; kind?: "chat" | "agent" } = {};
   try {
     body = await req.json();
   } catch {
     // No body required — fall through with default username
   }
-  const record = createChat(body.username ?? "anon");
+  const record = createChat(body.username ?? "anon", { kind: body.kind });
   return NextResponse.json(record, { status: 201 });
 }

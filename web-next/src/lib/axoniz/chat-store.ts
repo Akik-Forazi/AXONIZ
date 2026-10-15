@@ -37,6 +37,10 @@ export interface ChatRecord {
   updatedAt: number;
   provider?: string;
   model?: string;
+  /** Discriminator between regular chat sessions and agent goal-sessions.
+   *  Defaults to "chat" for backward compat with files written before this
+   *  field existed. */
+  kind?: "chat" | "agent";
   messages: ChatMessage[];
 }
 
@@ -49,6 +53,7 @@ export interface ChatMetadata {
   messageCount: number;
   provider?: string;
   model?: string;
+  kind?: "chat" | "agent";
 }
 
 function getChatsDir(): string {
@@ -130,6 +135,7 @@ function rebuildIndex(): ChatMetadata[] {
             messageCount: parsed.messages?.length ?? 0,
             provider: parsed.provider,
             model: parsed.model,
+            kind: parsed.kind,
           });
         }
       } catch { /* corrupt file — skip */ }
@@ -149,16 +155,20 @@ export function listChats(): ChatMetadata[] {
   return idx.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export function createChat(username: string | undefined | null): ChatRecord {
+export function createChat(
+  username: string | undefined | null,
+  opts: { kind?: "chat" | "agent"; title?: string } = {},
+): ChatRecord {
   ensureChatsDir();
   const id = buildChatId(username);
   const now = Date.now();
   const record: ChatRecord = {
     id,
-    title: "New chat",
+    title: opts.title ?? (opts.kind === "agent" ? "New agent goal" : "New chat"),
     username: sanitizeUsername(username),
     createdAt: now,
     updatedAt: now,
+    kind: opts.kind ?? "chat",
     messages: [],
   };
   const filePath = chatFilePath(id);
@@ -172,6 +182,7 @@ export function createChat(username: string | undefined | null): ChatRecord {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     messageCount: 0,
+    kind: record.kind,
   });
   writeIndex(idx);
   return record;
@@ -188,9 +199,17 @@ export function getChat(id: string): ChatRecord | null {
   }
 }
 
+interface PutPatch {
+  title?: string;
+  messages?: ChatMessage[];
+  provider?: string;
+  model?: string;
+  kind?: "chat" | "agent";
+}
+
 export function updateChat(
   id: string,
-  patch: { title?: string; messages?: ChatMessage[]; provider?: string; model?: string },
+  patch: PutPatch,
 ): ChatRecord | null {
   if (!isValidChatId(id)) return null;
   ensureChatsDir();
@@ -203,6 +222,7 @@ export function updateChat(
     ...(patch.messages !== undefined ? { messages: patch.messages } : {}),
     ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
     ...(patch.model !== undefined ? { model: patch.model } : {}),
+    ...(patch.kind !== undefined ? { kind: patch.kind } : {}),
     updatedAt: Date.now(),
   };
   fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), { encoding: "utf-8", mode: 0o600 });
@@ -217,6 +237,7 @@ export function updateChat(
       messageCount: updated.messages.length,
       provider: updated.provider,
       model: updated.model,
+      kind: updated.kind,
     };
     writeIndex(idx);
   } else {

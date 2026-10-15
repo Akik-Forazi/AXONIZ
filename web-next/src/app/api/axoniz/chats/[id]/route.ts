@@ -18,6 +18,7 @@ interface PutBody {
   messages?: ChatMessage[];
   provider?: string;
   model?: string;
+  kind?: "chat" | "agent";
 }
 
 export async function GET(
