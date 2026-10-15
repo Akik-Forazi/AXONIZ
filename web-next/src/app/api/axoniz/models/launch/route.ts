@@ -47,7 +47,7 @@ function resolveBinary(provider: string): { path: string | null; error?: string 
     provider === "ollama" ? process.env.AXONIZ_OLLAMA_BIN : undefined,
   ].filter(Boolean) as string[];
   for (const p of envCandidates) {
-    if (fs.existsSync(p)) return { path: p };
+    if (fs.existsSync(/*turbopackIgnore: true*/ p)) return { path: p };
   }
   const isWin = process.platform === "win32";
   let binName: string;
@@ -60,15 +60,15 @@ function resolveBinary(provider: string): { path: string | null; error?: string 
   }
   for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
     if (!dir) continue;
-    const candidate = path.join(dir, binName);
-    if (fs.existsSync(candidate)) return { path: candidate };
+    const candidate = path.join(/*turbopackIgnore: true*/ dir, binName);
+    if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) return { path: candidate };
   }
-  const homeBin = path.join(os.homedir(), ".axoniz", "llama", binName);
-  if (fs.existsSync(homeBin)) return { path: homeBin };
+  const homeBin = path.join(/*turbopackIgnore: true*/ os.homedir(), ".axoniz", "llama", binName);
+  if (fs.existsSync(/*turbopackIgnore: true*/ homeBin)) return { path: homeBin };
   if (isWin) {
     const pf = process.env.PROGRAMFILES || "C:\\Program Files";
-    const candidate = path.join(pf, "llama.cpp", binName);
-    if (fs.existsSync(candidate)) return { path: candidate };
+    const candidate = path.join(/*turbopackIgnore: true*/ pf, "llama.cpp", binName);
+    if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) return { path: candidate };
   }
   return {
     path: null,
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
   if (!modelPath) {
     return NextResponse.json({ ok: false, error: "modelPath required" }, { status: 400 });
   }
-  if (!fs.existsSync(modelPath)) {
+  if (!fs.existsSync(/*turbopackIgnore: true*/ modelPath)) {
     return NextResponse.json(
       { ok: false, error: `model file not found: ${modelPath}` },
       { status: 400 },

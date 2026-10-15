@@ -34,8 +34,11 @@ export const runtime = "nodejs";
 // Long answers (code, explanations) easily blow past 60s. Cloud providers
 // are much faster, so this only adds headroom for the slow case.
 //
-// Override via env: AXONIZ_CHAT_TIMEOUT_MS=1200000 (20 min) etc.
-export const maxDuration = Number(process.env.AXONIZ_CHAT_TIMEOUT_MS ?? 600_000) / 1000;
+// NOTE: maxDuration MUST be a static literal — Next.js evaluates it at
+// build time, not runtime. If you need a different value, change it here
+// and rebuild. The upstream fetch timeout (TIMEOUT_MS below) is runtime-
+// configurable via AXONIZ_CHAT_TIMEOUT_MS env var.
+export const maxDuration = 600;
 
 interface ChatBody {
   message: string;
