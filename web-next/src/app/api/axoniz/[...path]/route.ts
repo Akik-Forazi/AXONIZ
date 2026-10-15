@@ -61,10 +61,19 @@ function scanModels(dir: string, depth = 0): Array<Record<string, unknown>> {
             size: sizeGb >= 1 ? `${sizeGb.toFixed(1)} GB` : `${(stats.size / 1e6).toFixed(0)} MB`,
             quant: entry.name.match(/[IQ](\d)_(\w+)/)?.[0] || null,
           });
-        } catch { /* stat failed */ }
+        } catch (e) {
+          // stat failed — log so the user can see WHY a model is missing
+          // (broken symlink, EACCES, EIO on a network mount, etc.) instead
+          // of the file silently disappearing from the Vault list.
+          console.warn(`[scanModels] stat failed for ${full}:`, e instanceof Error ? e.message : String(e));
+        }
       }
     }
-  } catch { /* dir not found */ }
+  } catch (e) {
+    // dir not found / not readable — log so the user sees a real error
+    // instead of the Vault just showing an empty state with no hint.
+    console.warn(`[scanModels] readdirSync(${dir}) failed:`, e instanceof Error ? e.message : String(e));
+  }
   return results;
 }
 
@@ -112,7 +121,18 @@ export async function GET(req: NextRequest) {
 
     case "/config": {
       if (!cfg) return NextResponse.json({ error: "Config not found at " + CONFIG_PATH }, { status: 404 });
-      return NextResponse.json(cfg);
+      // Redact API keys before exposing — same policy as /config/cli GET.
+      // Without this, GET /config would leak real API keys to anyone who
+      // passes the auth gate, while /config/cli redacts them. Split-brained.
+      const redacted = JSON.parse(JSON.stringify(cfg));
+      try {
+        const providers = redacted?.llm?.providers;
+        if (providers) for (const key of Object.keys(providers)) {
+          const p = providers[key];
+          if (p && typeof p === "object" && p.api_key) p.api_key = "[REDACTED]";
+        }
+      } catch { /* ignore */ }
+      return NextResponse.json(redacted);
     }
 
     case "/models": {
@@ -340,26 +360,50 @@ export async function POST(req: NextRequest) {
       // model_name = undefined — corrupting config.json. Now we read both:
       //   - path → persisted as model_path (the .gguf file path)
       //   - name → persisted as model_name (the display name, optional)
-      if (cfg) {
-        const newPath = typeof body.path === "string" ? body.path : undefined;
-        const newName = typeof body.name === "string" ? body.name : undefined;
-        if (newPath) (cfg as any).model_path = newPath;
-        if (newName) (cfg as any).model_name = newName;
-        // For llamacpp, also persist into the nested llm.providers.llamacpp.model
-        // so the agent's loadModel step picks it up.
-        try {
-          const llm = (cfg as any).llm;
-          if (llm && llm.providers && llm.providers.llamacpp) {
-            if (newPath) llm.providers.llamacpp.model_path = newPath;
-            if (newName) llm.providers.llamacpp.model = newName;
-          }
-        } catch { /* ignore nested-set failure */ }
+      if (!cfg) {
+        // Config file doesn't exist or is corrupt — can't persist.
+        return NextResponse.json(
+          { status: "error", error: "config.json not found — run `axoniz config init` first" },
+          { status: 500 },
+        );
+      }
+      const newPath = typeof body.path === "string" ? body.path : undefined;
+      const newName = typeof body.name === "string" ? body.name : undefined;
+      if (!newPath && !newName) {
+        return NextResponse.json(
+          { status: "error", error: "must provide path or name" },
+          { status: 400 },
+        );
+      }
+      if (newPath) (cfg as any).model_path = newPath;
+      if (newName) (cfg as any).model_name = newName;
+      // For llamacpp, also persist into the nested llm.providers.llamacpp.model
+      // so the agent's loadModel step picks it up.
+      try {
+        const llm = (cfg as any).llm;
+        if (llm && llm.providers && llm.providers.llamacpp) {
+          if (newPath) llm.providers.llamacpp.model_path = newPath;
+          if (newName) llm.providers.llamacpp.model = newName;
+        }
+      } catch (e) {
+        // Don't swallow — return the failure so the UI's toast.error fires.
+        return NextResponse.json(
+          { status: "error", error: `nested provider set failed: ${e instanceof Error ? (e as Error).message : String(e)}` },
+          { status: 500 },
+        );
+      }
+      try {
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
+      } catch (e) {
+        return NextResponse.json(
+          { status: "error", error: `config write failed: ${e instanceof Error ? (e as Error).message : String(e)}` },
+          { status: 500 },
+        );
       }
       return NextResponse.json({
         status: "ok",
-        model: body.name ?? body.path ?? "(unknown)",
-        path: body.path,
+        model: newName ?? newPath ?? "(unknown)",
+        path: newPath,
       });
     }
 

@@ -1,19 +1,23 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { axonizClient } from "@/lib/axoniz/client";
+import { axonizClient, authedFetch } from "@/lib/axoniz/client";
 import type { HealthResponse } from "@/lib/axoniz/api-types";
 
 /**
  * Health query. Polls every 30s (was 10s) and captures the x-axoniz-source
  * response header so boot.ts can read it WITHOUT issuing a duplicate fetch.
  * The header is attached to the returned data as the `__source` field.
+ *
+ * /health is NOT a protected route (it returns public system status), but
+ * we still attach the Bearer header when one is set so the server-side
+ * source detection works correctly.
  */
 export function useHealthQuery() {
   return useQuery({
     queryKey: ["axoniz", "health"],
     queryFn: async () => {
-      const res = await fetch("/api/axoniz/health", {
+      const res = await authedFetch("/api/axoniz/health", {
         headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) throw new Error(`health failed: ${res.status}`);

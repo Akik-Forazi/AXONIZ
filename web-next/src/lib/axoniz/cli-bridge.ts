@@ -70,14 +70,17 @@ export function loadCliConfig(): Record<string, unknown> {
   }
 }
 
-/** Save config to ~/.axoniz/config.json (the CLI's canonical config) */
+/**
+ * Save config to ~/.axoniz/config.json (the CLI's canonical config).
+ *
+ * THROWS on failure — callers (e.g. /api/axoniz/config/cli POST route)
+ * should catch and return a 500 to the client. Previously this swallowed
+ * errors silently, so a broken dist/ or read-only filesystem would
+ * appear as a successful save to the user.
+ */
 export function saveCliConfig(cfg: Record<string, unknown>): void {
-  try {
-    const mod = load<{ saveConfig: (cfg: Record<string, unknown>) => void }>("core/config.js");
-    mod.saveConfig(cfg);
-  } catch (e) {
-    // ignore
-  }
+  const mod = load<{ saveConfig: (cfg: Record<string, unknown>) => void }>("core/config.js");
+  mod.saveConfig(cfg);
 }
 
 /** Create an Agent from the CLI's canonical config */

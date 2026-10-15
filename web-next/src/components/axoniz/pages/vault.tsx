@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { authedFetch } from "@/lib/axoniz/client";
 import { useModelsQuery, useConfigQuery, useSwitchModelMutation } from "../queries";
 import { useAxonizStore } from "@/stores/axoniz-store";
 
@@ -55,9 +56,8 @@ export function VaultPage() {
       });
       // Try to launch llama-server with the new model.
       try {
-        const launchRes = await fetch("/api/axoniz/models/launch", {
+        const launchRes = await authedFetch("/api/axoniz/models/launch", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             modelPath: m.path,
             baseUrl: llamacpp.baseUrl || "http://localhost:8080",

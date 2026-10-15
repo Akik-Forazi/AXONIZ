@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -242,6 +243,10 @@ async function pingGemini(baseUrl: string, apiKey: string): Promise<TestResult> 
 }
 
 export async function POST(req: NextRequest) {
+  // Auth required — this route is an SSRF vector (it accepts arbitrary
+  // URLs and fires fetch against them). Don't allow unauthenticated use.
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   let body: TestBody;
   try {
     body = (await req.json()) as TestBody;

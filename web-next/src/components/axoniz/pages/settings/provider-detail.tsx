@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { axonizClient } from "@/lib/axoniz/client";
+import { axonizClient, authedFetch } from "@/lib/axoniz/client";
 import {
   useAxonizStore,
   PROVIDER_CATALOG,
@@ -79,44 +79,106 @@ export function ProviderDetailPage({
     }
   }
 
+  /**
+   * Save the provider config to ~/.axoniz/config.json via the merge-patch
+   * route POST /api/axoniz/config/cli.
+   *
+   * The frontend store uses camelCase (apiKey, baseUrl, model); the CLI's
+   * config.json uses snake_case (api_key, base_url, model_name) nested
+   * under llm.providers.{id}. We translate here at the API boundary so
+   * the rest of the app stays consistent with TS conventions.
+   *
+   * The merge route is safe against redaction round-trip — if the boot
+   * load gave us `apiKey: ""` because the key was redacted, sending the
+   * empty string back would normally overwrite the real key. The server
+   * route skips empty/`[REDACTED]` api_key values for exactly this reason
+   * (see web-next/src/app/api/axoniz/config/cli/route.ts POST handler).
+   *
+   * If the apiKey field is empty (user didn't re-enter the key), we
+   * simply don't include it in the patch — preserving whatever's on disk.
+   */
   async function save() {
     setSaving(true);
     try {
-      // Save to the AXONIZ CLI's config.json (the old path, still used
-      // by the CLI daemon).
-      await axonizClient.saveConfig({ providers: { [providerId]: cfg } });
-      // ALSO save to the new persistent DB at ~/.axoniz/db/config.json
-      // so API keys survive browser cache clears + are shared across
-      // browsers.
-      await fetch("/api/axoniz/db/config", {
+      // Translate frontend camelCase → CLI snake_case at the boundary.
+      // Only include api_key when the user has typed something in.
+      const providerPatch: Record<string, unknown> = {
+        enabled: cfg.enabled,
+        base_url: cfg.baseUrl,
+        model_name: cfg.model,
+      };
+      // CRITICAL: don't send an empty api_key — would wipe the stored key.
+      // The user expects "leave blank = keep existing" semantics.
+      if (cfg.apiKey && cfg.apiKey.trim().length > 0) {
+        providerPatch.api_key = cfg.apiKey.trim();
+      }
+
+      // llamacpp also writes the .gguf path + n_ctx/n_gpu_layers from the
+      // separate llamacpp store slice (the slider values).
+      if (providerId === "llamacpp") {
+        providerPatch.model_path = llamacpp.modelPath;
+        providerPatch.n_ctx = llamacpp.nCtx;
+        providerPatch.n_gpu_layers = llamacpp.nGpuLayers;
+      }
+
+      const patch = {
+        llm: {
+          // Mark this provider as the one with config — the active provider
+          // is set separately via the "Set as active" button.
+          providers: {
+            [providerId]: providerPatch,
+          },
+        },
+      };
+
+      const res = await authedFetch("/api/axoniz/config/cli", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          providers: { [providerId]: cfg },
-        }),
+        body: JSON.stringify(patch),
       });
-      toast.success("Saved", { description: `${meta.name} config persisted to ~/.axoniz/db/config.json` });
-    } catch {
-      toast.error("Save failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as { error?: string }).error ?? `Save failed: ${res.status}`);
+      }
+      toast.success("Saved", {
+        description: `${meta.name} config persisted to ~/.axoniz/config.json`,
+      });
+    } catch (err) {
+      toast.error("Save failed", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setSaving(false);
     }
   }
 
+  /**
+   * Mark this provider as active in the CLI config. Writes
+   * `llm.active_provider` and `llm.active_model` via the same merge route.
+   */
   async function activate() {
     setActiveProvider(providerId);
     if (cfg.model) setActiveModel(cfg.model);
-    // Persist the active selection to the DB.
     try {
-      await fetch("/api/axoniz/db/config", {
+      const patch = {
+        llm: {
+          active_provider: providerId,
+          active_model: cfg.model || null,
+        },
+      };
+      const res = await authedFetch("/api/axoniz/config/cli", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          activeProvider: providerId,
-          activeModel: cfg.model || null,
-        }),
+        body: JSON.stringify(patch),
       });
-    } catch { /* ignore — still works without DB */ }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? `Activate failed: ${res.status}`);
+      }
+    } catch (e) {
+      toast.warning(`Activated locally, but server write failed`, {
+        description: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
     toast.success(`Active provider: ${meta.name}`);
   }
 

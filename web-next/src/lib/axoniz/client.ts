@@ -32,13 +32,42 @@ import type {
   VoiceStatus,
   WarRoomResponse,
 } from "./api-types";
+import { useAxonizStore } from "@/stores/axoniz-store";
 
 const BASE = "/api/axoniz";
+
+/**
+ * Pull the JWT from the Zustand store on demand. The store is persisted by
+ * zustand/middleware/persist so the token survives reloads. The token is
+ * set by the login flow on a successful POST /auth/login.
+ *
+ * Returns the empty string when no token is set — the server will then 401
+ * and the UI will redirect to /login via the existing boot guard.
+ */
+function getAuthToken(): string {
+  try {
+    return useAxonizStore.getState()?.token ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Build the standard headers for any /api/axoniz/* request. */
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extra ?? {}),
+  };
+}
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: authHeaders(
+      init?.headers as Record<string, string> | undefined,
+    ),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -56,6 +85,31 @@ async function postJson<T>(
     method: "POST",
     body: body !== undefined ? JSON.stringify(body) : undefined,
     ...init,
+  });
+}
+
+/**
+ * Exported for components (vault.tsx, provider-detail.tsx) that need to
+ * make a raw `fetch()` call to a streaming or multipart endpoint — wraps
+ * the call with the same auth header injection as getJson/postJson.
+ *
+ * Usage:
+ *   const res = await authedFetch("/api/axoniz/models/launch", {
+ *     method: "POST",
+ *     body: JSON.stringify(payload),
+ *   });
+ */
+export function authedFetch(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  return fetch(path, {
+    ...init,
+    headers: authHeaders(
+      typeof init?.headers === "object" && init.headers
+        ? (init.headers as Record<string, string>)
+        : undefined,
+    ),
   });
 }
 
@@ -108,6 +162,10 @@ export const axonizClient = {
   /**
    * Real streaming chat — actually proxies to the user's configured provider
    * (any of 14 supported). Returns the raw Response; the caller parses SSE.
+   *
+   * NOTE: The /api/axoniz/chat route requires a valid Bearer JWT (see
+   * web-next/src/app/api/axoniz/chat/route.ts). The token is auto-injected
+   * here via authHeaders() so callers don't need to set it manually.
    */
   chatStream: (
     body: {
@@ -125,7 +183,7 @@ export const axonizClient = {
   ) =>
     fetch(`${BASE}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body: JSON.stringify(body),
       signal,
     }),
