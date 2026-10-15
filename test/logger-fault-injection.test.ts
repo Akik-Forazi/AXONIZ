@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { execSync, spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 import {
   _setDiagLoggerForTest,
@@ -200,7 +201,7 @@ test("10. abrupt process termination leaves parseable records", () => {
   // readdirSync call. We use JSON.stringify() on the path values
   // (not the whole script) because we still want real newlines in
   // the script source for the ESM parser.
-  const diagPath = JSON.stringify(path.resolve("dist/core/diagnostics.js"));
+  const diagPath = JSON.stringify(pathToFileURL(path.resolve("dist/core/diagnostics.js")).href);
   const homeLit = JSON.stringify(tmpHome);
   const script = `
     import { getDiagLogger } from ${diagPath};
@@ -405,7 +406,7 @@ test("18. multiple processes write to separate files (different usernames)", () 
   // Windows backslashes are properly escaped in the generated script
   // string. We pass the script via stdin to avoid shell-escaping
   // issues with both backslashes and quotes.
-  const diagPath = JSON.stringify(path.resolve("dist/core/diagnostics.js"));
+  const diagPath = JSON.stringify(pathToFileURL(path.resolve("dist/core/diagnostics.js")).href);
   const homeLit = JSON.stringify(tmpHome);
   const script = (username) => {
     const u = JSON.stringify(username);
