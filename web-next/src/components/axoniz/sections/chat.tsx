@@ -46,8 +46,11 @@ export function ChatSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, conversations.length, activeId]);
 
-  const initialMessages: ChatMessage[] = active?.messages ?? [];
-  const stream = useChatStream(initialMessages);
+  // Pass the chatId to useChatStream so it can load/save from JSONL.
+  // This replaces the old `initialMessages` approach — messages now
+  // reload from ~/.axoniz/db/chats/<id>.jsonl on mount, so navigating
+  // away and back doesn't lose state.
+  const stream = useChatStream(activeId);
 
   const handleSend = (content: string) => {
     if (!activeId) {

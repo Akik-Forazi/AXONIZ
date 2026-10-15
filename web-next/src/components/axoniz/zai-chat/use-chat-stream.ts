@@ -2,7 +2,13 @@
 /**
  * useChatStream — hook for SSE streaming chat against /api/axoniz/chat.
  *
- * Returns: { messages, isStreaming, send, stop, regenerate, clear }
+ * Now backed by JSONL storage at ~/.axoniz/db/chats/<id>.jsonl:
+ *   - Each token is saved to disk in real-time via POST /api/axoniz/chats/[id]/events
+ *   - When the user navigates away and comes back, messages reload from the JSONL file
+ *   - The fetch continues in the background even after component unmount
+ *   - No lost state — the chat survives navigation
+ *
+ * Returns: { messages, isStreaming, send, stop, regenerate, clear, setMessages }
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAxonizStore } from "@/stores/axoniz-store";
@@ -28,10 +34,11 @@ export interface UseChatStreamReturn {
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStreamReturn {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+export function useChatStream(chatId: string | null): UseChatStreamReturn {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const chatIdRef = useRef<string | null>(null);
 
   const {
     activeProvider,
@@ -40,6 +47,57 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
     llamacpp,
     setDataSource,
   } = useAxonizStore();
+
+  // Load messages from JSONL file when chatId changes.
+  // This is the fix for "chat clears on navigation" — the messages
+  // reload from disk, not from React state (which was lost on unmount).
+  useEffect(() => {
+    chatIdRef.current = chatId;
+    if (!chatId) {
+      setMessages([]);
+      return;
+    }
+    // Fetch the JSONL events and reconstruct messages.
+    fetch(`/api/axoniz/chats/${chatId}/events`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data || !data.messages) {
+          setMessages([]);
+          return;
+        }
+        // Reconstruct messages from JSONL events.
+        const msgs: ChatMessage[] = data.messages.map((m: { id: string; role: string; content: string; timestamp: number; error?: boolean }) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant" | "system",
+          content: m.content,
+          timestamp: m.timestamp,
+          error: m.error,
+        }));
+        setMessages(msgs);
+        // If the last event was a token (no done/error after it),
+        // the stream was interrupted — mark as still streaming.
+        // (For now, just set streaming=false — the user can resend.)
+      })
+      .catch(() => setMessages([]));
+  }, [chatId]);
+
+  /** Save a single event to the JSONL file (fire-and-forget). */
+  const saveEvent = useCallback((event: {
+    type: string;
+    role?: string;
+    content: string;
+    ts: number;
+  }) => {
+    const cid = chatIdRef.current;
+    if (!cid) return;
+    // Fire-and-forget — don't block the UI thread.
+    fetch(`/api/axoniz/chats/${cid}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+      keepalive: true,  // survives page unload
+    }).catch(() => { /* offline — ignore */ });
+  }, []);
 
   const send = useCallback(
     (content: string) => {
@@ -62,6 +120,9 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
       setIsStreaming(true);
 
+      // Save the user message to JSONL immediately.
+      saveEvent({ type: "message", role: "user", content: content.trim(), ts: Date.now() });
+
       const provider = providers[activeProvider];
       const history = [...messages, userMsg]
         .filter((m) => m.role === "user" || m.role === "assistant")
@@ -77,10 +138,6 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               message: content,
-              // Cap history to last 20 messages — local models on CPU take
-              // 5-30s+ processing a 5K-token prompt before the first token.
-              // Sending the entire 50-message chat history turns every
-              // request into a minute-long TTFT.
               history: history.slice(-20),
               provider: activeProvider,
               baseUrl: activeProvider === "llamacpp" ? llamacpp.baseUrl || provider.baseUrl : provider.baseUrl,
@@ -124,10 +181,9 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
                       m.id === assistantId ? { ...m, content: acc, pending: false } : m
                     )
                   );
+                  // Save each token to JSONL (fire-and-forget).
+                  saveEvent({ type: "token", content: ev.value, ts: Date.now() });
                 } else if (ev.type === "thinking" && typeof ev.value === "string") {
-                  // Heartbeat — show the model is still working. Don't
-                  // pollute the message content; replace the pending
-                  // placeholder text so the user sees live status.
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId
@@ -135,27 +191,15 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
                         : m
                     )
                   );
-                } else if (ev.type === "thought" && typeof ev.value === "string") {
-                  acc += `_${ev.value}_\n\n`;
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === assistantId ? { ...m, content: acc, pending: false } : m
-                    )
-                  );
                 } else if (ev.type === "done") {
                   // Don't overwrite an error message that was set by an
-                  // earlier 'error' event — the user needs to SEE the
-                  // actual error (e.g. "⚠ Upstream 401 Unauthorized —
-                  // Missing Authentication header"), not just "Failed".
+                  // earlier 'error' event.
                   setMessages((prev) =>
                     prev.map((m) =>
                       m.id === assistantId
                         ? {
                             ...m,
                             pending: false,
-                            // Only overwrite content if it's empty (no
-                            // tokens streamed + no prior error). If an
-                            // error event already set the content, keep it.
                             content: m.error
                               ? m.content
                               : (acc || ev.summary || "(empty)"),
@@ -163,6 +207,10 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
                         : m
                     )
                   );
+                  // Save the final message to JSONL.
+                  if (!messages.find(m => m.id === assistantId)?.error) {
+                    saveEvent({ type: "done", content: acc, ts: Date.now() });
+                  }
                 } else if (ev.type === "error") {
                   setMessages((prev) =>
                     prev.map((m) =>
@@ -171,6 +219,8 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
                         : m
                     )
                   );
+                  // Save the error to JSONL.
+                  saveEvent({ type: "error", content: `⚠ ${ev.error || "Unknown error"}`, ts: Date.now() });
                 }
               } catch {
                 /* skip malformed */
@@ -178,7 +228,7 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
             }
           }
           setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, pending: false } : m))
+            prev.map((m) => (m.id === assistantId ? { ...m, pending: false } : m)),
           );
         } catch (err) {
           const e = err as Error;
@@ -199,13 +249,15 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
               )
             );
           }
+          // Save the error/stop to JSONL.
+          saveEvent({ type: "error", content: e.name === "AbortError" ? "(stopped)" : `⚠ ${e.message}`, ts: Date.now() });
         } finally {
           setIsStreaming(false);
           abortRef.current = null;
         }
       })();
     },
-    [isStreaming, messages, activeProvider, activeModel, providers, llamacpp, setDataSource]
+    [isStreaming, messages, activeProvider, activeModel, providers, llamacpp, setDataSource, saveEvent]
   );
 
   const stop = useCallback(() => {
@@ -213,23 +265,28 @@ export function useChatStream(initialMessages: ChatMessage[] = []): UseChatStrea
   }, []);
 
   const regenerate = useCallback(() => {
-    if (isStreaming) return;
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
-    if (!lastUser) return;
-    const idx = messages.findIndex((m) => m.id === lastUser.id);
-    const trimmed = messages.slice(0, idx + 1);
-    setMessages(trimmed);
-    setTimeout(() => send(lastUser.content), 0);
-  }, [isStreaming, messages, send]);
+    setMessages((prev) => {
+      const lastUser = [...prev].reverse().find((m) => m.role === "user");
+      if (lastUser) {
+        const filtered = prev.slice(0, prev.lastIndexOf(lastUser));
+        setMessages(filtered);
+        setTimeout(() => send(lastUser.content), 0);
+      }
+      return prev;
+    });
+  }, [send]);
 
   const clear = useCallback(() => {
-    if (isStreaming) stop();
     setMessages([]);
-  }, [isStreaming, stop]);
-
-  useEffect(() => {
-    return () => abortRef.current?.abort();
   }, []);
 
-  return { messages, isStreaming, send, stop, regenerate, clear, setMessages };
+  return {
+    messages,
+    isStreaming,
+    send,
+    stop,
+    regenerate,
+    clear,
+    setMessages,
+  };
 }
