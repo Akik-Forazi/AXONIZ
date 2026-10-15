@@ -58,7 +58,10 @@ export interface ChatMetadata {
 
 function getChatsDir(): string {
   const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "chats");
+  // Chats now live under ~/.axoniz/db/chats/ (was ~/.axoniz/chats/).
+  // The db/ directory is the canonical persistent storage location
+  // for all AXONIZ data (chats, provider configs, etc.).
+  return path.join(home, ".axoniz", "db", "chats");
 }
 
 function ensureChatsDir(): void {

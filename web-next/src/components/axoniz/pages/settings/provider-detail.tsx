@@ -50,7 +50,7 @@ export function ProviderDetailPage({
 
   const cfg = providers[providerId] ?? { enabled: false, baseUrl: "", apiKey: "", model: "" };
   const meta = PROVIDER_CATALOG.find((p) => p.id === providerId)!;
-  const [test, setTest] = useState<TestState>({ status: "idle" });
+  const [test, setTest] = useState<TestState>({ status: "idle", models: [] });
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -74,7 +74,7 @@ export function ProviderDetailPage({
         toast.error(`${meta.name} test failed`, { description: result.error });
       }
     } catch (err) {
-      setTest({ status: "error", error: err instanceof Error ? err.message : "Test failed" });
+      setTest({ status: "error", error: err instanceof Error ? err.message : "Test failed", models: [] });
       toast.error("Test request failed");
     }
   }
@@ -82,8 +82,20 @@ export function ProviderDetailPage({
   async function save() {
     setSaving(true);
     try {
+      // Save to the AXONIZ CLI's config.json (the old path, still used
+      // by the CLI daemon).
       await axonizClient.saveConfig({ providers: { [providerId]: cfg } });
-      toast.success("Saved", { description: `${meta.name} config persisted locally.` });
+      // ALSO save to the new persistent DB at ~/.axoniz/db/config.json
+      // so API keys survive browser cache clears + are shared across
+      // browsers.
+      await fetch("/api/axoniz/db/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providers: { [providerId]: cfg },
+        }),
+      });
+      toast.success("Saved", { description: `${meta.name} config persisted to ~/.axoniz/db/config.json` });
     } catch {
       toast.error("Save failed");
     } finally {
@@ -91,9 +103,20 @@ export function ProviderDetailPage({
     }
   }
 
-  function activate() {
+  async function activate() {
     setActiveProvider(providerId);
     if (cfg.model) setActiveModel(cfg.model);
+    // Persist the active selection to the DB.
+    try {
+      await fetch("/api/axoniz/db/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activeProvider: providerId,
+          activeModel: cfg.model || null,
+        }),
+      });
+    } catch { /* ignore — still works without DB */ }
     toast.success(`Active provider: ${meta.name}`);
   }
 

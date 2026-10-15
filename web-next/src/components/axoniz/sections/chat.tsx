@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Sparkles, Code, BookOpen, Lightbulb, User, Bot, Copy, Check, RefreshCw, AlertCircle, ArrowUp, Square, Brain, Globe, Mic, Paperclip } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAxonizStore } from "@/stores/axoniz-store";
 import { useChatStream, type ChatMessage } from "../zai-chat/use-chat-stream";
 import { useConversations } from "../zai-chat/use-conversations";
@@ -24,6 +25,14 @@ export function ChatSection() {
     newConversation, selectConversation, deleteConversation,
     renameConversation, updateMessages,
   } = useConversations();
+  const router = useRouter();
+
+  // When a chat is selected from the sidebar, NAVIGATE to /chat/s/<id>
+  // so the URL reflects the active chat (like z.ai's /c/<id> links).
+  const handleSelect = useCallback((id: string) => {
+    selectConversation(id);
+    router.push(`/chat/s/${id}`);
+  }, [selectConversation, router]);
 
   // Only auto-create a new chat AFTER the backend list has loaded AND
   // there are genuinely zero chats. The previous code created a new chat
@@ -75,7 +84,7 @@ export function ChatSection() {
         conversations={conversations}
         activeId={activeId}
         onNew={() => void newConversation()}
-        onSelect={(id) => selectConversation(id)}
+        onSelect={(id) => handleSelect(id)}
         onDelete={(id) => void deleteConversation(id)}
         onRename={(id, title) => renameConversation(id, title)}
       />
