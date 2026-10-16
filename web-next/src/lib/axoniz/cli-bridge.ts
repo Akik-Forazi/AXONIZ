@@ -168,12 +168,6 @@ export async function* streamAgentChat(message: string, history?: Array<{ role: 
       }
     }
   }
-}>): AsyncGenerator<string> {
-  const agent = createAgent();
-  // Agent.chatStream() is an async generator yielding token strings
-  for await (const tok of agent.chatStream(message)) {
-    yield tok;
-  }
 }
 
 /** Run the full agent loop (with tools, memory, swarm) */
