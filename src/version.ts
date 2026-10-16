@@ -48,7 +48,7 @@
  * the semver translation.
  */
 
-export const AXONIZ_VERSION = "V00.01.007-beta-05";
+export const AXONIZ_VERSION = "V00.01.008-beta-01";
 
 /**
  * The release stage of the current version. Useful for runtime branching
@@ -61,7 +61,7 @@ export const AXONIZ_RELEASE_STAGE: "alpha" | "beta" | "rc" | "stable" = "beta";
  * package.json "version" should match. The tests/version.test.ts
  * verifies they stay in sync.
  */
-export const AXONIZ_VERSION_SEMVER = "0.1.7-beta.5";
+export const AXONIZ_VERSION_SEMVER = "0.1.8-beta.1";
 
 /**
  * Parse a FRAZIYM version string into its components. Returns null if
