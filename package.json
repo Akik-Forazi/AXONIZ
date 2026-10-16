@@ -1,7 +1,7 @@
 {
   "name": "@fraziym/axoniz",
   "version": "0.1.8-beta.1",
-  "description": "AXONIZ \u2014 Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
+  "description": "AXONIZ — Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
   "type": "module",
   "license": "MIT",
   "author": "AKIK FARAJI <akikfaraji@gmail.com> (https://fraziym.com)",
@@ -129,5 +129,30 @@
     "@types/node": "^26.6.4",
     "concurrently": "^9.2.0",
     "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "@fraziym/axodex@0.1.5-beta.1": true,
+    "node-llama-cpp@3.22.1": true,
+    "@ladybugdb/core@0.21.1": true,
+    "@scarf/scarf@1.4.0": true,
+    "tree-sitter@0.21.1": true,
+    "tree-sitter-bash@0.25.1": true,
+    "tree-sitter-c-sharp@0.23.1": true,
+    "tree-sitter-cpp@0.23.2": true,
+    "tree-sitter-css@0.25.0": true,
+    "tree-sitter-elixir@0.3.5": true,
+    "tree-sitter-go@0.23.4": true,
+    "tree-sitter-html@0.23.2": true,
+    "tree-sitter-java@0.23.5": true,
+    "tree-sitter-javascript@0.23.1": true,
+    "tree-sitter-json@0.24.8": true,
+    "tree-sitter-php@0.23.12": true,
+    "tree-sitter-python@0.23.4": true,
+    "tree-sitter-ruby@0.23.1": true,
+    "tree-sitter-rust@0.23.1": true,
+    "tree-sitter-scala@0.24.0": true,
+    "tree-sitter-typescript@0.23.2": true,
+    "onnxruntime-node@1.30.0": true,
+    "protobufjs@7.6.6": true
   }
 }
