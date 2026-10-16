@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
 
   // Auth check for sensitive GET endpoints (config, files, models).
   // Health and stream are public (needed before login).
-  const sensitiveRoutes = ["/config", "/files/list", "/models", "/memory", "/war_room", "/swarm/status"];
+  const sensitiveRoutes = ["/config", "/files/list", "/memory", "/war_room", "/swarm/status"];
   const isSensitive = sensitiveRoutes.some(s => p === s || p.startsWith(s + "/"));
   if (isSensitive) {
     const { extractBearerToken, verifyAuthToken } = await import("@/lib/axoniz/cli-bridge");
