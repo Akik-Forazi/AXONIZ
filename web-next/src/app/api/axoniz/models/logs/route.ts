@@ -8,11 +8,14 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getServerMgr } from "@/lib/axoniz/server-mgr";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const tailN = Math.min(parseInt(url.searchParams.get("tail") ?? "1000", 10) || 1000, 5000);
   const since = url.searchParams.get("since");

@@ -20,6 +20,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAxonizStore } from "@/stores/axoniz-store";
+import { authedFetch } from "@/lib/axoniz/client";
 import type { ChatMessage } from "./use-chat-stream";
 
 export interface Conversation {
@@ -66,7 +67,7 @@ export function useConversations() {
     (async () => {
       setLoading(true);
       try {
-        const r = await fetch("/api/axoniz/chats");
+        const r = await authedFetch("/api/axoniz/chats");
         const data = await r.json();
         if (cancelled) return;
         const list: Conversation[] = (data.chats ?? []).map((m: BackendChatMetadata) => ({
@@ -119,7 +120,7 @@ export function useConversations() {
 
   async function loadMessages(id: string) {
     try {
-      const r = await fetch(`/api/axoniz/chats/${id}`);
+      const r = await authedFetch(`/api/axoniz/chats/${id}`);
       if (!r.ok) return;
       const record: BackendChatRecord = await r.json();
       setConversations(prev => prev.map(c => c.id === id ? {
@@ -142,9 +143,8 @@ export function useConversations() {
       saveQueueRef.current = new Map();
       saveTimerRef.current = null;
       for (const [id, conv] of queue) {
-        fetch(`/api/axoniz/chats/${id}`, {
+        authedFetch(`/api/axoniz/chats/${id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: conv.title,
             messages: conv.messages,
@@ -162,9 +162,8 @@ export function useConversations() {
   /** Create a new chat on the backend. Returns the new conversation. */
   const newConversation = useCallback(async (): Promise<Conversation> => {
     try {
-      const r = await fetch("/api/axoniz/chats", {
+      const r = await authedFetch("/api/axoniz/chats", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username ?? "anon" }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -221,7 +220,7 @@ export function useConversations() {
       return filtered;
     });
     try {
-      await fetch(`/api/axoniz/chats/${id}`, { method: "DELETE" });
+      await authedFetch(`/api/axoniz/chats/${id}`, { method: "DELETE" });
     } catch { /* already removed from UI */ }
   }, [activeId, setStoreActiveChatId]);
 

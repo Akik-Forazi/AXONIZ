@@ -13,6 +13,7 @@
 import { useState, useEffect } from "react";
 import { PROVIDER_CATALOG, type ProviderId } from "@/stores/axoniz-store";
 
+import { authedFetch } from "@/lib/axoniz/client";
 export interface LiveModel {
   id: string;
   contextLength?: number;
@@ -122,9 +123,8 @@ export function useLiveModels(
 
     (async () => {
       try {
-        const r = await fetch("/api/axoniz/providers/test", {
+        const r = await authedFetch("/api/axoniz/providers/test", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider, baseUrl, apiKey }),
           signal: AbortSignal.timeout(8000),
         });

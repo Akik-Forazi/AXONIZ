@@ -288,9 +288,11 @@ function MessageRow({ m }: { m: ChatMessage }) {
             <div className="prose prose-invert max-w-none prose-sm prose-p:my-1.5 prose-p:leading-relaxed prose-headings:my-2 prose-code:text-foreground/90 prose-code:bg-secondary prose-code:before:content-none prose-code:after:content-none prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-1.5 prose-strong:text-foreground prose-blockquote:border-l-foreground/40 prose-blockquote:text-muted-foreground">
               <ReactMarkdown
                 components={{
-                  code({ inline, className, children, ...props }) {
+                  code({ className, children, ...props }) {
+                    // react-markdown v10 removed the `inline` prop — detect
+                    // block-vs-inline by presence of a language-* class.
                     const match = /language-(\w+)/.exec(className ?? "");
-                    if (!inline && match) {
+                    if (match) {
                       return (
                         <SyntaxHighlighter
                           language={match[1]}

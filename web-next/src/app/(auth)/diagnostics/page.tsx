@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import { authedFetch } from "@/lib/axoniz/client";
 interface Session {
   name: string;
   path: string;
@@ -76,7 +77,7 @@ export default function DiagnosticsPage() {
     setLoadingSessions(true);
     setError(null);
     try {
-      const r = await fetch("/api/axoniz/diagnostics/sessions");
+      const r = await authedFetch("/api/axoniz/diagnostics/sessions");
       const data = await r.json();
       setSessions(data.sessions ?? []);
       if (data.sessions?.length > 0 && !selected) {
@@ -97,7 +98,7 @@ export default function DiagnosticsPage() {
       const params = new URLSearchParams({ session: selected, tail: String(tail) });
       if (severity) params.set("severity", severity);
       if (eventType) params.set("event_type", eventType);
-      const r = await fetch(`/api/axoniz/diagnostics/read?${params}`);
+      const r = await authedFetch(`/api/axoniz/diagnostics/read?${params}`);
       const data = await r.json();
       if (r.ok) {
         setEvents(data.events ?? []);

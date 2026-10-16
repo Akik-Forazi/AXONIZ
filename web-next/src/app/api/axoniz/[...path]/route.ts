@@ -194,8 +194,11 @@ export async function GET(req: NextRequest) {
       const cpus = os.cpus();
       const totalMem = os.totalmem();
       const freeMem = os.freemem();
+      // CpuInfo = { model, speed, times: { user, nice, sys, idle, irq } }
+      const cpu0 = cpus[0]?.times;
+      const cpuSum = cpu0 ? (cpu0.user + cpu0.nice + cpu0.sys + cpu0.idle) || 1 : 1;
       return NextResponse.json({
-        cpu: { percent: (1 - cpus[0]?.idle / (cpus[0]?.user + cpus[0]?.nice + cpus[0]?.sys + cpus[0]?.idle || 1)) * 100, cores: cpus.length },
+        cpu: { percent: cpu0 ? (1 - cpu0.idle / cpuSum) * 100 : 0, cores: cpus.length },
         memory: { percent: (1 - freeMem / totalMem) * 100, usedGb: (totalMem - freeMem) / 1e9, totalGb: totalMem / 1e9 },
         disk: { percent: 0, usedGb: 0, totalGb: 0 },
         uptime: process.uptime(),

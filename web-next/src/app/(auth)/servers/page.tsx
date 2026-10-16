@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAxonizStore, PROVIDER_CATALOG, type ProviderId } from "@/stores/axoniz-store";
+import { authedFetch, authedUrl } from "@/lib/axoniz/client";
 import { toast } from "sonner";
 
 interface ServerStatus {
@@ -82,7 +83,7 @@ export default function ServersPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch("/api/axoniz/models/status");
+      const r = await authedFetch("/api/axoniz/models/status");
       const data = await r.json();
       setStatus(data);
       setError(null);
@@ -110,7 +111,7 @@ export default function ServersPage() {
       esRef.current.close();
       esRef.current = null;
     }
-    const es = new EventSource("/api/axoniz/models/logs/stream");
+    const es = new EventSource(authedUrl("/api/axoniz/models/logs/stream"));
     esRef.current = es;
 
     es.addEventListener("status", (e: MessageEvent) => {
@@ -158,9 +159,8 @@ export default function ServersPage() {
         return;
       }
       const baseUrl = llamacpp.baseUrl || "http://localhost:8080";
-      const r = await fetch("/api/axoniz/models/launch", {
+      const r = await authedFetch("/api/axoniz/models/launch", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           modelPath,
           baseUrl,
@@ -194,7 +194,7 @@ export default function ServersPage() {
     setActionPending("stop");
     setError(null);
     try {
-      const r = await fetch("/api/axoniz/models/stop", { method: "POST" });
+      const r = await authedFetch("/api/axoniz/models/stop", { method: "POST" });
       const data = await r.json();
       if (r.ok && data.ok !== false) {
         toast.success("Server stopped", {

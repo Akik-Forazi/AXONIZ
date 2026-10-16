@@ -18,11 +18,17 @@
  */
 import type { NextRequest } from "next/server";
 import { getServerMgr, type LogLine } from "@/lib/axoniz/server-mgr";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
+  // Auth required — the live log stream may contain command-line args
+  // (including API keys / model paths) from the spawn.
+  // EventSource can't set headers; requireAuth checks ?token=<jwt> too.
+  const user = await requireAuth(req);
+  if (!user) return new Response("unauthorized", { status: 401 });
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

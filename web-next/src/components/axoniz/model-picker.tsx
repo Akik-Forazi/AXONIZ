@@ -20,6 +20,7 @@ function formatModelName(raw: string): string {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { authedFetch } from "@/lib/axoniz/client";
 import { toast } from "sonner";
 
 interface ModelInfo {
@@ -60,7 +61,7 @@ export function ModelPicker() {
 
   // Fetch local .gguf models from ~/.axoniz/models
   useEffect(() => {
-    fetch("/api/axoniz/models/local")
+    authedFetch("/api/axoniz/models/local")
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data.models)) {
@@ -75,9 +76,8 @@ export function ModelPicker() {
     setLaunching(m.path);
     setLaunchError(null);
     try {
-      const res = await fetch("/api/axoniz/models/launch", {
+      const res = await authedFetch("/api/axoniz/models/launch", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           modelPath: m.path,
           baseUrl: llamacpp.baseUrl || "http://localhost:8080",

@@ -70,11 +70,11 @@ async function pingOpenAICompatible(baseUrl: string, apiKey: string): Promise<Te
     }
     const data = (await r.json()) as {
       data?: Array<{ id: string; context_length?: number; pricing?: { prompt?: string; completion?: string } }>;
-      models?: Array<{ id: string }>;
+      models?: Array<{ id: string; context_length?: number; pricing?: { prompt?: string; completion?: string } }>;
     };
     const models: ModelInfo[] = (data.data ?? data.models ?? []).map((m) => ({
       id: m.id,
-      contextLength: (m as { context_length?: number }).context_length,
+      contextLength: m.context_length,
       pricing: m.pricing
         ? {
             prompt: m.pricing.prompt ? Number(m.pricing.prompt) : undefined,

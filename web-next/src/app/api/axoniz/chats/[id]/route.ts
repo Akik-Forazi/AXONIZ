@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getChat, updateChat, deleteChat, deriveTitle, type ChatMessage } from "@/lib/axoniz/chat-store";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,9 +23,11 @@ interface PutBody {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
   const record = getChat(id);
   if (!record) {
@@ -37,6 +40,8 @@ export async function PUT(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
   let body: PutBody;
   try {
@@ -52,9 +57,11 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await ctx.params;
   const ok = deleteChat(id);
   if (!ok) {

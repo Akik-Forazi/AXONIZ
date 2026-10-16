@@ -113,6 +113,23 @@ export function authedFetch(
   });
 }
 
+/**
+ * Build a URL with the current auth token appended as ?token=<jwt>.
+ * Used for EventSource() URLs — the browser's EventSource can't set
+ * custom headers, so the token has to ride on the query string.
+ * The server-side requireAuth() checks both header and query param.
+ */
+export function authedUrl(path: string, extra?: Record<string, string>): string {
+  const url = new URL(
+    path,
+    typeof window === "undefined" ? "http://localhost" : window.location.origin,
+  );
+  const token = getAuthToken();
+  if (token) url.searchParams.set("token", token);
+  if (extra) for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
+  return url.pathname + url.search;
+}
+
 /* ---------- Auth ---------- */
 // Auth is the AXONIZ backend's responsibility (src/web/server.ts uses
 // getAuth() + bcrypt + JWT). The UI just passes credentials through the

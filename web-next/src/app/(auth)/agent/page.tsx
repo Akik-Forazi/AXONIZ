@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAxonizStore } from "@/stores/axoniz-store";
 
+import { authedFetch } from "@/lib/axoniz/client";
 /**
  * /agent — creates a new agent session (or picks the most recent
  * kind:'agent' chat) and redirects to /agent/s/<id>.
@@ -18,7 +19,7 @@ export default function AgentRedirect() {
     (async () => {
       // Try to find the most recent agent session.
       try {
-        const r = await fetch("/api/axoniz/chats");
+        const r = await authedFetch("/api/axoniz/chats");
         const data = await r.json();
         const agentChat = (data.chats ?? []).find((c: { kind?: string }) => c.kind === "agent");
         if (agentChat) {
@@ -28,9 +29,8 @@ export default function AgentRedirect() {
       } catch { /* ignore */ }
       // No agent session — create one.
       try {
-        const r = await fetch("/api/axoniz/chats", {
+        const r = await authedFetch("/api/axoniz/chats", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: username ?? "anon", kind: "agent" }),
         });
         const chat = await r.json();

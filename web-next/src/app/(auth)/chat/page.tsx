@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAxonizStore } from "@/stores/axoniz-store";
 
+import { authedFetch } from "@/lib/axoniz/client";
 /**
  * /chat — creates a new chat (or picks the most recent) and redirects
  * to /chat/s/<id>. Like ChatGPT's chatgpt.com/ → chatgpt.com/c/<id>.
@@ -22,7 +23,7 @@ export default function ChatRedirect() {
       }
       // Otherwise, try to load the most recent chat.
       try {
-        const r = await fetch("/api/axoniz/chats");
+        const r = await authedFetch("/api/axoniz/chats");
         const data = await r.json();
         const recent = data.chats?.[0];
         if (recent) {
@@ -32,9 +33,8 @@ export default function ChatRedirect() {
       } catch { /* ignore */ }
       // No existing chats — create a new one.
       try {
-        const r = await fetch("/api/axoniz/chats", {
+        const r = await authedFetch("/api/axoniz/chats", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: username ?? "anon" }),
         });
         const chat = await r.json();

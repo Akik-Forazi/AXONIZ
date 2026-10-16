@@ -27,6 +27,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import readline from "node:readline";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -121,6 +122,8 @@ async function parseFile(
 }
 
 export async function GET(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const session = url.searchParams.get("session");
   if (!session) {

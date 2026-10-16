@@ -31,6 +31,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAxonizStore } from "@/stores/axoniz-store";
+import { authedFetch, authedUrl } from "@/lib/axoniz/client";
 
 export interface ChatMessage {
   id: string;
@@ -80,7 +81,7 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
       return;
     }
     // Load persisted messages from JSONL.
-    fetch(`/api/axoniz/chats/${chatId}/events`)
+    authedFetch(`/api/axoniz/chats/${chatId}/events`)
       .then(r => r.ok ? r.json() : null)
       .then((data) => {
         if (!data?.messages) { setMessages([]); return; }
@@ -114,7 +115,7 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
     executionIdRef.current = executionId;
     lastSeqRef.current = sinceSeq;
 
-    const es = new EventSource(`/api/axoniz/executions/${executionId}/stream?since=${sinceSeq}`);
+    const es = new EventSource(authedUrl(`/api/axoniz/executions/${executionId}/stream?since=${sinceSeq}`));
     esRef.current = es;
 
     es.addEventListener("status", (e: MessageEvent) => {
@@ -228,9 +229,8 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
   const saveEvent = useCallback((event: { type: string; role?: string; content: string; ts: number }) => {
     const cid = chatIdRef.current;
     if (!cid) return;
-    fetch(`/api/axoniz/chats/${cid}/events`, {
+    authedFetch(`/api/axoniz/chats/${cid}/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(event),
       keepalive: true,
     }).catch(() => { /* offline */ });
@@ -271,7 +271,7 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
 
     // Submit durable execution — the backend persists it and starts
     // generation in the background. We get an execution_id back.
-    fetch("/api/axoniz/chat", {
+    authedFetch("/api/axoniz/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -317,7 +317,7 @@ export function useChatStream(chatId: string | null): UseChatStreamReturn {
     if (execId) {
       // Request cancellation on the backend — this targets the actual
       // execution, not just the SSE stream.
-      fetch(`/api/axoniz/executions/${execId}/cancel`, { method: "POST" })
+      authedFetch(`/api/axoniz/executions/${execId}/cancel`, { method: "POST" })
         .catch(() => { /* ignore */ });
     }
     if (esRef.current) {

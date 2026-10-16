@@ -11,6 +11,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAxonizStore } from "@/stores/axoniz-store";
 
+import { authedFetch } from "@/lib/axoniz/client";
 interface NavItem {
   id: string;
   label: string;
@@ -70,7 +71,7 @@ export function Sidebar() {
 
   useEffect(() => {
     if (!showChats || collapsed) return;
-    fetch("/api/axoniz/chats")
+    authedFetch("/api/axoniz/chats")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.chats) {

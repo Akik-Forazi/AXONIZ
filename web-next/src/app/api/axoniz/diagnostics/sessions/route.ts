@@ -8,10 +8,11 @@
  *   200 { sessions: [{ name, path, sizeBytes, sizeStr, mtimeIso, mtimeStr }] }
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,7 +22,9 @@ function getDiagLogDir(): string {
   return path.join(home, ".axoniz", "logs");
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const dir = getDiagLogDir();
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });

@@ -1,11 +1,14 @@
 /**
  * Scans ~/.axoniz/models for .gguf files and returns them with clean names.
  * This is a filesystem scan — no HTTP, no provider connection needed.
+ *
+ * AUTH: requires Bearer JWT — exposes the user's local file inventory.
  */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -54,7 +57,9 @@ function scanModels(dir: string, depth = 0): Array<{id: string; name: string; si
   return results;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const modelsDir = path.join(os.homedir(), ".axoniz", "models");
   const models = scanModels(modelsDir);
   return NextResponse.json({ models, directory: modelsDir, count: models.length });

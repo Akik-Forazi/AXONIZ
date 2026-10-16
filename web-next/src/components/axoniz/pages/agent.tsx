@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAxonizStore, PROVIDER_CATALOG } from "@/stores/axoniz-store";
 
+import { authedFetch } from "@/lib/axoniz/client";
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -116,7 +117,7 @@ export function AgentPage() {
     if (!sessionId) return;
     setSessionLoading(true);
     try {
-      const r = await fetch(`/api/axoniz/chats/${sessionId}/events`);
+      const r = await authedFetch(`/api/axoniz/chats/${sessionId}/events`);
       if (r.ok) {
         const data = await r.json();
         if (data.messages && data.messages.length > 0) {
@@ -141,9 +142,8 @@ export function AgentPage() {
         ? (firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? "…" : ""))
         : "New agent goal";
       try {
-        await fetch(`/api/axoniz/chats/${sessionId}`, {
+        await authedFetch(`/api/axoniz/chats/${sessionId}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title,
             messages: currentMessages,
@@ -186,9 +186,8 @@ export function AgentPage() {
       : cfg.baseUrl;
 
     try {
-      const res = await fetch("/api/axoniz/chat", {
+      const res = await authedFetch("/api/axoniz/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
           mode: "agent",
