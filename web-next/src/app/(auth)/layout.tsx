@@ -1,7 +1,6 @@
 "use client";
 
 import { useAxonizStore } from "@/stores/axoniz-store";
-import { LoginScreen } from "@/components/axoniz/login-screen";
 import { TopBar } from "@/components/axoniz/top-bar";
 import { Sidebar } from "@/components/axoniz/sidebar";
 import { EventRail } from "@/components/axoniz/event-rail";
@@ -9,31 +8,23 @@ import { ModelPicker } from "@/components/axoniz/model-picker";
 import { useAxonizBoot } from "@/components/axoniz/boot";
 
 /**
- * Dashboard layout — wraps every authed route.
+ * Dashboard layout — LOCAL-FIRST, no login required.
  *
- * Auth is the AXONIZ backend's responsibility (bcrypt + JWT in
- * src/web/server.ts). The UI just stores the token returned by the
- * proxy login. There's no /api/auth/me to call here — when the real
- * backend is online, the proxy route handles JWT verification; when
- * it's not, the mock token is clearly tagged as such via the
- * connection pill in the top bar.
+ * AXONIZ is a local system. No login screen, no token check.
+ * The dashboard is directly accessible when you run `axoniz --web`.
  *
- * If the user wants real auth, they run `axoniz --web` and the proxy
- * transparently forwards credentials to the real backend.
+ * If you want auth (for network exposure), set AXONIZ_REQUIRE_AUTH=true
+ * in .env and the API routes will require Bearer JWT tokens.
  */
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const token = useAxonizStore((s) => s.token);
   const modelPickerOpen = useAxonizStore((s) => s.modelPickerOpen);
   useAxonizBoot();
 
-  if (!token) {
-    return <LoginScreen />;
-  }
-
+  // No login check — local-first, always show the dashboard
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <TopBar />

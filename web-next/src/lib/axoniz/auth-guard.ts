@@ -1,32 +1,31 @@
 /**
- * Auth guard — shared helper for all API routes.
- * Verifies the Bearer token and returns the authenticated username.
- * Returns null if unauthorized (no token, invalid token, or auth module
- * unavailable).
+ * Auth guard — LOCAL-FIRST mode by default.
  *
- * EventSource / SSE caveat: the browser's EventSource API cannot set
- * custom headers. For SSE endpoints (e.g. /api/axoniz/models/logs/stream),
- * the client passes the token as a ?token=<jwt> query param — this
- * function checks BOTH the Authorization header AND the query param.
+ * AXONIZ runs on localhost. No login, no tokens, no headache.
+ * The user is already on their own machine — that IS the auth.
  *
- * Usage in any route:
- *   const user = await requireAuth(req);
- *   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+ * To enable auth (for network exposure), set AXONIZ_REQUIRE_AUTH=true
+ * in .env. Then all routes require a valid Bearer JWT.
  */
 import type { NextRequest } from "next/server";
 import { extractBearerToken, verifyAuthToken } from "./cli-bridge";
 
 export async function requireAuth(req: NextRequest): Promise<string | null> {
-  // Try Authorization: Bearer <token> first.
+  // Local-first: no auth required on localhost
+  const requireAuthFlag = process.env.AXONIZ_REQUIRE_AUTH === "true";
+  if (!requireAuthFlag) {
+    // Auto-authenticate — the user is on their own machine
+    return "axoniz";
+  }
+
+  // Network mode: require real Bearer JWT auth
   const authHeader = req.headers.get("authorization");
   const headerToken = extractBearerToken(authHeader);
   if (headerToken) {
     return verifyAuthToken(headerToken);
   }
 
-  // Fall back to ?token=<jwt> query param — needed for EventSource (SSE)
-  // which can't set custom headers. The token still goes through the same
-  // verifyAuthToken() check, so this is just as secure as the header path.
+  // SSE fallback: ?token=<jwt> (EventSource can't set headers)
   const queryToken = req.nextUrl.searchParams.get("token");
   if (queryToken) {
     return verifyAuthToken(queryToken);
