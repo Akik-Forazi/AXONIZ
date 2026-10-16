@@ -104,7 +104,11 @@
     "sharp": "^0.35.5"
   },
   "overrides": {
-    "tree-sitter-graphql": "file:scripts/tree-sitter-graphql-stub"
+    "tree-sitter-graphql": "github:Akik-Forazi/tree-sitters#main:grammars/graphql",
+    "tree-sitter-lua": "github:Akik-Forazi/tree-sitters#main:grammars/lua",
+    "tree-sitter-sql": "github:Akik-Forazi/tree-sitters#main:grammars/sql",
+    "tree-sitter-toml": "github:Akik-Forazi/tree-sitters#main:grammars/toml",
+    "tree-sitter-yaml": "github:Akik-Forazi/tree-sitters#main:grammars/yaml"
   },
   "peerDependencies": {
     "@fraziym/axodex": ">=0.1.1-beta.2",
