@@ -120,7 +120,7 @@
     }
   },
   "devDependencies": {
-    "@fraziym/axodex": "0.1.4-beta.1",
+    "@fraziym/axodex": "0.1.3-beta.1",
     "@fraziym/axotest": "0.1.2-beta.3",
     "@fraziym/axovb": "0.1.2-beta.3",
     "@types/express": "^5.0.6",
@@ -129,5 +129,12 @@
     "@types/node": "^26.6.4",
     "concurrently": "^9.2.0",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "tree-sitter-graphql": "npm:@fraziym/tree-sitters@>=0.1.0-beta.1",
+    "tree-sitter-lua": "npm:@fraziym/tree-sitters@>=0.1.0-beta.1",
+    "tree-sitter-sql": "npm:@fraziym/tree-sitters@>=0.1.0-beta.1",
+    "tree-sitter-toml": "npm:@fraziym/tree-sitters@>=0.1.0-beta.1",
+    "tree-sitter-yaml": "npm:@fraziym/tree-sitters@>=0.1.0-beta.1"
   }
 }
