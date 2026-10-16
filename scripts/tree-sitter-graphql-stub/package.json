@@ -1,0 +1,7 @@
+{
+  "name": "tree-sitter-graphql",
+  "version": "1.0.0-stub",
+  "description": "Stub for tree-sitter-graphql — the upstream 1.0.0 release uses the Node 12 V8 C++ API in its binding.cc and fails to native-compile on Node 22+ (which AXONIZ requires for node:sqlite). This stub replaces it via npm 'overrides' so plain 'npm ci' (no --ignore-scripts flag) works — letting all OTHER native packages (sharp, node-llama-cpp, systeminformation, etc.) build their install scripts normally. The stub exports nothing functional; axodex's parser-loader catches the load failure and reports 'GraphQL parsing requires tree-sitter-graphql. Check the install.' — graceful degradation, no crash.",
+  "main": "index.js",
+  "scripts": {}
+}

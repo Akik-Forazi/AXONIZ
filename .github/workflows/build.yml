@@ -49,24 +49,25 @@ jobs:
             package-lock.json
             web-next/package-lock.json
 
-      # The root package declares @fraziym/axodex as a mandatory
-      # peerDependency. We also list it in devDependencies so it
-      # materializes in the lockfile — plain `npm ci --ignore-scripts`
-      # works (no --legacy-peer-deps needed). --ignore-scripts skips the
-      # tree-sitter-graphql native build which fails on Node 24.
+      # Plain `npm ci` runs install scripts for all packages — sharp,
+      # node-llama-cpp, systeminformation, tree-sitter-* grammars all
+      # need their install scripts to either download prebuilds or run
+      # node-gyp-build (which prefers prebuilds over source compilation).
+      # The tree-sitter-* grammar packages ship prebuilds for linux-x64
+      # AND win32-x64, so no source compilation happens on CI runners.
+      #
+      # The ONE package that would fail native compile on Node 22+
+      # (tree-sitter-graphql — uses Node 12 V8 C++ API in its binding.cc)
+      # is stubbed out via npm `overrides` in package.json, pointing at
+      # scripts/tree-sitter-graphql-stub/. The stub has no binding.gyp,
+      # so npm's auto-rebuild doesn't trigger for it.
       - name: Install root deps
-        run: npm ci --ignore-scripts
+        run: npm ci
 
       - name: Install web-next deps
         run: |
           cd web-next
-          npm ci --ignore-scripts
-
-      # Native rebuilds (sharp, systeminformation) need to run AFTER
-      # install because --ignore-scripts skipped them. tree-sitter-graphql
-      # is allowed to fail (Node 24 API mismatch — non-blocking).
-      - name: Rebuild native modules
-        run: npm rebuild --ignore-scripts 2>&1 || true
+          npm ci
 
       - name: Typecheck CLI
         run: npm run typecheck

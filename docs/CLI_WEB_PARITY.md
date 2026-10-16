@@ -118,9 +118,41 @@ to `devDependencies` (with exact versions that exist on the registry —
 npm's prerelease semver resolution is strict about [major,minor,patch]
 tuple matching, so `^0.1.1-beta.2` doesn't satisfy `0.1.2-beta.3`).
 Regenerated `package-lock.json` with `npm install --package-lock-only`.
-Plain `npm ci --ignore-scripts` now works (the `--ignore-scripts` flag
-is still needed because `@fraziym/axodex` pulls in `tree-sitter-graphql`
-which fails native compilation on Node 24 — see issue 3 below).
+
+**Additional fix (the `--ignore-scripts` issue):** `@fraziym/axodex`
+pulls in `tree-sitter-graphql@1.0.0`, which has a `binding.gyp` file
+on disk. npm auto-runs `node-gyp rebuild` for any package with a
+`binding.gyp` during `npm ci` (no `--ignore-scripts` flag). That
+package's `binding.cc` uses the Node 12 V8 C++ API and fails native
+compilation on Node 22+ (which AXONIZ requires for `node:sqlite`).
+
+The previous workaround was `npm ci --ignore-scripts` — but that
+BROKE all other packages that need their install scripts:
+`sharp` (image processing), `node-llama-cpp` (downloads prebuilt
+llama.cpp binaries), `systeminformation` (system metrics), and all
+the `tree-sitter-*` grammar packages (which use `node-gyp-build`
+to load prebuilt binaries for linux-x64 and win32-x64).
+
+**The surgical fix:** added npm `overrides` in package.json:
+```json
+"overrides": {
+  "tree-sitter-graphql": "file:scripts/tree-sitter-graphql-stub"
+}
+```
+The stub at `scripts/tree-sitter-graphql-stub/` has no `binding.gyp`
+and no install script — just a placeholder `index.js` that throws
+when required. When axodex's parser-loader tries to load
+tree-sitter-graphql, the throw is caught and axodex reports
+"GraphQL parsing requires `tree-sitter-graphql`. Check the install."
+— graceful degradation, no crash. AXONIZ does not parse `.graphql`
+files in its own source tree, so losing the GraphQL grammar is a
+no-op for AXONIZ's code-graph intelligence engine in practice.
+
+**Result:** plain `npm ci` (no flags) works on both Linux and
+Windows. All packages get their install scripts run normally.
+sharp, node-llama-cpp, systeminformation, and the tree-sitter-*
+grammar packages all use their prebuilt binaries (no source
+compilation needed — the prebuilds cover linux-x64 and win32-x64).
 
 > **Note (post-fix):** the web-next lockfile drift (missing `yjs`,
 > `lib0`, `isomorphic.js`) is also fixed in this commit by regenerating
@@ -138,13 +170,22 @@ All 11 pre-existing typecheck errors were fixed in commit `883e88b`:
 
 Web typecheck now passes with **0 errors** (verified in CI).
 
-### 3. Native compilation of `tree-sitter-graphql` (transitive of `@fraziym/axodex`) fails on Node 24
+### 3. Native compilation of `tree-sitter-graphql` (transitive of `@fraziym/axodex`) fails on Node 22+ (FIXED)
 
 `@fraziym/axodex` pulls in `tree-sitter-graphql@1.0.0` which uses the
-Node 12 V8 C++ API. On Node 24.x the API signatures have changed and
-`node-gyp rebuild` fails. The CI and local installs use
-`--ignore-scripts` to bypass native compilation; the axodex CLI
-binary may not work fully until the upstream package is updated.
+Node 12 V8 C++ API in its `binding.cc`. On Node 22+ the V8 API
+signatures changed and `node-gyp rebuild` fails with a C++ compile
+error.
+
+**Fix:** npm `overrides` swaps `tree-sitter-graphql` with a local
+stub at `scripts/tree-sitter-graphql-stub/` (no `binding.gyp`, no
+install script, just a placeholder `index.js` that throws when
+required). axodex's parser-loader catches the throw and reports
+"GraphQL parsing requires `tree-sitter-graphql`. Check the install."
+— graceful degradation. AXONIZ does not parse `.graphql` files,
+so the impact is zero for AXONIZ's own functionality.
+
+See section 1 above for the full story.
 
 ### 4. Tests require `build:cli` before `npm test`
 
