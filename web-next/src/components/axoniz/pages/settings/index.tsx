@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Server, Cpu, Shield, Mic, Palette, User, ChevronRight, type LucideIcon } from "lucide-react";
+import { Server, Cpu, Shield, Mic, Palette, User, ChevronRight, Smartphone, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAxonizStore, PROVIDER_CATALOG } from "@/stores/axoniz-store";
@@ -20,6 +20,7 @@ const CARDS: SettingsCard[] = [
   { route: "/settings/voice", icon: Mic, title: "Voice", description: "TTS, STT, wake-word detection." },
   { route: "/settings/appearance", icon: Palette, title: "Appearance", description: "Theme, density, motion." },
   { route: "/settings/session", icon: User, title: "Session", description: "Operator info, vault paths, sign out." },
+  { route: "/settings/devices", icon: Smartphone, title: "Devices", description: "Device authorization, 9-digit code, revoke access." },
 ];
 
 export function SettingsIndexPage({ activeTab }: { activeTab?: string }) {

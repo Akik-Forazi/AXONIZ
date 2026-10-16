@@ -27,11 +27,8 @@ export function TopBar() {
   const online = health?.status === "active";
   const providerMeta = PROVIDER_CATALOG.find((p) => p.id === activeProvider);
 
-  // Build breadcrumb from real Next.js pathname
-  const parts = pathname.split("/").filter(Boolean);
-  const breadcrumb = parts.length > 0
-    ? parts.map((p) => p.length > 22 ? p.slice(0, 22) + "…" : p).join(" / ")
-    : "chat";
+  // No breadcrumb — the sidebar already shows navigation, the URL bar shows the path.
+  // Showing the route name in the top bar is redundant and wastes space.
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-2 px-4 h-12 border-b border-border bg-background/95 backdrop-blur-sm">
@@ -51,10 +48,6 @@ export function TopBar() {
         </div>
         <span className="text-sm font-semibold tracking-tight">AXONIZ</span>
       </div>
-
-      <span className="ml-2 text-xs text-muted-foreground hidden sm:inline font-mono">
-        / {breadcrumb}
-      </span>
 
       {/* Right */}
       <div className="ml-auto flex items-center gap-2">
