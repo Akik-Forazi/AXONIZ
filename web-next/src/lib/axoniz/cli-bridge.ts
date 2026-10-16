@@ -92,6 +92,83 @@ export function createAgent(config?: Record<string, unknown>) {
 
 /** Stream chat tokens from the CLI's Agent.chatStream() */
 export async function* streamAgentChat(message: string, history?: Array<{ role: string; content: string }>): AsyncGenerator<string> {
+  // Try the CLI agent first (requires dist/ to be built)
+  try {
+    const agent = createAgent();
+    for await (const tok of agent.chatStream(message)) {
+      yield tok;
+    }
+    return;
+  } catch (e) {
+    // Agent module unavailable (dist/ not built) — fall back to direct HTTP proxy.
+    console.warn('[chat] CLI agent unavailable, using direct proxy fallback:', e instanceof Error ? e.message : String(e));
+  }
+
+  // Direct HTTP proxy fallback — reads config and proxies to the provider
+  const config = loadCliConfig();
+  const llm = (config as Record<string, unknown>)?.llm as {
+    active_provider?: string;
+    providers?: Record<string, {
+      base_url?: string;
+      api_key?: string;
+      model_name?: string;
+      model_path?: string;
+    }>;
+  } | undefined;
+
+  const provider = llm?.active_provider ?? "llamacpp";
+  const providerCfg = llm?.providers?.[provider] ?? {};
+  const baseUrl = providerCfg.base_url ?? "http://localhost:8080";
+  const apiKey = providerCfg.api_key;
+  const model = providerCfg.model_name ?? providerCfg.model_path ?? "unknown";
+
+  const messages = [
+    ...(history ?? []).map((h) => ({ role: h.role, content: h.content })),
+    { role: "user" as const, content: message },
+  ];
+
+  const url = baseUrl.endsWith("/v1")
+    ? baseUrl + "/chat/completions"
+    : baseUrl + "/v1/chat/completions";
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { Authorization: "Bearer " + apiKey } : {}),
+    },
+    body: JSON.stringify({ model, messages, stream: true }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error("Provider returned " + response.status + ": " + text.slice(0, 200));
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const data = line.slice(6);
+        if (data === "[DONE]") return;
+        try {
+          const parsed = JSON.parse(data);
+          const token = parsed.choices?.[0]?.delta?.content;
+          if (token) yield token;
+        } catch { /* skip malformed SSE */ }
+      }
+    }
+  }
+}>): AsyncGenerator<string> {
   const agent = createAgent();
   // Agent.chatStream() is an async generator yielding token strings
   for await (const tok of agent.chatStream(message)) {
