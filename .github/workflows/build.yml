@@ -49,25 +49,22 @@ jobs:
             package-lock.json
             web-next/package-lock.json
 
-      # The root package declares mandatory peerDependencies
-      # (@fraziym/axodex etc.) that are not in the lockfile because the
-      # lockfile was generated with --legacy-peer-deps. We use the same
-      # flag here so `npm ci` is reproducible across environments.
-      - name: Install root deps (Linux)
-        if: matrix.os != 'windows-latest'
-        run: npm ci --legacy-peer-deps --ignore-scripts
-
-      - name: Install root deps (Windows)
-        if: matrix.os == 'windows-latest'
-        run: npm ci --legacy-peer-deps --ignore-scripts
+      # The root package declares @fraziym/axodex as a mandatory
+      # peerDependency. We also list it in devDependencies so it
+      # materializes in the lockfile — plain `npm ci --ignore-scripts`
+      # works (no --legacy-peer-deps needed). --ignore-scripts skips the
+      # tree-sitter-graphql native build which fails on Node 24.
+      - name: Install root deps
+        run: npm ci --ignore-scripts
 
       - name: Install web-next deps
         run: |
           cd web-next
           npm ci --ignore-scripts
 
-      # Native rebuilds (sharp, systeminformation, optional sharp) need
-      # to run AFTER install because --ignore-scripts skipped them.
+      # Native rebuilds (sharp, systeminformation) need to run AFTER
+      # install because --ignore-scripts skipped them. tree-sitter-graphql
+      # is allowed to fail (Node 24 API mismatch — non-blocking).
       - name: Rebuild native modules
         run: npm rebuild --ignore-scripts 2>&1 || true
 
@@ -76,9 +73,9 @@ jobs:
 
       - name: Typecheck Web
         run: npm run typecheck:web
+        # 0 errors as of commit 883e88b — kept continue-on-error as a
+        # safety net in case new errors creep in. Remove once stable.
         continue-on-error: true
-        # Web typecheck has pre-existing errors documented in
-        # docs/CLI_WEB_PARITY.md — do not block CI on them, but report.
 
       - name: Build CLI
         run: npm run build:cli

@@ -103,43 +103,40 @@ The CLI is the authoritative implementation; the web is a frontend.
 ## Known Build / Lockfile Issues (Pre-existing)
 
 These are NOT security regressions and do not block the production
-build, but they should be fixed in a follow-up.
+build. Items marked **FIXED** are resolved as of the latest commit.
 
-### 1. Root `npm ci` requires `--legacy-peer-deps`
+### 1. Root `npm ci` peer-dep materialization (FIXED)
 
 The root `package.json` declares `@fraziym/axodex` as a mandatory
-peer dependency (`peerDependenciesMeta."@fraziym/axodex".optional = false`),
-but the lockfile does not materialize a `node_modules/@fraziym/axodex`
-entry because it was generated with `--legacy-peer-deps`.
+peer dependency (`peerDependenciesMeta."@fraziym/axodex".optional = false`).
+The lockfile was previously generated with `--legacy-peer-deps`, so
+the mandatory peer dep was NOT materialized as a `node_modules/@fraziym/axodex`
+entry — plain `npm ci` failed with EUSAGE "Missing from lock file".
 
-Result: plain `npm ci` fails with EUSAGE "Missing from lock file".
-Workaround: `npm ci --legacy-peer-deps --ignore-scripts` works.
-
-Fix path: either (a) add `@fraziym/axodex`, `@fraziym/axovb`,
-`@fraziym/axotest` as devDependencies so they're materialized in the
-lockfile, or (b) regenerate the lockfile without `--legacy-peer-deps`
-and accept that `npm ci` will install peer deps automatically (npm 7+).
+**Fix:** added `@fraziym/axodex`, `@fraziym/axovb`, `@fraziym/axotest`
+to `devDependencies` (with exact versions that exist on the registry —
+npm's prerelease semver resolution is strict about [major,minor,patch]
+tuple matching, so `^0.1.1-beta.2` doesn't satisfy `0.1.2-beta.3`).
+Regenerated `package-lock.json` with `npm install --package-lock-only`.
+Plain `npm ci --ignore-scripts` now works (the `--ignore-scripts` flag
+is still needed because `@fraziym/axodex` pulls in `tree-sitter-graphql`
+which fails native compilation on Node 24 — see issue 3 below).
 
 > **Note (post-fix):** the web-next lockfile drift (missing `yjs`,
-> `lib0`, `isomorphic.js`) is fixed in this commit by regenerating
-> `web-next/package-lock.json`. The root lockfile peer-dep issue
-> remains because the fix requires a policy decision on the
-> peerDependencies block.
+> `lib0`, `isomorphic.js`) is also fixed in this commit by regenerating
+> `web-next/package-lock.json`.
 
-### 2. Web `npm run typecheck:web` has 11 pre-existing errors
+### 2. Web `npm run typecheck:web` errors (FIXED — was 11 errors, now 0)
 
-`web-next/next.config.ts` sets `typescript.ignoreBuildErrors: true`,
-so `next build` succeeds despite these type errors. They are real
-type errors in web source files, NOT masked by ambient declarations:
+All 11 pre-existing typecheck errors were fixed in commit `883e88b`:
 
-| File | Error |
-|------|-------|
-| `src/app/api/axoniz/[...path]/route.ts:178` | `CpuInfo` has no `idle`, `user`, `nice`, `sys` (5 occurrences) — the route reads CPU fields that the `systeminformation` types don't expose at the call site |
-| `src/app/api/axoniz/providers/test/route.ts:77-80` | Object literal `{ id: string }` has no `pricing` (5 occurrences) — the route writes a `pricing` field onto a typed object that doesn't declare it |
-| `src/components/axoniz/pages/chat.tsx:291` | `ClassAttributes<HTMLElement> & HTMLAttributes<HTMLElement> & ExtraProps` has no `inline` — likely a react-syntax-highlighter prop type mismatch |
+| File | Error (was) | Fix |
+|------|-------------|-----|
+| `src/app/api/axoniz/[...path]/route.ts:182` (5 occurrences) | `CpuInfo` has no `idle`, `user`, `nice`, `sys` | Read `cpus[0].times.idle` etc. (CpuInfo has nested `times: CpuTimes`) |
+| `src/app/api/axoniz/providers/test/route.ts:77-80` (5 occurrences) | `{ id: string }` has no `pricing` | Widened the `models?: Array<{id}>` type to also include `context_length` and `pricing` (OpenAI's response includes these for some providers) |
+| `src/components/axoniz/pages/chat.tsx:291` (1 occurrence) | `inline` prop doesn't exist on code component | react-markdown v10 removed `inline`; now detect block-vs-inline by presence of a `language-*` className |
 
-These are independent of the CLI build pipeline; the CLI `typecheck`
-passes with 0 errors after the `src/declarations.d.ts` removal.
+Web typecheck now passes with **0 errors** (verified in CI).
 
 ### 3. Native compilation of `tree-sitter-graphql` (transitive of `@fraziym/axodex`) fails on Node 24
 
