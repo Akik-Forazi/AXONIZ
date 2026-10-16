@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -7,17 +6,10 @@ import { ThemeProvider } from "@/components/axoniz/theme-provider";
 import { QueryProvider } from "@/components/axoniz/query-provider";
 import { TelemetryProvider } from "@/components/axoniz/telemetry-provider";
 
-const interSans = Inter({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
+// No Google Fonts — uses system fonts instead (no network call needed).
+// This prevents the Turbopack "Can't resolve @vercel/turbopack-next/
+// internal/font/google/font" error when offline.
+// If you want custom fonts, download them locally and use next/font/local.
 
 export const metadata: Metadata = {
   title: "AXONIZ — Autonomous Local Agentic System",
@@ -51,10 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${interSans.variable} ${jetbrainsMono.variable} antialiased dark`}
-        style={{ fontSize: '15px' }}
-      >
+      <body className="antialiased dark" style={{ fontSize: '15px' }}>
         <ThemeProvider>
           <QueryProvider>
             <TelemetryProvider enabled={true}>
