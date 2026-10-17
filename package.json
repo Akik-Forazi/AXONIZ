@@ -1,7 +1,7 @@
 {
   "name": "@fraziym/axoniz",
   "version": "0.1.8-beta.1",
-  "description": "AXONIZ — Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
+  "description": "AXONIZ \u2014 Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
   "type": "module",
   "license": "MIT",
   "author": "AKIK FARAJI <akikfaraji@gmail.com> (https://fraziym.com)",
@@ -76,8 +76,7 @@
     "repl": "node dist/cli/entry.js --lc",
     "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
     "clean": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\"",
-    "prepublishOnly": "npm run clean && npm run build",
-    "postinstall": "cd web && npm install --legacy-peer-deps"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "workspaces": [
     "web"
