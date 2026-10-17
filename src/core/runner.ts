@@ -136,7 +136,7 @@ export function makeDefaultArgs(): Args {
   };
 }
 
-const PROVIDERS = ["llamacpp", "llamacpp_server", "lmstudio", "ollama", "openai", "openrouter", "gemini", "anthropic", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity", "custom"];
+const PROVIDERS = ["llamacpp", "llamacpp_server", "lmstudio", "ollama", "openai", "openrouter", "orca", "gemini", "anthropic", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity", "custom"];
 
 /** Parse argv (already sliced past `node script`). */
 export function parseArgs(argv: string[]): Args {
@@ -327,7 +327,7 @@ export const HELP = `
 
   ${B}BACKEND${R}
     ${BL}--provider <p>${R}   Backend: llamacpp, llamacpp_server, lmstudio, ollama, openai,
-                          openrouter, gemini, anthropic, groq, together, mistral,
+                          openrouter, orca, gemini, anthropic, groq, together, mistral,
                           deepseek, fireworks, perplexity, custom
     ${BL}--model-path <p>${R}  Path to .gguf model (llamacpp only)
     ${BL}--url <url>${R}       Base URL for server backends

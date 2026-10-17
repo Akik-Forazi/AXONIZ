@@ -2,8 +2,8 @@
  * Real provider connection test — ACTUALLY pings the user's configured
  * endpoint and returns the real list of available models (or real errors).
  *
- * Supported providers (14):
- *  - lmstudio / openai / openrouter / groq / together / mistral /
+ * Supported providers (15):
+ *  - lmstudio / openai / openrouter / orca / groq / together / mistral /
  *    deepseek / fireworks / perplexity / anthropic / gemini / custom
  *    → GET {baseUrl}/models (OpenAI-compatible) with Authorization header
  *  - ollama → GET {baseUrl}/api/tags
@@ -269,6 +269,7 @@ export async function POST(req: NextRequest) {
     case "lmstudio":
     case "openai":
     case "openrouter":
+    case "orca":
     case "groq":
     case "together":
     case "mistral":

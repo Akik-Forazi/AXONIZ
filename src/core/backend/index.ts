@@ -68,9 +68,39 @@ export function getBackend(cfg: AxonizConfig, tools: unknown[] = []): Backend {
     return v === undefined || v === null || v === "" ? fallback : String(v);
   };
 
-  if (prov === "openai" || prov === "openai_compatible") {
+  // OpenAI-compatible cloud providers — these all speak the OpenAI chat
+  // completions protocol and share the same auth (Bearer token) + request
+  // shape. Includes:
+  //   - openai / openai_compatible: the canonical OpenAI API + any drop-in
+  //   - openrouter: unified gateway to 300+ models
+  //   - orca (OrcaRouter): OpenAI-compatible gateway to 200+ models
+  //     (OpenAI, Anthropic, Google, DeepSeek, Qwen) at https://api.orcarouter.ai/v1
+  //   - groq / together / mistral / deepseek / fireworks / perplexity / custom:
+  //     each their own endpoint, but all OpenAI-protocol-compatible
+  //
+  // Without this list, providers like "openrouter" / "orca" would fall
+  // through to the default LlamaCppBackend branch which expects a .gguf
+  // model_path — broken for cloud providers.
+  const openAICompatible = new Set([
+    "openai",
+    "openai_compatible",
+    "openrouter",
+    "orca",
+    "groq",
+    "together",
+    "mistral",
+    "deepseek",
+    "fireworks",
+    "perplexity",
+    "custom",
+  ]);
+  if (openAICompatible.has(prov)) {
+    // OrcaRouter-specific default — user can override via base_url in config
+    const defaultBaseUrl = prov === "orca"
+      ? "https://api.orcarouter.ai/v1"
+      : "https://api.openai.com/v1";
     return new OpenAICompatibleBackend({
-      baseUrl: str("base_url", "https://api.openai.com/v1"),
+      baseUrl: str("base_url", defaultBaseUrl),
       apiKey: str("api_key", ""),
       modelName: str("model_name", "gpt-4o"),
       temperature: num("temperature", 0.2),

@@ -11,6 +11,7 @@ export type ProviderId =
   | "ollama"
   | "openai"
   | "openrouter"
+  | "orca"
   | "gemini"
   | "anthropic"
   | "groq"
@@ -137,6 +138,30 @@ export const PROVIDER_CATALOG: ProviderMeta[] = [
     ],
     pricePerMTokIn: 0.25,
     pricePerMTokOut: 0.75,
+  },
+  {
+    id: "orca",
+    name: "OrcaRouter",
+    category: "cloud",
+    description: "OpenAI-compatible gateway to 200+ models (OpenAI, Anthropic, Google, DeepSeek, Qwen). Auto-routes to the best upstream at cost price.",
+    defaultBaseUrl: "https://api.orcarouter.ai/v1",
+    needsApiKey: true,
+    apiKeyLabel: "API key",
+    apiKeyPlaceholder: "sk-orca-...",
+    docsUrl: "https://docs.privategpt.dev/providers/orcarouter",
+    popularModels: [
+      "openai/gpt-5.5",
+      "anthropic/claude-sonnet-5",
+      "google/gemini-2.0-flash",
+      "deepseek/deepseek-chat",
+      "deepseek/deepseek-reasoner",
+      "qwen/qwen-coder-32b",
+      "xai/grok-3",
+      "minimax/abab-7-chat",
+    ],
+    // Prices vary by upstream — these are blended estimates.
+    pricePerMTokIn: 0.5,
+    pricePerMTokOut: 1.5,
   },
   {
     id: "gemini",
