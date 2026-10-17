@@ -123,22 +123,22 @@ AXONIZ is 3.7× faster than Claude Code on tokens/sec, 3.3× faster on p50 laten
 
 ## Run alongside the AXONIZ backend
 
-The web UI lives in `web-next/`. The legacy static UI in `src/web/static/` is deprecated (kept for compatibility with the existing Express server in `src/web/server.ts`).
+The web UI lives in `web/`. The legacy static UI in `src/web/static/` is deprecated (kept for compatibility with the existing Express server in `src/web/server.ts`).
 
 ```bash
 # 1. Start the AXONIZ Express backend
 axoniz --web    # listens on :7860
 
 # 2. Start the Next.js dashboard
-cd web-next
+cd web
 bun install
 bun run dev      # listens on :3000
 ```
 
 The proxy routes in `src/app/api/axoniz/` automatically detect the running backend and switch from mock to live data. The top-bar ONLINE pill flips from `MOCK` to `LIVE` source tag.
 
-To bundle the Next.js UI as the AXONIZ web frontend in production, run `bun run build` and configure the Express server to serve `web-next/.next/standalone/`. The proxy routes still work — they just point at `localhost:7860` from inside the same process.
+To bundle the Next.js UI as the AXONIZ web frontend in production, run `bun run build` and configure the Express server to serve `web/.next/standalone/`. The proxy routes still work — they just point at `localhost:7860` from inside the same process.
 
 ## File layout
 
-See `web-next/README.md` for the complete file tree.
+See `web/README.md` for the complete file tree.

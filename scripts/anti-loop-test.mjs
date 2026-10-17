@@ -23,7 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const PORT = 7861;
-const WEB_NEXT_DIR = "/home/z/my-project/AXONIZ/web-next";
+const WEB_DIR = "/home/z/my-project/AXONIZ/web";
 const DEV_LOG = "/tmp/axoniz-anti-loop.log";
 
 let devPid = null;
@@ -32,10 +32,10 @@ let killed = false;
 function startDev() {
   return new Promise((resolve, reject) => {
     // Clear .next cache so we get a clean start.
-    try { fs.rmSync(path.join(WEB_NEXT_DIR, ".next"), { recursive: true, force: true }); } catch { /* ignore */ }
+    try { fs.rmSync(path.join(WEB_DIR, ".next"), { recursive: true, force: true }); } catch { /* ignore */ }
     try { fs.writeFileSync(DEV_LOG, ""); } catch { /* ignore */ }
     devPid = spawn("npx", ["next", "dev", "-p", String(PORT)], {
-      cwd: WEB_NEXT_DIR,
+      cwd: WEB_DIR,
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
     });

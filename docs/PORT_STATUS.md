@@ -159,8 +159,8 @@
 | SSE broker | `broker.ts` | ✅ | Server-sent event broadcaster. **v0.3.6:** now also broadcasts `cost` events emitted by `CostTracker` |
 | Static UI | `src/web/static/` | ✅ | Copied from Python reference. Used as fallback when Next.js dev server is unavailable |
 | `open_browser.py` | `open_browser.ts` | ✅ | |
-| N/A | 🆕 `web-next-spawn.ts` | ✅ | **v0.3.3** — Spawns Next.js dev server in `web-next/` on :3000 when `axoniz --web` is invoked. Falls back to legacy static UI if spawn fails or dev server is unavailable |
-| N/A | 🆕 `web-next/` (directory) | ✅ | **v0.3.3** — Next.js SPA dashboard. Real React/Next.js dashboard with HMR. Proxied through Express :7860 |
+| N/A | 🆕 `web-spawn.ts` | ✅ | **v0.3.3** — Spawns Next.js dev server in `web/` on :3000 when `axoniz --web` is invoked. Falls back to legacy static UI if spawn fails or dev server is unavailable |
+| N/A | 🆕 `web/` (directory) | ✅ | **v0.3.3** — Next.js SPA dashboard. Real React/Next.js dashboard with HMR. Proxied through Express :7860 |
 
 ---
 
@@ -216,9 +216,9 @@
 | 🆕 `src/core/intelligence/cost_tracker.ts` | **v0.3.6** Per-tool/per-LLM cost + SSE broadcast | ✅ |
 | 🆕 `src/core/intelligence/verify_gate.ts` | **v0.3.6** Real tsc/eslint/vitest/pytest/mypy/flake8 runner | ✅ |
 | 🆕 `src/core/intelligence/dag_planner.ts` | **v0.3.6** DAGStep[] + topologicalSort waves | ✅ |
-| 🆕 `src/web/web-next-spawn.ts` | **v0.3.3** Next.js dev server spawner | ✅ |
+| 🆕 `src/web/web-spawn.ts` | **v0.3.3** Next.js dev server spawner | ✅ |
 | 🆕 `src/tests/version.test.ts` | **v0.3.5** FRAZIYM version sync verifier | ✅ |
-| 🆕 `web-next/` | **v0.3.3** Next.js dashboard SPA | ✅ |
+| 🆕 `web/` | **v0.3.3** Next.js dashboard SPA | ✅ |
 
 ---
 
@@ -239,7 +239,7 @@
 | Evaluation / benchmark harness | P3 | 🔴 OPEN | No reproducible benchmarks |
 | Standalone axodex | P3 | ✅ **DONE v0.3.4** | Extracted to `@fraziym/axodex` |
 | Canonical versioning | P3 | ✅ **DONE v0.3.5** | FRAZIYM in `src/version.ts` |
-| Next.js dashboard | P3 | ✅ **DONE v0.3.3** | `web-next/` spawned by `web-next-spawn.ts` |
+| Next.js dashboard | P3 | ✅ **DONE v0.3.3** | `web/` spawned by `web-spawn.ts` |
 | Per-tool timeout / cancellation | P2 | 🔴 OPEN | A hanging tool blocks the loop |
 | Model auto-selection by task complexity | P3 | 🔴 OPEN | Router pending |
 | KV cache management API | P3 | 🔴 OPEN | Direct control exists; high-level API pending |

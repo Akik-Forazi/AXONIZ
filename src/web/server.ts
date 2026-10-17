@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import { openInBrowser } from "./open_browser.js";
-import { spawnWebNext, stopWebNext, WEB_NEXT_DIR } from "./web-next-spawn.js";
+import { spawnWeb, stopWeb, WEB_DIR } from "./web-spawn.js";
 import { AXONIZ_HOME, MODELS_DIR, loadConfigWithAutodetect, loadConfig, saveConfig, deepMerge, resolveSwarmModels, type AxonizConfig } from "../core/config.js";
 import { getBackend, listSupportedProviders } from "../core/backend/index.js";
 import { downloadModelAsync, getDownloadStatus, searchModels } from "../core/downloader.js";
@@ -708,7 +708,7 @@ export class WebServer {
      * URL to remember.
      *
      * Fallback: if the Next.js dev server isn't running (spawn failed,
-     * web-next/ missing, etc.), NO static fallback — returns 502 if
+     * web/ missing, etc.), NO static fallback — returns 502 if
      * src/web/static/ so the system never goes dark. A clear log line
      * tells the operator which UI is being served.
      */
@@ -771,8 +771,8 @@ export class WebServer {
             `padding:40px;max-width:600px;margin:auto}h1{color:#fff}code{background:#1a1a1a;padding:2px 6px;border-radius:3px}</style></head>` +
             `<body><h1>AXONIZ Dashboard Not Available</h1>` +
             `<p>The Next.js dashboard at <code>${devUrl}</code> is not responding.</p>` +
-            `<p>To start it:</p><pre>cd ${WEB_NEXT_DIR}\nbun install\nbun run dev</pre>` +
-            `<p>Or build for production:</p><pre>cd ${WEB_NEXT_DIR}\nbun run build\nbun run start</pre>` +
+            `<p>To start it:</p><pre>cd ${WEB_DIR}\nbun install\nbun run dev</pre>` +
+            `<p>Or build for production:</p><pre>cd ${WEB_DIR}\nbun run build\nbun run start</pre>` +
             `<p style="color:#666">Error: ${e instanceof Error ? e.message : String(e)}</p>` +
             `</body></html>`,
           );
@@ -985,7 +985,7 @@ export class WebServer {
   /**
    * Start the server and optionally open a browser. Blocks forever.
    *
-   * On startup, also spawns the Next.js dashboard (`web-next/`) on
+   * On startup, also spawns the Next.js dashboard (`web/`) on
    * :3000 as a child process. The Express server proxies all non-API
    * GET requests to it, so visiting :7860 gives the user the new
    * dashboard 
@@ -995,10 +995,10 @@ export class WebServer {
     const url = await this.listen();
 
     // Spawn the Next.js dashboard in the background. Resolve fast —
-    // don't block startup if web-next/ can't be reached.
+    // don't block startup if web/ can't be reached.
     let devReady = false;
     try {
-      const dev = await spawnWebNext();
+      const dev = await spawnWeb();
       devReady = !!dev;
     } catch (e) {
       warn(`[Web] could not spawn Next.js dashboard: ${errMsg(e)}`);
@@ -1056,7 +1056,7 @@ export class WebServer {
     // Block until the process is told to stop.
     await new Promise<void>((resolve) => {
       const shutdown = () => {
-        stopWebNext();
+        stopWeb();
         void this.close().finally(resolve);
       };
       process.once("SIGINT", shutdown);
@@ -1066,7 +1066,7 @@ export class WebServer {
 
   async close(): Promise<void> {
     // Stop the Next.js dev server child process.
-    stopWebNext();
+    stopWeb();
     broker.closeAll();
     if (!this.server) return;
     await new Promise<void>((resolve) => {

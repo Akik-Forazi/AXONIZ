@@ -19,7 +19,7 @@ const files = [
   "src/app/(auth)/agent/page.tsx",
 ];
 
-const root = "/home/z/my-project/AXONIZ/web-next";
+const root = "/home/z/my-project/AXONIZ/web";
 
 for (const rel of files) {
   const f = path.join(root, rel);

@@ -278,8 +278,8 @@ interface PlanResult {
 
 ## DEC-021: Next.js dashboard spawned as child process by Express backend
 **Date:** v0.3.3
-**Decision:** `axoniz --web` spawns a Next.js dev server as a child process in `web-next/` on `:3000`. The Express backend on `:7860` proxies all non-API GET requests to `:3000`. Falls back to the legacy static UI in `src/web/static/` if the dev server is unavailable.
-**Implementation:** `src/web/web-next-spawn.ts`
+**Decision:** `axoniz --web` spawns a Next.js dev server as a child process in `web/` on `:3000`. The Express backend on `:7860` proxies all non-API GET requests to `:3000`. Falls back to the legacy static UI in `src/web/static/` if the dev server is unavailable.
+**Implementation:** `src/web/web-spawn.ts`
 **Architecture:**
 ```
 [ Browser ]
@@ -295,7 +295,7 @@ interface PlanResult {
                     [ Next.js dev server :3000 ]
                               │
                               ▼
-                    [ web-next/ SPA with HMR ]
+                    [ web/ SPA with HMR ]
 ```
 **Rationale:**
 - The legacy static UI was opaque — a single HTML file with no React, no HMR, no real state management
@@ -303,5 +303,5 @@ interface PlanResult {
 - Spawning as a child process keeps the API surface stable (Express on :7860) while giving the dashboard a modern dev experience
 - The proxy pattern means the browser only ever talks to one port (`:7860`); no CORS issues
 - Fallback to legacy UI ensures the dashboard still works in production without a Node dev server running
-**Tradeoff:** Requires `web-next/` to be installed (`pnpm install` inside it) for the full experience. Mitigated by graceful fallback to legacy static UI.
+**Tradeoff:** Requires `web/` to be installed (`pnpm install` inside it) for the full experience. Mitigated by graceful fallback to legacy static UI.
 **Status:** ✅ Delivered. Live SSE consumption by the dashboard UI (for the new `cost` events emitted by `CostTracker`) is pending UI work.

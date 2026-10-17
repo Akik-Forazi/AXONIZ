@@ -257,7 +257,7 @@ A `MockBackend` is still needed as foundational test infrastructure for any agen
 | **VerifyGate** (v0.3.6) | ❌ None | **P0** | See coverage plan above (also serves as test infrastructure) |
 | **DAGPlanner** (v0.3.6) | ❌ None | **P0** | See coverage plan above |
 | **ContextCompressor semantic** (v0.3.6) | ❌ None | **P0** | See coverage plan above |
-| `web-next-spawn.ts` (v0.3.3) | ❌ None | P2 | Spawn + proxy + fallback |
+| `web-spawn.ts` (v0.3.3) | ❌ None | P2 | Spawn + proxy + fallback |
 
 ---
 

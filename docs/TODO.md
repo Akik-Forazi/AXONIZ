@@ -28,10 +28,10 @@
 - 5 sync points verified by `tests/version.test.ts`: `src/version.ts`, `package.json`, `src/core/runner.ts` (CLI banner), `README.md`, `tests/version.test.ts`
 
 ### ✅ Next.js dashboard spawn (v0.3.3)
-- `axoniz --web` spawns Next.js dev server in `web-next/` on :3000
+- `axoniz --web` spawns Next.js dev server in `web/` on :3000
 - Express backend on :7860 proxies all non-API GET requests to :3000
 - Falls back to legacy static UI if dev server unavailable
-- Spawn logic in `src/web/web-next-spawn.ts`
+- Spawn logic in `src/web/web-spawn.ts`
 
 ### ✅ Tool scoping (v0.3.6)
 - `ToolRegistry` class in `src/core/tool_registry.ts`

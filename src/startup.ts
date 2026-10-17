@@ -186,8 +186,8 @@ export async function bootWeb(
   // The old Express server (src/web/server.ts) is no longer used for --web.
   // It can still be used standalone via WebServer if needed, but the default
   // --web flow now starts Next.js directly on the configured port.
-  const { spawnWebNextOnPort } = await import("./web/web-next-spawn.js");
-  const child = await spawnWebNextOnPort(port);
+  const { spawnWebOnPort } = await import("./web/web-spawn.js");
+  const child = await spawnWebOnPort(port);
   if (child && child.child) {
     const url = `http://localhost:${port}`;
     info(`[Web] dashboard ready at ${url}`);
@@ -211,8 +211,8 @@ export async function bootWeb(
     }
   } else {
     info("[Web] could not start Next.js dashboard.");
-    info("[Web] Make sure web-next deps are installed: cd web-next && npm install --legacy-peer-deps");
-    info("[Web] Or run manually: cd web-next && npm run dev");
+    info("[Web] Make sure web deps are installed: cd web && npm install --legacy-peer-deps");
+    info("[Web] Or run manually: cd web && npm run dev");
   }
 }
 

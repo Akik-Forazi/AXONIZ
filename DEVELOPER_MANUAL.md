@@ -1,7 +1,7 @@
 # AXONIZ SYSTEM: THE AUTONOMOUS DEVELOPER MANUAL
 *(Generated via Axodex Semantic Knowledge Graph · reflects v0.3.6 / `V00.01.000-beta-01`)*
 
-> **Scope of this manual.** AXONIZ is the TypeScript-ported autonomous agent framework (`src/` tree, npm package `@fraziym/axoniz`). Axodex is now a separate npm package (`@fraziym/axodex`, source at https://github.com/Akik-Forazi/axodex) — see `AGENTS.md` for the axodex interface. The Next.js dashboard lives in `web-next/` as an independent Node project. This document covers the AXONIZ agent core only.
+> **Scope of this manual.** AXONIZ is the TypeScript-ported autonomous agent framework (`src/` tree, npm package `@fraziym/axoniz`). Axodex is now a separate npm package (`@fraziym/axodex`, source at https://github.com/Akik-Forazi/axodex) — see `AGENTS.md` for the axodex interface. The Next.js dashboard lives in `web/` as an independent Node project. This document covers the AXONIZ agent core only.
 
 ---
 
@@ -43,11 +43,11 @@ Axoniz is not just a chatbot — it is a **multi-phase autonomous agent framewor
 Running `axoniz --web` no longer serves the legacy scraped static UI at `src/web/static/`. Instead the Express backend (`src/web/server.ts`):
 
 1. Listens on `:7860` (unchanged) — all `/api/*` routes live here.
-2. Spawns `bun run dev` (preferred) or `npm run dev` (fallback) in `web-next/` as a child process on `:3000`. The spawn logic lives in `src/web/web-next-spawn.ts` (60s timeout for the dev server to come up; child is cleaned up on SIGINT/SIGTERM).
+2. Spawns `bun run dev` (preferred) or `npm run dev` (fallback) in `web/` as a child process on `:3000`. The spawn logic lives in `src/web/web-spawn.ts` (60s timeout for the dev server to come up; child is cleaned up on SIGINT/SIGTERM).
 3. Proxies all non-API GET requests from `:7860 → :3000` so users only need to remember one URL.
-4. Falls back to the legacy static UI at `src/web/static/` if `web-next/` is missing or the dev server fails to start (with a clear log line: `dashboard -> not started (falling back to legacy static UI)`).
+4. Falls back to the legacy static UI at `src/web/static/` if `web/` is missing or the dev server fails to start (with a clear log line: `dashboard -> not started (falling back to legacy static UI)`).
 
-The Next.js dashboard itself (`web-next/`) is a separate Node.js project with its own `package.json`, `bun.lock`, Prisma schema, and routes under `web-next/src/app/`. It is **not** part of the AXONIZ TypeScript port and can be developed / deployed independently. Sitemap: `/chat`, `/agent`, `/vault`, `/forge`, `/war-room`, `/palace`, `/axodex`, `/search`, `/benchmarks`, `/system`, `/settings/*`. See `docs/WEB_UI.md` and `docs/WEB_ROADMAP.md`.
+The Next.js dashboard itself (`web/`) is a separate Node.js project with its own `package.json`, `bun.lock`, Prisma schema, and routes under `web/src/app/`. It is **not** part of the AXONIZ TypeScript port and can be developed / deployed independently. Sitemap: `/chat`, `/agent`, `/vault`, `/forge`, `/war-room`, `/palace`, `/axodex`, `/search`, `/benchmarks`, `/system`, `/settings/*`. See `docs/WEB_UI.md` and `docs/WEB_ROADMAP.md`.
 
 ---
 
@@ -147,7 +147,7 @@ The bot acts as a bridge between the local agent and your mobile device:
 | **LLM Backend** | Port conflict (`:8080`/`:1234`/`:11434`) or OOM | Agent hangs on `ensure_llm` | Check `taskmanager` / `ps` for zombie `llama-server` processes |
 | **Auth Engine** | Missing `default.yaml` | Authority level resets to 1 | Verify `src/roles/default.yaml` exists (and `~/.axoniz/roles/` if you've overridden) |
 | **Awareness** | Missing optional deps (`screenshot-desktop`, `sharp`) | Suggestion loop stops | `npm install` in the AXONIZ repo to pull optional deps |
-| **Web dashboard** | `web-next/` missing or `bun`/`npm` not on PATH | `axoniz --web` falls back to legacy static UI with a warning | Clone `web-next/` into the repo, or `npm install` inside `web-next/` |
+| **Web dashboard** | `web/` missing or `bun`/`npm` not on PATH | `axoniz --web` falls back to legacy static UI with a warning | Clone `web/` into the repo, or `npm install` inside `web/` |
 | **Verify Gate** | `tsc`/`eslint`/`vitest`/`pytest` not installed | Verification reports "skipped" for missing checks | Install the relevant runner in the workspace's devDeps |
 | **Cost Tracker** | `src/web/broker.ts` SSE clients dropped | Dashboard cost rail freezes | The tracker keeps accumulating internally; dashboard recovers on reconnect |
 

@@ -7,26 +7,26 @@ This project is indexed by Axodex as **DevNet** (4843 symbols, 10982 relationshi
 
 ## Web UI (v0.3.0)
 
-A new Next.js 16 dashboard lives in `web-next/` and replaces the legacy scraped `src/web/static/` UI. It is a separate Node.js project (not part of the AXONIZ TypeScript port) so it can be developed and deployed independently.
+A new Next.js 16 dashboard lives in `web/` and replaces the legacy scraped `src/web/static/` UI. It is a separate Node.js project (not part of the AXONIZ TypeScript port) so it can be developed and deployed independently.
 
 - **Sitemap**: `/chat`, `/agent`, `/vault`, `/forge`, `/war-room`, `/palace`, `/axodex`, `/search`, `/benchmarks`, `/system`, `/settings` (with sub-routes per provider — 14 total)
 - **14 providers supported**: llama.cpp, LM Studio, Ollama, OpenAI, OpenRouter, Google Gemini, Anthropic Claude, Groq, Together AI, Mistral, DeepSeek, Fireworks AI, Perplexity, Custom
 - **Real wiring**: every UI action hits a real backend endpoint OR makes a real fetch to the user's configured provider. No placeholders. Mock fallback only when no backend / no provider configured.
-- **Architecture**: typed client (`web-next/src/lib/axoniz/client.ts`) → Next.js proxy routes (`web-next/src/app/api/axoniz/[...path]/route.ts` with mock fallback, `chat/route.ts` for streaming, `providers/test/route.ts` for pinger) → real AXONIZ backend at :7860 OR real provider endpoint.
+- **Architecture**: typed client (`web/src/lib/axoniz/client.ts`) → Next.js proxy routes (`web/src/app/api/axoniz/[...path]/route.ts` with mock fallback, `chat/route.ts` for streaming, `providers/test/route.ts` for pinger) → real AXONIZ backend at :7860 OR real provider endpoint.
 - **See**: `docs/WEB_UI.md` (full sitemap + provider setup) and `docs/WEB_ROADMAP.md` (what's done, what's next).
 
-When editing files in `web-next/`, run `bun run lint` from that directory before committing.
+When editing files in `web/`, run `bun run lint` from that directory before committing.
 
 ## `axoniz --web` now spawns the Next.js dashboard (v0.3.3)
 
 Running `axoniz --web` no longer serves the legacy scraped static UI. The Express backend (`src/web/server.ts`) now:
 
 1. Listens on :7860 (unchanged) — all `/api/*` routes live here
-2. Spawns `bun run dev` (or `npm run dev`) in `web-next/` as a child process on :3000
+2. Spawns `bun run dev` (or `npm run dev`) in `web/` as a child process on :3000
 3. Proxies all non-API GET requests from :7860 → :3000 so users only need to remember one URL
-4. Falls back to the legacy static UI at `src/web/static/` if `web-next/` is missing or the dev server fails to start (with a clear log line: `dashboard -> not started (falling back to legacy static UI)`)
+4. Falls back to the legacy static UI at `src/web/static/` if `web/` is missing or the dev server fails to start (with a clear log line: `dashboard -> not started (falling back to legacy static UI)`)
 
-The spawn logic lives in `src/web/web-next-spawn.ts` (60s timeout for the dev server to come up; child process is cleaned up on SIGINT/SIGTERM).
+The spawn logic lives in `src/web/web-spawn.ts` (60s timeout for the dev server to come up; child process is cleaned up on SIGINT/SIGTERM).
 
 ## Versioning (v0.3.5) — FRAZIYM format
 

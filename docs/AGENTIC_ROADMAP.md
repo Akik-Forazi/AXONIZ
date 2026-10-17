@@ -340,7 +340,7 @@ Outputs per run:
 |---|------|--------|-------|
 | 1 | Structured event stream (JSONL) | 🟡 PARTIAL | `TrajectoryStore` records to SQLite; JSONL export pending |
 | 2 | Live cost dashboard feed | ✅ DONE | `CostTracker` emits `cost` SSE events via `broker.broadcast("cost", event)` |
-| 3 | Next.js dashboard | ✅ DONE | `axoniz --web` spawns Next.js dev server in `web-next/` on :3000, proxied through Express on :7860 |
+| 3 | Next.js dashboard | ✅ DONE | `axoniz --web` spawns Next.js dev server in `web/` on :3000, proxied through Express on :7860 |
 | 4 | Human-readable narrative | 🔴 PLANNED | — |
 
 ---
@@ -360,7 +360,7 @@ Views:
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1 | Next.js dashboard scaffolding | ✅ DONE | `web-next/` spawned by `src/web/web-next-spawn.ts` |
+| 1 | Next.js dashboard scaffolding | ✅ DONE | `web/` spawned by `src/web/web-spawn.ts` |
 | 2 | Live SSE wiring (cost, trajectory, status) | 🟡 PARTIAL | Cost SSE active; full UI consumption pending |
 | 3 | Legacy static UI fallback | ✅ DONE | Falls back when dev server unavailable |
 

@@ -115,7 +115,7 @@ Five new modules bring the agent core up to the PEAK architecture target. All li
 
 ## Web Dashboard (IDE-like Experience)
 
-*   **Next.js 16 dashboard** (`web-next/`) — Replaces the legacy scraped static UI at `src/web/static/`. Independent Node.js project with its own `package.json`, `bun.lock`, Prisma schema, and routes. `axoniz --web` spawns `bun run dev` (or `npm run dev`) in `web-next/` as a child process on `:3000` and proxies all non-API GET requests from `:7860 → :3000`. Falls back to the legacy static UI if `web-next/` is missing.
+*   **Next.js 16 dashboard** (`web/`) — Replaces the legacy scraped static UI at `src/web/static/`. Independent Node.js project with its own `package.json`, `bun.lock`, Prisma schema, and routes. `axoniz --web` spawns `bun run dev` (or `npm run dev`) in `web/` as a child process on `:3000` and proxies all non-API GET requests from `:7860 → :3000`. Falls back to the legacy static UI if `web/` is missing.
 *   **Sitemap** — `/chat`, `/agent`, `/vault`, `/forge`, `/war-room`, `/palace`, `/axodex`, `/search`, `/benchmarks`, `/system`, `/settings/*` (14 settings sub-routes per provider).
 *   **14 providers supported** — llama.cpp, LM Studio, Ollama, OpenAI, OpenRouter, Google Gemini, Anthropic Claude, Groq, Together AI, Mistral, DeepSeek, Fireworks AI, Perplexity, Custom.
 *   **Real wiring** — Every UI action hits a real backend endpoint OR makes a real fetch to the user's configured provider. No placeholders. Mock fallback only when no backend / no provider is configured.

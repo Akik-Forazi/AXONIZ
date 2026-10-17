@@ -154,9 +154,9 @@ sharp, node-llama-cpp, systeminformation, and the tree-sitter-*
 grammar packages all use their prebuilt binaries (no source
 compilation needed — the prebuilds cover linux-x64 and win32-x64).
 
-> **Note (post-fix):** the web-next lockfile drift (missing `yjs`,
+> **Note (post-fix):** the web lockfile drift (missing `yjs`,
 > `lib0`, `isomorphic.js`) is also fixed in this commit by regenerating
-> `web-next/package-lock.json`.
+> `web/package-lock.json`.
 
 ### 2. Web `npm run typecheck:web` errors (FIXED — was 11 errors, now 0)
 
@@ -197,7 +197,7 @@ help text or wired as a `pretest` script.
 
 ### 5. Minimum Node version is 22 (not 20)
 
-`web-next/src/lib/axoniz/execution-manager.ts` imports
+`web/src/lib/axoniz/execution-manager.ts` imports
 `{ DatabaseSync } from "node:sqlite"`, which is only available in
 Node 22.5+. The `package.json` `engines.node` field has been updated
 from `>=20.11` to `>=22` to reflect this. The CI matrix dropped the

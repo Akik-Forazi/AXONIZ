@@ -94,14 +94,14 @@ Access the **FRAZIYM AI Console** at `http://localhost:7860`:
 **Developer Resources:**
 - [Web UI Architecture & Provider Guide](docs/WEB_UI.md) — Full sitemap, 14-provider setup, real chat streaming architecture.
 - [Web UI Roadmap](docs/WEB_ROADMAP.md) — What's done in v0.3.0, what's next for PEAK positioning.
-- [`web-next/`](web-next/) — The new Next.js 16 dashboard (replaces the legacy `src/web/static/` UI).
+- [`web/`](web/) — The new Next.js 16 dashboard (replaces the legacy `src/web/static/` UI).
 - [Frontend Integration Guide](docs/FRONTEND_INTEGRATION.md) — Connect your UI to the Worker Swarm.
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [AAA Tier Roadmap](docs/ROADMAP_TO_AAA.md)
 
 ### The New Web Dashboard (v0.3.0)
 
-The `web-next/` directory contains a brand-new Next.js 16 + TypeScript + Tailwind 4 dashboard that wires to every AXONIZ backend endpoint and **14 inference providers** out of the box:
+The `web/` directory contains a brand-new Next.js 16 + TypeScript + Tailwind 4 dashboard that wires to every AXONIZ backend endpoint and **14 inference providers** out of the box:
 
 - **Local:** llama.cpp, LM Studio, Ollama
 - **Cloud:** OpenAI, OpenRouter, Google Gemini, Anthropic Claude, Groq, Together AI, Mistral, DeepSeek, Fireworks AI, Perplexity, Custom
@@ -109,7 +109,7 @@ The `web-next/` directory contains a brand-new Next.js 16 + TypeScript + Tailwin
 The Test Connection button in Settings actually pings your configured endpoint server-side and returns the real list of loaded models. The Chat page actually streams real tokens from your real provider (no mock shells). Every action is real-backed with mock fallback for demo environments.
 
 ```bash
-cd web-next
+cd web
 bun install
 bun run dev   # http://localhost:3000
 ```

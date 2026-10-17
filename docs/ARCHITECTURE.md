@@ -75,13 +75,13 @@ axo/
 │   ├── web/             # Express server + SSE broker + static UI
 │   │   ├── server.ts                # Express v5 on :7860
 │   │   ├── broker.ts                # SSE broadcast (cost, trajectory, status events)
-│   │   └── web-next-spawn.ts       # ★ NEW v0.3.3 — spawns Next.js dev server on :3000
+│   │   └── web-spawn.ts       # ★ NEW v0.3.3 — spawns Next.js dev server on :3000
 │   ├── cli/             # CLI entry point
 │   ├── roles/           # Persona YAML (default.yaml)
 │   └── tests/
 │       └── version.test.ts         # ★ NEW v0.3.5 — FRAZIYM version sync across 5 points
 │
-├── web-next/            # ★ NEW v0.3.3 — Next.js dashboard (spawned by --web flag)
+├── web/            # ★ NEW v0.3.3 — Next.js dashboard (spawned by --web flag)
 ├── _pyref/              # Python codebase snapshot (reference only, do not edit)
 ├── docs/                # This directory — architecture, status, roadmap, decisions
 └── dist/                # TypeScript compiled output
@@ -442,11 +442,11 @@ Express v5 server with:
 - Chat, swarm, goals, memory, model management API routes
 - **Next.js proxy** (v0.3.3): all non-API GET requests proxy to `:3000` if the Next.js dev server is up; falls back to legacy static UI if unavailable
 
-### Next.js Dashboard (`web-next/` — NEW v0.3.3, spawned by `src/web/web-next-spawn.ts`)
+### Next.js Dashboard (`web/` — NEW v0.3.3, spawned by `src/web/web-spawn.ts`)
 
 When `axoniz --web` is invoked:
 1. Express starts on `:7860` as usual
-2. `web-next-spawn.ts` spawns `next dev` in `web-next/` on `:3000` (DEC-021)
+2. `web-spawn.ts` spawns `next dev` in `web/` on `:3000` (DEC-021)
 3. Express proxies all non-API GET requests from `:7860` → `:3000`
 4. Falls back to legacy static UI in `src/web/static/` if the dev server is unavailable
 
@@ -479,7 +479,7 @@ No changes in v0.3.6.
 10. **DAGPlanner (v0.3.6)** — Dependency-graph planning with parallel-executable waves via topological sort; replaces linear step execution.
 11. **Semantic Context Compression (v0.3.6)** — Importance-scored message retention (user=95, errors=85) instead of naive turn-count compression; addresses context-window rot.
 12. **FRAZIYM versioning (v0.3.5)** — Canonical `VPP.FF.BBB-STAGE-RR` format with semver translation for npm compatibility; single source of truth in `src/version.ts` verified by `tests/version.test.ts`.
-13. **Next.js Dashboard (v0.3.3)** — Real SPA dashboard (`web-next/` on :3000) spawned as a child process by the Express backend, proxied through :7860.
+13. **Next.js Dashboard (v0.3.3)** — Real SPA dashboard (`web/` on :3000) spawned as a child process by the Express backend, proxied through :7860.
 
 ---
 
