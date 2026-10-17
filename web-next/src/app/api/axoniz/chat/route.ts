@@ -10,7 +10,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { submitExecution } from "@/lib/axoniz/execution-manager";
 import { runExecution } from "@/lib/axoniz/execution-runner";
-import { loadCliConfig, extractBearerToken, verifyAuthToken } from "@/lib/axoniz/cli-bridge";
+import { loadCliConfig } from "@/lib/axoniz/cli-bridge";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,15 +25,10 @@ interface ChatBody {
 }
 
 export async function POST(req: NextRequest) {
-  // Verify auth — owner is derived from the token
-  const authHeader = req.headers.get("authorization");
-  const token = extractBearerToken(authHeader);
-  if (!token) {
-    return NextResponse.json({ error: "unauthorized — Bearer token required" }, { status: 401 });
-  }
-  const user = await verifyAuthToken(token);
+  // Auth — uses requireAuth() which returns "axoniz" on localhost
+  const user = await requireAuth(req);
   if (!user) {
-    return NextResponse.json({ error: "unauthorized — invalid token" }, { status: 401 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   let body: ChatBody;

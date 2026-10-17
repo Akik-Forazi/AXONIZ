@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { requireAuth } from "@/lib/axoniz/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -81,19 +82,14 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const p = url.pathname.replace("/api/axoniz", "");
 
-  // Auth check for sensitive GET endpoints (config, files, models).
-  // Health and stream are public (needed before login).
+  // Auth check for sensitive GET endpoints — uses requireAuth() which
+  // returns "axoniz" on localhost (no auth needed for local use).
+  // Set AXONIZ_REQUIRE_AUTH=true in .env to require real Bearer JWT.
   const sensitiveRoutes = ["/config", "/files/list", "/memory", "/war_room", "/swarm/status"];
   const isSensitive = sensitiveRoutes.some(s => p === s || p.startsWith(s + "/"));
   if (isSensitive) {
-    const { extractBearerToken, verifyAuthToken } = await import("@/lib/axoniz/cli-bridge");
-    const authHeader = req.headers.get("authorization");
-    const token = extractBearerToken(authHeader);
-    if (!token) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const authUser = await verifyAuthToken(token);
-    if (!authUser) {
+    const user = await requireAuth(req);
+    if (!user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }
@@ -285,19 +281,13 @@ export async function POST(req: NextRequest) {
   const url = new URL(req.url);
   const p = url.pathname.replace("/api/axoniz", "");
 
-  // Auth check for ALL POST routes EXCEPT auth endpoints (login/register).
-  // Login and register are the only POST routes that don't require a prior token.
+  // Auth check — uses requireAuth() which returns "axoniz" on localhost.
+  // Login and register are exempt (they issue tokens).
   const isAuthEndpoint = p === "/auth/login" || p === "/auth/register";
   if (!isAuthEndpoint) {
-    const { extractBearerToken, verifyAuthToken } = await import("@/lib/axoniz/cli-bridge");
-    const authHeader = req.headers.get("authorization");
-    const token = extractBearerToken(authHeader);
-    if (!token) {
-      return NextResponse.json({ error: "unauthorized — Bearer token required" }, { status: 401 });
-    }
-    const authUser = await verifyAuthToken(token);
-    if (!authUser) {
-      return NextResponse.json({ error: "unauthorized — invalid token" }, { status: 401 });
+    const user = await requireAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }
 
