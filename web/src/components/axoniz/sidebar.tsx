@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   MessageSquare, Bot, Boxes, Anvil, Network, BrainCircuit,
   GitBranch, Search, Gauge, Activity, Settings as SettingsIcon,
-  ChevronRight, FileText, Server, Plus, Terminal, type LucideIcon,
+  ChevronRight, FileText, Server, Plus, Terminal, FolderKanban, Workflow, ScrollText, type LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAxonizStore } from "@/stores/axoniz-store";
@@ -32,6 +32,9 @@ const PRIMARY_NAV: NavItem[] = [
 ];
 
 const WORKSPACE_NAV: NavItem[] = [
+  { id: "projects", label: "Projects", icon: FolderKanban, href: "/projects" },
+  { id: "workflows", label: "Workflows", icon: Workflow, href: "/workflows" },
+  { id: "logs", label: "Logs", icon: ScrollText, href: "/logs" },
   { id: "vault", label: "Vault", icon: Boxes, href: "/vault" },
   { id: "forge", label: "Forge", icon: Anvil, href: "/forge" },
   { id: "war-room", label: "War Room", icon: Network, href: "/war-room" },

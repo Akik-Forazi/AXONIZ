@@ -179,3 +179,6 @@ web-next/.next/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Next.js build cache (web/)
+web/.next/
