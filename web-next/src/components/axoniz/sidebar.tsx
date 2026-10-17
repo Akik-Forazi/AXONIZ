@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   MessageSquare, Bot, Boxes, Anvil, Network, BrainCircuit,
   GitBranch, Search, Gauge, Activity, Settings as SettingsIcon,
-  ChevronRight, FileText, Server, Plus, type LucideIcon,
+  ChevronRight, FileText, Server, Plus, Terminal, type LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAxonizStore } from "@/stores/axoniz-store";
@@ -45,6 +45,7 @@ const SYSTEM_NAV: NavItem[] = [
   { id: "system", label: "System", icon: Activity, href: "/system" },
   { id: "servers", label: "Servers", icon: Server, href: "/servers" },
   { id: "diagnostics", label: "Diagnostics", icon: FileText, href: "/diagnostics" },
+  { id: "event-stream", label: "Event Stream", icon: Terminal, href: "/event-stream" },
   { id: "settings", label: "Settings", icon: SettingsIcon, href: "/settings" },
 ];
 

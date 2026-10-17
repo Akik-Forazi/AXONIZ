@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { AxonizSseEvent } from "@/lib/axoniz/api-types";
+import { DEFAULT_THEME_ID, type Theme } from "@/lib/themes";
 
 export type ProviderId =
   | "llamacpp"
@@ -323,6 +325,75 @@ interface UiState extends AuthState {
    *  or when they land on /chat/s/<id> and click "Continue in chat". */
   activeChatId: string | null;
   setActiveChatId: (id: string | null) => void;
+
+  /* ─── EventStream slice ─────────────────────────────────────────────
+   * Global event stream from /api/axoniz/stream. Previously rendered as
+   * a sticky side panel (EventRail) — now lifted into the store so:
+   *   (a) the EventSource connection is opened ONCE by a singleton
+   *       provider in the layout (not per-page);
+   *   (b) events keep accumulating across page navigations;
+   *   (c) the dedicated /event-stream page can render them full-screen
+   *       without re-establishing the connection.
+   *
+   * NOT persisted — in-memory only, capped at 200 events.
+   */
+  railEvents: { id: number; ev: AxonizSseEvent }[];
+  railConnected: boolean;
+  pushRailEvent: (ev: AxonizSseEvent) => void;
+  clearRailEvents: () => void;
+  setRailConnected: (b: boolean) => void;
+
+  /* ─── ChatStream slice ──────────────────────────────────────────────
+   * Lifts chat messages out of the useChatStream hook's local useState
+   * so navigating away from /chat/s/<id> no longer destroys the
+   * in-progress stream. The hook reads/writes through this store; the
+   * actual EventSource for an execution is owned by a singleton
+   * ChatStreamProvider keyed by chatId, so it survives navigation.
+   *
+   * The JSONL file at ~/.axoniz/db/chats/<id>.jsonl is still the
+   * authoritative source of truth — this slice is just the live
+   * in-memory mirror, populated on mount and updated as events arrive.
+   */
+  messagesByChatId: Record<string, ChatMessageStore[]>;
+  streamingChatId: string | null;
+  /** Map of chatId → active executionId. The ChatStreamProvider reads
+   *  this and opens one EventSource per active execution, so streaming
+   *  survives navigation (the EventSource is owned by the layout-level
+   *  provider, not by the chat page component). */
+  executionIdByChatId: Record<string, string>;
+  setMessagesFor: (chatId: string, msgs: ChatMessageStore[]) => void;
+  appendMessageTo: (chatId: string, msg: ChatMessageStore) => void;
+  updateMessageIn: (chatId: string, msgId: string, patch: Partial<ChatMessageStore>) => void;
+  clearChatMessages: (chatId: string) => void;
+  setStreamingChatId: (id: string | null) => void;
+  setExecutionFor: (chatId: string, execId: string) => void;
+  clearExecutionFor: (chatId: string) => void;
+
+  /* ─── Theme slice ────────────────────────────────────────────────────
+   * Active visual theme — applied to <html data-theme="..."> by the
+   * ThemeProvider in the root layout. Themes are defined as CSS variable
+   * overrides in `src/app/globals.css` (each theme is a
+   * `[data-theme="<id>"]` block). To add a new theme:
+   * 1. Add the CSS block in globals.css
+   * 2. Add the entry to `THEMES` in `src/lib/themes.ts`
+   * The store just remembers the user's choice; the actual visual
+   * application is done by the ThemeProvider.
+   *
+   * Persisted to localStorage so the choice survives refresh.
+   */
+  activeTheme: string;
+  setTheme: (id: string) => void;
+}
+
+/** A single chat message in the store mirror. Mirrors ChatMessage from
+ *  use-chat-stream.ts but kept here to avoid a cyclic import. */
+export interface ChatMessageStore {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: number;
+  pending?: boolean;
+  error?: boolean;
 }
 
 export const useAxonizStore = create<UiState>()(
@@ -338,6 +409,82 @@ export const useAxonizStore = create<UiState>()(
       llamacpp: DEFAULT_LLAMACPP,
       modelPickerOpen: false,
       activeChatId: null,
+
+      // EventStream — in-memory, not persisted. The singleton provider
+      // (EventStreamProvider in the auth layout) opens the EventSource
+      // and calls pushRailEvent() on every event. The /event-stream page
+      // and any other consumer just reads railEvents from the store.
+      railEvents: [],
+      railConnected: false,
+      pushRailEvent: (ev) =>
+        set((s) => {
+          const next = [...s.railEvents, { id: s.railEvents.length + 1, ev }];
+          return { railEvents: next.slice(-200) };
+        }),
+      clearRailEvents: () => set({ railEvents: [] }),
+      setRailConnected: (b) => set({ railConnected: b }),
+
+      // ChatStream — in-memory mirror of messages per chatId, so
+      // navigating away from /chat/s/<id> doesn't kill the in-flight
+      // stream's accumulated messages.
+      messagesByChatId: {},
+      streamingChatId: null,
+      executionIdByChatId: {},
+      setMessagesFor: (chatId, msgs) =>
+        set((s) => ({
+          messagesByChatId: {
+            ...s.messagesByChatId,
+            [chatId]: msgs,
+          },
+        })),
+      appendMessageTo: (chatId, msg) =>
+        set((s) => {
+          const prev = s.messagesByChatId[chatId] ?? [];
+          return {
+            messagesByChatId: {
+              ...s.messagesByChatId,
+              [chatId]: [...prev, msg],
+            },
+          };
+        }),
+      updateMessageIn: (chatId, msgId, patch) =>
+        set((s) => {
+          const prev = s.messagesByChatId[chatId] ?? [];
+          return {
+            messagesByChatId: {
+              ...s.messagesByChatId,
+              [chatId]: prev.map((m) => (m.id === msgId ? { ...m, ...patch } : m)),
+            },
+          };
+        }),
+      clearChatMessages: (chatId) =>
+        set((s) => {
+          const next = { ...s.messagesByChatId };
+          delete next[chatId];
+          return { messagesByChatId: next };
+        }),
+      setStreamingChatId: (id) => set({ streamingChatId: id }),
+      setExecutionFor: (chatId, execId) =>
+        set((s) => ({
+          executionIdByChatId: {
+            ...s.executionIdByChatId,
+            [chatId]: execId,
+          },
+        })),
+      clearExecutionFor: (chatId) =>
+        set((s) => {
+          const next = { ...s.executionIdByChatId };
+          delete next[chatId];
+          return { executionIdByChatId: next };
+        }),
+
+      // Theme — persisted. Default to DEFAULT_THEME_ID ("default" = monochrome
+      // dark). Setting a new id tells the ThemeProvider to swap the
+      // `data-theme` attribute on <html>, which cascades the new CSS
+      // variable overrides from globals.css. Invalid ids are silently
+      // coerced back to the default on ThemeProvider mount (see lib/themes.ts).
+      activeTheme: DEFAULT_THEME_ID,
+      setTheme: (id) => set({ activeTheme: id }),
 
       setAuth: (token, username) => set({ token, username }),
       logout: () => set({ token: null, username: null }),
@@ -373,7 +520,7 @@ export const useAxonizStore = create<UiState>()(
         set((s) => ({ llamacpp: { ...s.llamacpp, ...patch } })),
     }),
     {
-      name: "axoniz-store-v7",
+      name: "axoniz-store-v8",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         token: s.token,
@@ -384,8 +531,9 @@ export const useAxonizStore = create<UiState>()(
         providers: s.providers,
         llamacpp: s.llamacpp,
         activeChatId: s.activeChatId,
+        activeTheme: s.activeTheme,
       }),
-      version: 7,
+      version: 8,
       migrate: () => ({
         token: null,
         username: null,
@@ -396,6 +544,7 @@ export const useAxonizStore = create<UiState>()(
         providers: DEFAULT_PROVIDERS,
         llamacpp: DEFAULT_LLAMACPP,
         modelPickerOpen: false,
+        activeTheme: DEFAULT_THEME_ID,
       }),
     },
   ),

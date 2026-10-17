@@ -107,34 +107,134 @@
   --sidebar-ring: oklch(1 0 0 / 0.3);
 }
 
-.dark {
-  /* Identical — explicit so theme toggle works */
-  --background: oklch(0.115 0 0);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.165 0 0);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.18 0 0);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.98 0 0);
-  --primary-foreground: oklch(0.12 0 0);
-  --secondary: oklch(0.21 0 0);
-  --secondary-foreground: oklch(0.94 0 0);
-  --muted: oklch(0.19 0 0);
-  --muted-foreground: oklch(0.58 0 0);
-  --accent: oklch(0.7 0.18 145);
-  --accent-foreground: oklch(0.12 0.02 145);
-  --destructive: oklch(0.62 0.22 16);
-  --border: oklch(1 0 0 / 0.08);
-  --input: oklch(1 0 0 / 0.04);
-  --ring: oklch(1 0 0 / 0.4);
-  --sidebar: oklch(0.135 0 0);
-  --sidebar-foreground: oklch(0.92 0 0);
-  --sidebar-primary: oklch(0.98 0 0);
-  --sidebar-primary-foreground: oklch(0.12 0 0);
-  --sidebar-accent: oklch(0.21 0 0);
-  --sidebar-accent-foreground: oklch(0.96 0 0);
-  --sidebar-border: oklch(1 0 0 / 0.06);
-  --sidebar-ring: oklch(1 0 0 / 0.3);
+/* The `.dark { ... }` block that was here duplicated every variable from
+   :root with the same values. It caused a real bug: when a theme was
+   applied via <html data-theme="...">, the html element picked up the
+   theme's --background override, but the BODY element (which has
+   class="dark" from the ThemeProvider) had --background re-set to the
+   :root default value by this .dark rule — overriding the inheritance
+   from html. That made the theme appear to "not apply" to the body
+   even though the CSS variables were correctly overridden at the html
+   level.
+   Fix: removed the .dark block entirely. The :root values ARE the dark
+   mode values (AXONIZ is dark-only for now), so there's no need to
+   re-declare them under .dark. The class="dark" on <html> (added by
+   ThemeProvider) still works for shadcn's dark: variants — that's a
+   Tailwind utility concern, not a CSS-variable concern. */
+
+/* ============================================================
+   THEME: shadow-monarch
+   Sung Jin-woo's shadow monarch energy — deep void-purple-black
+   + glowing monarch violet accent. Activated by setting
+   <html data-theme="shadow-monarch">. See ThemeProvider.
+   All variables are overridden from :root — the rest of the
+   Tailwind utility classes (bg-background, text-foreground,
+   border-border, etc.) automatically pick up the new values.
+   ============================================================ */
+[data-theme="shadow-monarch"] {
+  --radius: 0.5rem;
+
+  /* Canvas — void-purple-black, deep violet undertone */
+  --background: oklch(0.045 0.025 280);
+  --foreground: oklch(0.89 0.035 280);
+
+  /* Surfaces — raised shadow panels, all tinted with the same violet hue */
+  --card: oklch(0.085 0.035 280);
+  --card-foreground: oklch(0.89 0.035 280);
+  --popover: oklch(0.115 0.045 280);
+  --popover-foreground: oklch(0.89 0.035 280);
+
+  /* Primary — monarch violet. Used only on truly primary actions. */
+  --primary: oklch(0.62 0.27 295);
+  --primary-foreground: oklch(0.045 0.025 280);
+
+  /* Secondary — neutral elevated surface, same violet tint */
+  --secondary: oklch(0.115 0.045 280);
+  --secondary-foreground: oklch(0.86 0.04 280);
+
+  /* Muted — low-emphasis surfaces + text */
+  --muted: oklch(0.07 0.04 280);
+  --muted-foreground: oklch(0.58 0.05 285);
+
+  /* Accent — monarch bright (slightly brighter than primary, used
+     for highlights / live indicators / focus rings). */
+  --accent: oklch(0.74 0.20 295);
+  --accent-foreground: oklch(0.045 0.025 280);
+
+  /* Destructive — crimson, like the blood of a magic beast */
+  --destructive: oklch(0.50 0.22 15);
+
+  /* Borders — crisp 1px violet hairlines, 3 tiers of opacity */
+  --border: oklch(0.74 0.20 295 / 0.10);   /* resting */
+  --input: oklch(0.74 0.20 295 / 0.06);    /* input backgrounds (darker than card) */
+  --ring: oklch(0.74 0.20 295 / 0.35);     /* focus ring */
+
+  /* Charts — kept violet-only to stay on-palette */
+  --chart-1: oklch(0.89 0.035 280);
+  --chart-2: oklch(0.62 0.27 295);
+  --chart-3: oklch(0.74 0.20 295);
+  --chart-4: oklch(0.45 0.10 285);
+  --chart-5: oklch(0.74 0.15 290);
+
+  /* Sidebar */
+  --sidebar: oklch(0.05 0.025 280);
+  --sidebar-foreground: oklch(0.86 0.04 280);
+  --sidebar-primary: oklch(0.62 0.27 295);
+  --sidebar-primary-foreground: oklch(0.045 0.025 280);
+  --sidebar-accent: oklch(0.115 0.045 280);
+  --sidebar-accent-foreground: oklch(0.89 0.035 280);
+  --sidebar-border: oklch(0.74 0.20 295 / 0.08);
+  --sidebar-ring: oklch(0.74 0.20 295 / 0.25);
+}
+
+/* The previous `.dark { ... }` block here duplicated every variable from
+   :root with the same values. It was causing a real bug: when a theme was
+   applied via <html data-theme="...">, the html element correctly picked
+   up the theme's --background override, but the BODY element (which has
+   class="dark") had --background re-set to the :root default value by this
+   .dark rule — overriding the inheritance from html. That made the theme
+   appear to "not apply" to the body even though the CSS variables were
+   correctly overridden at the html level.
+   Fix: removed the .dark block entirely. The :root values ARE the dark
+   mode values (AXONIZ is dark-only for now), so there's no need to
+   re-declare them under .dark. The class="dark" on <html> (added by
+   ThemeProvider) still works for shadcn's dark: variants — that's a
+   Tailwind utility concern, not a CSS-variable concern. */
+
+/* Same overrides under .dark too — so dark mode toggle still works.
+   NOTE: with the .dark block above removed, this is the ONLY place that
+   theme overrides are applied. The selector .dark[data-theme="..."] has
+   specificity (0,2,0) which beats :root (0,1,0). It matches <html> which
+   has class="dark" + data-theme="..." (set by ThemeProvider). The body
+   element (which has class="dark" but NO data-theme) does NOT match this
+   selector, so it inherits --background from html — which is what we want. */
+.dark[data-theme="shadow-monarch"] {
+  --background: oklch(0.045 0.025 280);
+  --foreground: oklch(0.89 0.035 280);
+  --card: oklch(0.085 0.035 280);
+  --card-foreground: oklch(0.89 0.035 280);
+  --popover: oklch(0.115 0.045 280);
+  --popover-foreground: oklch(0.89 0.035 280);
+  --primary: oklch(0.62 0.27 295);
+  --primary-foreground: oklch(0.045 0.025 280);
+  --secondary: oklch(0.115 0.045 280);
+  --secondary-foreground: oklch(0.86 0.04 280);
+  --muted: oklch(0.07 0.04 280);
+  --muted-foreground: oklch(0.58 0.05 285);
+  --accent: oklch(0.74 0.20 295);
+  --accent-foreground: oklch(0.045 0.025 280);
+  --destructive: oklch(0.50 0.22 15);
+  --border: oklch(0.74 0.20 295 / 0.10);
+  --input: oklch(0.74 0.20 295 / 0.06);
+  --ring: oklch(0.74 0.20 295 / 0.35);
+  --sidebar: oklch(0.05 0.025 280);
+  --sidebar-foreground: oklch(0.86 0.04 280);
+  --sidebar-primary: oklch(0.62 0.27 295);
+  --sidebar-primary-foreground: oklch(0.045 0.025 280);
+  --sidebar-accent: oklch(0.115 0.045 280);
+  --sidebar-accent-foreground: oklch(0.89 0.035 280);
+  --sidebar-border: oklch(0.74 0.20 295 / 0.08);
+  --sidebar-ring: oklch(0.74 0.20 295 / 0.25);
 }
 
 @layer base {

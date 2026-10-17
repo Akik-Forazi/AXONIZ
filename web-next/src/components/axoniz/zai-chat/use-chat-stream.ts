@@ -1,46 +1,42 @@
 "use client";
+
 /**
- * useChatStream — durable chat hook backed by the execution system.
+ * useChatStream — chat hook backed by the global ChatStreamProvider.
  *
- * Architecture:
+ * Architecture (after refactor):
  *   send(content)
  *     → POST /api/axoniz/chat { message, session_id, mode }
  *     → Returns { execution_id }
- *     → Connect EventSource to /api/axoniz/executions/[id]/stream?since=0
- *
- *   On events:
- *     token → append to messages
- *     thinking → show status indicator
- *     state_change → update isStreaming
- *     done → mark complete
- *     error → show error
+ *     → store.setExecutionFor(chatId, execId)
+ *     → ChatStreamProvider (in layout) sees the new execId, opens
+ *       EventSource, pushes events into store.messagesByChatId[chatId]
  *
  *   On mount (with chatId):
- *     → Load messages from JSONL via GET /api/axoniz/chats/[id]/events
- *     → Check if there's an active execution for this session
- *     → If so, reconnect to the SSE stream (no new generation)
- *     → If completed, show the persisted output
+ *     → Load messages from JSONL → store.setMessagesFor(chatId, msgs)
+ *     → (Reconnection to an in-flight execution is automatic: if the
+ *        user previously sent a message and executionIdByChatId[chatId]
+ *        is still set in the store, the provider is already streaming
+ *        into messagesByChatId[chatId].)
  *
- *   Browser disconnect:
- *     → Execution continues on the backend (SQLite-persisted)
- *     → On reconnect, GET /api/axoniz/executions/[id]/events?since=N
- *       returns all missed events
- *     → No duplicate generation
+ *   Browser navigation:
+ *     → React unmounts ChatSection, but EventSource lives in the
+ *       layout-level provider → tokens keep flowing into the store
+ *       → user returns to /chat/s/<id> and sees the in-progress
+ *       assistant message immediately, no reload needed.
  *
- * Returns: { messages, isStreaming, send, stop, regenerate, clear, setMessages }
+ *   Hard refresh:
+ *     → store is wiped, but executionIdByChatId can be re-derived by
+ *       calling /api/axoniz/chats/[id]/active-execution (TODO — backend
+ *       may not expose this yet). For now, JSONL persistence covers
+ *       the common case: messages load from disk, user can resend.
+ *
+ * Returns: { messages, isStreaming, send, stop, regenerate, clear }
  */
-import { useState, useRef, useCallback, useEffect } from "react";
-import { useAxonizStore } from "@/stores/axoniz-store";
-import { authedFetch, authedUrl } from "@/lib/axoniz/client";
+import { useEffect, useCallback } from "react";
+import { useAxonizStore, type ChatMessageStore } from "@/stores/axoniz-store";
+import { authedFetch } from "@/lib/axoniz/client";
 
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: number;
-  pending?: boolean;
-  error?: boolean;
-}
+export interface ChatMessage extends ChatMessageStore {}
 
 export interface UseChatStreamReturn {
   messages: ChatMessage[];
@@ -55,305 +51,207 @@ export interface UseChatStreamReturn {
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 export function useChatStream(chatId: string | null): UseChatStreamReturn {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
-  const chatIdRef = useRef<string | null>(null);
-  const executionIdRef = useRef<string | null>(null);
-  const lastSeqRef = useRef<number>(0);
-  const esRef = useRef<EventSource | null>(null);
+  // Read live from the store — these update as the ChatStreamProvider
+  // receives SSE events, even when this hook isn't actively mounted
+  // on a chat page (e.g. user is on /system).
+  const messages = useAxonizStore((s) =>
+    chatId ? (s.messagesByChatId[chatId] ?? []) : []
+  );
+  const isStreaming = useAxonizStore((s) =>
+    chatId ? s.streamingChatId === chatId : false
+  );
 
-  const {
-    activeProvider,
-    activeModel,
-    providers,
-    llamacpp,
-    setDataSource,
-    username,
-  } = useAxonizStore();
+  const setMessagesFor = useAxonizStore((s) => s.setMessagesFor);
+  const appendMessageTo = useAxonizStore((s) => s.appendMessageTo);
+  const updateMessageIn = useAxonizStore((s) => s.updateMessageIn);
+  const clearChatMessages = useAxonizStore((s) => s.clearChatMessages);
+  const setStreamingChatId = useAxonizStore((s) => s.setStreamingChatId);
+  const setExecutionFor = useAxonizStore((s) => s.setExecutionFor);
+  const clearExecutionFor = useAxonizStore((s) => s.clearExecutionFor);
 
-  // Load messages from JSONL when chatId changes.
-  // Also check if there's an active execution to reconnect to.
+  // Load persisted messages from JSONL when chatId changes.
+  // Skips if we already have messages in the store for this chatId
+  // (e.g. user navigated away and came back — store still has them).
   useEffect(() => {
-    chatIdRef.current = chatId;
-    if (!chatId) {
-      setMessages([]);
-      return;
-    }
-    // Load persisted messages from JSONL.
+    if (!chatId) return;
+    const existing = useAxonizStore.getState().messagesByChatId[chatId];
+    if (existing && existing.length > 0) return; // already in store
     authedFetch(`/api/axoniz/chats/${chatId}/events`)
-      .then(r => r.ok ? r.json() : null)
+      .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data?.messages) { setMessages([]); return; }
-        const msgs: ChatMessage[] = data.messages.map((m: { id: string; role: string; content: string; timestamp: number; error?: boolean }) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant" | "system",
-          content: m.content,
-          timestamp: m.timestamp,
-          error: m.error,
-        }));
-        setMessages(msgs);
-        // Check if the last message is still pending (assistant streaming was interrupted)
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg && lastMsg.role === "assistant" && lastMsg.pending) {
-          // The generation was interrupted — show it as an error/stopped
-          setMessages(prev => prev.map(m =>
-            m.id === lastMsg.id ? { ...m, pending: false, content: m.content || "(interrupted)" } : m
-          ));
+        if (!data?.messages) {
+          setMessagesFor(chatId, []);
+          return;
         }
+        const msgs: ChatMessageStore[] = data.messages.map(
+          (m: { id: string; role: string; content: string; timestamp: number; error?: boolean; pending?: boolean }) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant" | "system",
+            content: m.content,
+            timestamp: m.timestamp,
+            error: m.error,
+            pending: m.pending,
+          }),
+        );
+        // If the last assistant message is still pending, the stream
+        // was interrupted — mark as stopped so the user can retry.
+        const last = msgs[msgs.length - 1];
+        if (last && last.role === "assistant" && last.pending) {
+          msgs[msgs.length - 1] = {
+            ...last,
+            pending: false,
+            content: last.content || "(interrupted)",
+          };
+        }
+        setMessagesFor(chatId, msgs);
       })
-      .catch(() => setMessages([]));
-  }, [chatId]);
-
-  /** Connect to the execution's SSE stream. */
-  const connectStream = useCallback((executionId: string, sinceSeq: number) => {
-    // Close any existing connection.
-    if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
-    }
-    executionIdRef.current = executionId;
-    lastSeqRef.current = sinceSeq;
-
-    const es = new EventSource(authedUrl(`/api/axoniz/executions/${executionId}/stream?since=${sinceSeq}`));
-    esRef.current = es;
-
-    es.addEventListener("status", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.state === "completed" || data.state === "failed" || data.state === "cancelled") {
-          setIsStreaming(false);
-          // If there's output, show it as the final assistant message
-          if (data.output) {
-            setMessages(prev => {
-              const last = prev[prev.length - 1];
-              if (last && last.role === "assistant" && last.pending) {
-                return prev.map(m => m.id === last.id ? { ...m, content: data.output, pending: false } : m);
-              }
-              return prev;
-            });
-          }
-          es.close();
-        }
-      } catch { /* ignore */ }
-    });
-
-    es.addEventListener("token", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.value) {
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === "assistant" && last.pending) {
-              // Append to existing pending assistant message
-              return prev.map(m => m.id === last.id ? { ...m, content: m.content + data.value, pending: false } : m);
-            }
-            // Create new assistant message
-            return [...prev, {
-              id: `asst-${Date.now()}`,
-              role: "assistant" as const,
-              content: data.value,
-              timestamp: Date.now(),
-              pending: false,
-            }];
-          });
-        }
-      } catch { /* ignore */ }
-    });
-
-    es.addEventListener("thinking", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === "assistant" && (last.pending || !last.content)) {
-            return prev.map(m => m.id === last.id ? { ...m, content: `⏳ ${data.value}`, pending: true } : m);
-          }
-          return prev;
-        });
-      } catch { /* ignore */ }
-    });
-
-    es.addEventListener("state_change", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.state === "running") setIsStreaming(true);
-        if (["completed", "failed", "cancelled"].includes(data.state)) {
-          setIsStreaming(false);
-          es.close();
-        }
-      } catch { /* ignore */ }
-    });
-
-    es.addEventListener("error", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        const errorText = data.error || "Unknown error";
-        setMessages(prev => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === "assistant" && last.pending) {
-            return prev.map(m => m.id === last.id ? { ...m, content: `⚠ ${errorText}`, pending: false, error: true } : m);
-          }
-          return [...prev, {
-            id: `err-${Date.now()}`,
-            role: "assistant" as const,
-            content: `⚠ ${errorText}`,
-            timestamp: Date.now(),
-            error: true,
-          }];
-        });
-        setIsStreaming(false);
-      } catch { /* ignore */ }
-    });
-
-    es.addEventListener("done", (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        setIsStreaming(false);
-        // If the execution has a final output, ensure it's shown
-        if (data.state === "completed") {
-          setMessages(prev => prev.map(m =>
-            m.pending ? { ...m, pending: false } : m
-          ));
-        }
-      } catch { /* ignore */ }
-      es.close();
-    });
-
-    es.onerror = () => {
-      // EventSource auto-reconnects. Don't set isStreaming=false here.
-    };
-  }, []);
+      .catch(() => setMessagesFor(chatId, []));
+  }, [chatId, setMessagesFor]);
 
   /** Save an event to the JSONL file (fire-and-forget). */
-  const saveEvent = useCallback((event: { type: string; role?: string; content: string; ts: number }) => {
-    const cid = chatIdRef.current;
-    if (!cid) return;
-    authedFetch(`/api/axoniz/chats/${cid}/events`, {
-      method: "POST",
-      body: JSON.stringify(event),
-      keepalive: true,
-    }).catch(() => { /* offline */ });
-  }, []);
+  const saveEvent = useCallback(
+    (event: { type: string; role?: string; content: string; ts: number }) => {
+      if (!chatId) return;
+      authedFetch(`/api/axoniz/chats/${chatId}/events`, {
+        method: "POST",
+        body: JSON.stringify(event),
+        keepalive: true,
+      }).catch(() => { /* offline */ });
+    },
+    [chatId],
+  );
 
-  const send = useCallback((content: string) => {
-    if (!content.trim() || isStreaming) return;
-    const cid = chatIdRef.current;
-    if (!cid) return;
+  const send = useCallback(
+    (content: string) => {
+      if (!content.trim() || !chatId) return;
+      if (useAxonizStore.getState().streamingChatId === chatId) return;
 
-    const userMsg: ChatMessage = {
-      id: uid(),
-      role: "user",
-      content: content.trim(),
-      timestamp: Date.now(),
-    };
-    const assistantId = uid();
-    const assistantMsg: ChatMessage = {
-      id: assistantId,
-      role: "assistant",
-      content: "",
-      timestamp: Date.now(),
-      pending: true,
-    };
-    setMessages(prev => [...prev, userMsg, assistantMsg]);
-    setIsStreaming(true);
+      const userMsg: ChatMessageStore = {
+        id: uid(),
+        role: "user",
+        content: content.trim(),
+        timestamp: Date.now(),
+      };
+      const assistantId = uid();
+      const assistantMsg: ChatMessageStore = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        timestamp: Date.now(),
+        pending: true,
+      };
+      appendMessageTo(chatId, userMsg);
+      appendMessageTo(chatId, assistantMsg);
+      setStreamingChatId(chatId);
 
-    // Save user message to JSONL.
-    saveEvent({ type: "message", role: "user", content: content.trim(), ts: Date.now() });
+      // Save user message to JSONL.
+      saveEvent({ type: "message", role: "user", content: content.trim(), ts: Date.now() });
 
-    // Generate idempotency key — unique per logical submission.
-    // Reused for network retries of the SAME message. New key for
-    // a different message or explicit regeneration.
-    const idempotencyKey = `chat-${cid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const idempotencyKey = `chat-${chatId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const authToken = useAxonizStore.getState().token;
 
-    // Get the auth token from the store
-    const authToken = useAxonizStore.getState().token;
-
-    // Submit durable execution — the backend persists it and starts
-    // generation in the background. We get an execution_id back.
-    authedFetch("/api/axoniz/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken ? { "Authorization": `Bearer ${authToken}` } : {}),
-      },
-      body: JSON.stringify({
-        message: content,
-        session_id: cid,
-        mode: "chat",
-        idempotency_key: idempotencyKey,
-      }),
-    })
-      .then(r => r.json())
-      .then((data: { execution_id?: string; error?: string }) => {
-        if (data.error) {
-          setMessages(prev => prev.map(m =>
-            m.id === assistantId ? { ...m, content: `⚠ ${data.error}`, pending: false, error: true } : m
-          ));
-          setIsStreaming(false);
-          return;
-        }
-        if (!data.execution_id) {
-          setMessages(prev => prev.map(m =>
-            m.id === assistantId ? { ...m, content: "⚠ No execution_id returned", pending: false, error: true } : m
-          ));
-          setIsStreaming(false);
-          return;
-        }
-        // Connect to the execution's SSE stream — events come from
-        // the durable journal, not directly from the LLM.
-        connectStream(data.execution_id, 0);
+      // Submit durable execution — the backend persists it and starts
+      // generation in the background. We get an execution_id back.
+      authedFetch("/api/axoniz/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          message: content,
+          session_id: chatId,
+          mode: "chat",
+          idempotency_key: idempotencyKey,
+        }),
       })
-      .catch((err) => {
-        setMessages(prev => prev.map(m =>
-          m.id === assistantId ? { ...m, content: `⚠ ${err.message}`, pending: false, error: true } : m
-        ));
-        setIsStreaming(false);
-      });
-  }, [isStreaming, username, connectStream, saveEvent]);
+        .then((r) => r.json())
+        .then((data: { execution_id?: string; error?: string }) => {
+          if (data.error) {
+            updateMessageIn(chatId, assistantId, {
+              content: `⚠ ${data.error}`,
+              pending: false,
+              error: true,
+            });
+            setStreamingChatId(null);
+            return;
+          }
+          if (!data.execution_id) {
+            updateMessageIn(chatId, assistantId, {
+              content: "⚠ No execution_id returned",
+              pending: false,
+              error: true,
+            });
+            setStreamingChatId(null);
+            return;
+          }
+          // ChatStreamProvider (in the auth layout) sees this and
+          // opens an EventSource for the execution. Tokens then flow
+          // into store.messagesByChatId[chatId] — even if the user
+          // navigates away from /chat/s/<id>.
+          setExecutionFor(chatId, data.execution_id);
+        })
+        .catch((err) => {
+          updateMessageIn(chatId, assistantId, {
+            content: `⚠ ${err.message}`,
+            pending: false,
+            error: true,
+          });
+          setStreamingChatId(null);
+        });
+    },
+    [chatId, appendMessageTo, updateMessageIn, setStreamingChatId, setExecutionFor, saveEvent],
+  );
 
   const stop = useCallback(() => {
-    const execId = executionIdRef.current;
+    if (!chatId) return;
+    const execId = useAxonizStore.getState().executionIdByChatId[chatId];
     if (execId) {
-      // Request cancellation on the backend — this targets the actual
-      // execution, not just the SSE stream.
-      authedFetch(`/api/axoniz/executions/${execId}/cancel`, { method: "POST" })
-        .catch(() => { /* ignore */ });
+      authedFetch(`/api/axoniz/executions/${execId}/cancel`, { method: "POST" }).catch(() => { /* ignore */ });
     }
-    if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
+    clearExecutionFor(chatId);
+    setStreamingChatId(null);
+    // Mark the pending assistant message as stopped.
+    const msgs = useAxonizStore.getState().messagesByChatId[chatId] ?? [];
+    for (const m of msgs) {
+      if (m.pending) {
+        updateMessageIn(chatId, m.id, {
+          pending: false,
+          content: m.content || "(stopped)",
+        });
+      }
     }
-    setIsStreaming(false);
-  }, []);
+  }, [chatId, clearExecutionFor, setStreamingChatId, updateMessageIn]);
 
   const regenerate = useCallback(() => {
-    setMessages(prev => {
-      const lastUser = [...prev].reverse().find(m => m.role === "user");
-      if (lastUser) {
-        const filtered = prev.slice(0, prev.lastIndexOf(lastUser));
-        setMessages(filtered);
-        setTimeout(() => send(lastUser.content), 0);
-      }
-      return prev;
-    });
-  }, [send]);
+    if (!chatId) return;
+    const msgs = useAxonizStore.getState().messagesByChatId[chatId] ?? [];
+    const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+    if (!lastUser) return;
+    // Truncate to just before the last user message, then resend.
+    const idx = msgs.lastIndexOf(lastUser);
+    setMessagesFor(chatId, msgs.slice(0, idx));
+    setTimeout(() => send(lastUser.content), 0);
+  }, [chatId, setMessagesFor, send]);
 
   const clear = useCallback(() => {
-    setMessages([]);
-    if (esRef.current) { esRef.current.close(); esRef.current = null; }
-  }, []);
+    if (!chatId) return;
+    clearExecutionFor(chatId);
+    clearChatMessages(chatId);
+    setStreamingChatId(null);
+  }, [chatId, clearExecutionFor, clearChatMessages, setStreamingChatId]);
 
-  // Cleanup on unmount — close SSE but DON'T cancel the execution.
-  // The execution continues on the backend.
-  useEffect(() => {
-    return () => {
-      if (esRef.current) {
-        esRef.current.close();
-        esRef.current = null;
-      }
-    };
-  }, []);
+  // setMessages is kept for backwards-compat (the existing ChatSection
+  // uses it for some local mutations). Translates an updater into a
+  // store write so the data flow stays unified.
+  const setMessages = useCallback(
+    (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+      if (!chatId) return;
+      const prev = useAxonizStore.getState().messagesByChatId[chatId] ?? [];
+      setMessagesFor(chatId, updater(prev));
+    },
+    [chatId, setMessagesFor],
+  );
 
   return { messages, isStreaming, send, stop, regenerate, clear, setMessages };
 }
