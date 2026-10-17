@@ -50,12 +50,22 @@ export interface UseChatStreamReturn {
 
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+// STABLE empty array — used as the fallback when chatId is null or when
+// messagesByChatId[chatId] doesn't exist yet. Without this, the selector
+// would return a NEW `[]` on every call, which Zustand sees as a state
+// change (different reference) → triggers a re-render → selector runs
+// again → another new `[]` → infinite loop → "Maximum update depth
+// exceeded". This is a classic Zustand gotcha with selectors that return
+// arrays/objects. The fix is to return the SAME reference every time
+// when there's no real data.
+const EMPTY_MESSAGES: ChatMessageStore[] = [];
+
 export function useChatStream(chatId: string | null): UseChatStreamReturn {
   // Read live from the store — these update as the ChatStreamProvider
   // receives SSE events, even when this hook isn't actively mounted
   // on a chat page (e.g. user is on /system).
   const messages = useAxonizStore((s) =>
-    chatId ? (s.messagesByChatId[chatId] ?? []) : []
+    chatId ? (s.messagesByChatId[chatId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES
   );
   const isStreaming = useAxonizStore((s) =>
     chatId ? s.streamingChatId === chatId : false
