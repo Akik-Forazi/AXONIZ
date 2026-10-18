@@ -63,7 +63,28 @@ export function ProvidersListPage() {
               cfg={providers[meta.id] ?? { enabled: false, baseUrl: meta.defaultBaseUrl, apiKey: "", model: meta.popularModels[0] ?? "" }}
               isActive={activeProvider === meta.id}
               test={tests[meta.id]}
-              onActivate={() => setActiveProvider(meta.id)}
+              onActivate={async () => {
+                setActiveProvider(meta.id);
+                try {
+                  const r = await fetch("/api/axoniz/v2/provider/activate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ provider: meta.id }),
+                  });
+                  const data = await r.json();
+                  if (data.ok) {
+                    toast.success("Provider activated", {
+                      description: data.localModelKilled
+                        ? `${meta.name} — local model killed, daemon disabled`
+                        : `${meta.name} — config written`,
+                    });
+                  } else {
+                    toast.error("Activation failed", { description: data.error });
+                  }
+                } catch (e) {
+                  toast.error("Activation failed", { description: e instanceof Error ? e.message : String(e) });
+                }
+              }}
               onTest={() => quickTest(meta.id)}
             />
           ))}
@@ -78,7 +99,28 @@ export function ProvidersListPage() {
               cfg={providers[meta.id] ?? { enabled: false, baseUrl: meta.defaultBaseUrl, apiKey: "", model: meta.popularModels[0] ?? "" }}
               isActive={activeProvider === meta.id}
               test={tests[meta.id]}
-              onActivate={() => setActiveProvider(meta.id)}
+              onActivate={async () => {
+                setActiveProvider(meta.id);
+                try {
+                  const r = await fetch("/api/axoniz/v2/provider/activate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ provider: meta.id }),
+                  });
+                  const data = await r.json();
+                  if (data.ok) {
+                    toast.success("Provider activated", {
+                      description: data.localModelKilled
+                        ? `${meta.name} — local model killed, daemon disabled`
+                        : `${meta.name} — config written`,
+                    });
+                  } else {
+                    toast.error("Activation failed", { description: data.error });
+                  }
+                } catch (e) {
+                  toast.error("Activation failed", { description: e instanceof Error ? e.message : String(e) });
+                }
+              }}
               onTest={() => quickTest(meta.id)}
             />
           ))}

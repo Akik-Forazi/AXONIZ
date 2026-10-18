@@ -285,6 +285,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
     }
   }
+
+  // Provider activation — switches active provider, kills local model, disables daemon
+  if (p === "/provider/activate") {
+    try {
+      const body = await req.json();
+      const providerId = String(body.provider ?? "");
+      if (!providerId) return NextResponse.json({ error: "provider required" }, { status: 400 });
+
+      // 1. Update config file
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const os = await import("node:os");
+      const configPath = path.join(os.homedir(), ".axoniz", "config.json");
+      let config: Record<string, unknown> = {};
+      try { config = JSON.parse(fs.readFileSync(configPath, "utf-8")); } catch {}
+      if (!config.llm) config.llm = {};
+      (config.llm as Record<string, unknown>).active_provider = providerId;
+      // 2. Disable daemon + awareness when switching to cloud (stop local model usage)
+      const isCloud = ["orca", "openrouter", "openai", "anthropic", "gemini", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity"].includes(providerId);
+      if (isCloud) {
+        config.daemon = { ...(config.daemon as Record<string, unknown> ?? {}), enabled: false };
+        config.awareness = { enabled: false };
+      }
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+      // 3. Kill local llama.cpp process (stop the local model)
+      const { exec } = await import("node:child_process");
+      const killCmd = process.platform === "win32"
+        ? 'taskkill /f /im llama-server.exe 2>nul & taskkill /f /im llama-cli.exe 2>nul & taskkill /f /im main.exe 2>nul'
+        : 'pkill -f "llama.*server" 2>/dev/null; pkill -f "llama-cli" 2>/dev/null; true';
+      exec(killCmd, (err) => {
+        if (err) console.log("[provider/activate] local model kill result:", err.message);
+        else console.log("[provider/activate] local model killed");
+      });
+
+      // 4. Write a reload signal for the daemon
+      const signalPath = path.join(os.homedir(), ".axoniz", "db", "daemon-signal.json");
+      try { fs.mkdirSync(path.dirname(signalPath), { recursive: true }); } catch {}
+      fs.writeFileSync(signalPath, JSON.stringify({ action: "reload", provider: providerId, ts: Date.now() }), "utf-8");
+
+      return NextResponse.json({
+        ok: true,
+        provider: providerId,
+        configWritten: true,
+        localModelKilled: isCloud,
+        daemonDisabled: isCloud,
+        message: isCloud
+          ? "Provider activated. Config written. Local model killed. Daemon disabled."
+          : "Provider activated. Config written."
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    }
+  }
+
   return NextResponse.json({ error: `unknown v2 POST path: ${p}` }, { status: 404 });
 }
 
