@@ -14,12 +14,70 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { info, warn } from "../core/debug.js";
+import { info, warn, error as logError } from "../core/debug.js";
 import { resolveCommand } from "../tools/_internal.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");
 export const WEB_DIR = path.join(REPO_ROOT, "web");
+/** Compiled CLI lives at <repo>/dist/. The web UI dynamically imports from here
+ * via cli-bridge.ts (eval('require') escapes Turbopack's static analysis).
+ * Without dist/, the web still launches but EVERY agent/chat/swarm API route
+ * silently falls back to a direct HTTP proxy — no tools, no memory, no palace,
+ * no swarm, no axodex. The user thinks the agent is "working" but it's just
+ * a dumb text stream. Refusing to start is safer than silent degradation.
+ */
+export const DIST_DIR = path.join(REPO_ROOT, "dist");
+
+/**
+ * Verify that the compiled CLI exists at <repo>/dist/. The web UI's
+ * cli-bridge.ts loads core/agent.js, core/config.js, and many other modules
+ * from this directory at request time. If dist/ is missing or stale, the web
+ * runs in a degraded "no-agent" mode — every API route silently falls back
+ * to a direct HTTP proxy that has no tools, no memory, no swarm.
+ *
+ * Returns { ok, missing, stale }:
+ *   - ok: true if dist/ exists and contains the key files
+ *   - missing: list of expected files that are absent
+ *   - stale: true if dist/ is older than src/ (needs rebuild)
+ */
+export function checkCliAvailable(): { ok: boolean; missing: string[]; stale: boolean; message: string } {
+  const required = ["core/agent.js", "core/config.js", "core/cli.js", "index.js"];
+  const missing: string[] = [];
+  for (const rel of required) {
+    if (!fs.existsSync(path.join(DIST_DIR, rel))) missing.push(rel);
+  }
+
+  let stale = false;
+  if (missing.length === 0) {
+    // Check freshness: compare mtime of dist/index.js vs src/index.ts.
+    try {
+      const distMtime = fs.statSync(path.join(DIST_DIR, "index.js")).mtimeMs;
+      const srcMtime = fs.statSync(path.join(REPO_ROOT, "src", "index.ts")).mtimeMs;
+      if (srcMtime > distMtime) stale = true;
+    } catch {
+      /* best-effort freshness check */
+    }
+  }
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      missing,
+      stale: false,
+      message: `CLI not built. dist/ is missing: ${missing.join(", ")}. Run "npm run build" in the project root, then "axoniz --web".`,
+    };
+  }
+  if (stale) {
+    return {
+      ok: true,
+      missing: [],
+      stale: true,
+      message: `dist/ is older than src/ — CLI may be stale. Run "npm run build" in the project root to rebuild.`,
+    };
+  }
+  return { ok: true, missing: [], stale: false, message: "CLI available" };
+}
 
 const DEFAULT_PORT = 7860;
 const READY_TIMEOUT_MS = 60_000;
@@ -38,6 +96,28 @@ export async function spawnWebOnPort(port: number = DEFAULT_PORT): Promise<Spawn
 
   if (child && !child.killed) {
     return { url: devUrl, port, child };
+  }
+
+  // ── CLI availability gate ──────────────────────────────────────────
+  // The web UI dynamically imports from <repo>/dist/ via cli-bridge.ts.
+  // If dist/ is missing, every agent/chat/swarm API route silently falls
+  // back to a direct HTTP proxy that has no tools, no memory, no swarm.
+  // Refusing to start here is safer than silent degradation — the user
+  // gets an actionable error instead of a "working" but lobotomized UI.
+  const cliCheck = checkCliAvailable();
+  if (!cliCheck.ok) {
+    logError(`[Web] refusing to start: ${cliCheck.message}`);
+    console.log(`\n  \u001b[91m[!] Web UI cannot start\u001b[0m`);
+    console.log(`  \u001b[90m${cliCheck.message}\u001b[0m`);
+    console.log(`  \u001b[90mWeb requires the compiled CLI at dist/ to provide\u001b[0m`);
+    console.log(`  \u001b[90mtools, memory, palace, swarm, and axodex capabilities.\u001b[0m`);
+    console.log(`  \u001b[90mWithout dist/, the UI would silently degrade to a dumb\u001b[0m`);
+    console.log(`  \u001b[90mtext stream with no agent features.\u001b[0m\n`);
+    return null;
+  }
+  if (cliCheck.stale) {
+    warn(`[Web] ${cliCheck.message}`);
+    console.log(`  \u001b[93m[!] ${cliCheck.message}\u001b[0m`);
   }
 
   if (!fs.existsSync(WEB_DIR)) {

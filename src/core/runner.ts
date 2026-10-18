@@ -656,15 +656,16 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   // ── Build agent ──
   const model = String(ov.model_name ?? cfgAny.model_name ?? "");
   const workspace = String(ov.workspace ?? cfgAny.workspace ?? ".");
-
-  console.log(`\n  ${PURPLE}${B}FRAZIYM AI${R}  ${DG}${AXONIZ_VERSION}${R}`);
   const provStr = String(
     ov.provider ?? cfg.llm?.active_provider ?? cfgAny.backend ?? "llamacpp",
   );
-  console.log(`  ${DG}backend${R}      ${GR}${provStr}${R}`);
-  console.log(`  ${DG}eye${R}          ${GR}axodex graph active${R}`);
-  console.log(`  ${DG}swarm${R}        ${GR}swarm engine ready${R}`);
-  console.log(`  ${DG}workspace${R}    ${GR}${path.resolve(workspace)}${R}\n`);
+
+  // Print the branded banner via the new printBanner in cli.ts (clean ASCII box).
+  // This replaces the old scattered "FRAZIYM AI / backend / eye / swarm / workspace" lines.
+  const { printBanner: printBrandedBanner } = await import("./cli.js");
+  printBrandedBanner(model || "auto", provStr);
+  // Workspace footer line (small, dim)
+  console.log(`  ${DG}workspace${R}  ${GR}${path.resolve(workspace)}${R}\n`);
 
   logger.info(`Building agent | provider=${provStr} | workspace=${workspace}`);
 
@@ -734,8 +735,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       "llamacpp",
   );
   const mdlStr = String(h.model ?? (agent.config as Record<string, unknown>).model_name ?? "auto");
-  const dot = h.status === "ok" ? `${GB}[*]${R}` : `${YL}[!]${R}`;
-  console.log(`  ${dot}  ${DG}${provStr2}${R}  ${DG}/${R}  ${GR}${mdlStr}${R}\n`);
+  const dot = h.status === "ok" ? `${GB}\u25cf${R}` : `${YL}\u25cf${R}`;
+  // Single-line health confirmation — no scattered "FRAZIYM AI" + extra lines.
+  console.log(`  ${dot} ${DG}ready${R} ${DG}\u2014${R} ${BL}${provStr2}${R} ${DG}/${R} ${GR}${mdlStr}${R}\n`);
   logger.logBackendHealth(provStr2, h);
 
   // ── Web-only mode ──
