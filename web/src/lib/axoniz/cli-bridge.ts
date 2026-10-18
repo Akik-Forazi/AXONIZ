@@ -122,8 +122,42 @@ export async function* streamAgentChat(message: string, history?: Array<{ role: 
   const apiKey = providerCfg.api_key;
   const model = providerCfg.model_name ?? providerCfg.model_path ?? "unknown";
 
+  // ── CONTEXT COMPRESSION ──────────────────────────────────────
+  // If the history is too long (over ~4000 tokens), compress it into
+  // a summary + recent messages. This prevents free-tier models
+  // (OrcaRouter GLM 5.3 Flash Free, OpenRouter free) from hitting
+  // their token limit when sessions accumulate 500K tokens.
+  //
+  // The compression is extractive (no extra LLM call) — it takes
+  // the first ~200 chars of each old message and builds a summary.
+  // This is fast, free, and good enough for most use cases.
+  let compressedHistory = history ?? [];
+  let wasCompressed = false;
+  try {
+    const { manageContext } = await import("./context-manager");
+    const managed = await manageContext(
+      (history ?? []).map(h => ({
+        role: h.role as "user" | "assistant" | "system",
+        content: h.content,
+      })),
+      {
+        maxTokens: 4000,     // safe for 8K free-tier models
+        recentCount: 10,     // keep last 10 messages verbatim
+        useLLMSummary: false, // extractive only (no extra LLM call)
+      }
+    );
+    compressedHistory = managed.messages;
+    wasCompressed = managed.wasCompressed;
+    if (wasCompressed) {
+      console.log(`[chat] context compressed: ${history?.length ?? 0} messages → ${compressedHistory.length} (summary + ${10} recent)`);
+    }
+  } catch (e) {
+    // If context-manager fails to load, just use the full history
+    console.warn('[chat] context compression failed, using full history:', e instanceof Error ? e.message : String(e));
+  }
+
   const messages = [
-    ...(history ?? []).map((h) => ({ role: h.role, content: h.content })),
+    ...compressedHistory.map((h) => ({ role: h.role, content: h.content })),
     { role: "user" as const, content: message },
   ];
 
