@@ -99,6 +99,30 @@ const BOX = {
 /* ── Banner ──────────────────────────────────────────────────────────────── */
 
 /**
+ * Print the splash — a big ASCII brand logo (Command-Code style).
+ * One-time on REPL start. The smaller branded box banner is printed
+ * later by printBanner() when we have provider+model info.
+ */
+export function printSplash(): void {
+  // Big ASCII art logo — pixel-art style. Each line is ~32 chars wide.
+  // 4 rows of brand: AXONIZ in chunky block letters.
+  const logo = [
+    "   ___    __    __  ____  _____  _______    _____   __  __    ",
+    "  / __ | / /_  / /_/ / /  / ___// ___/ / / / /   /__// / / /  ",
+    " / / / // __ \\/ __/ / / / / /   / /  / /_/ / / /__  /  / / /   ",
+    "/_/ /_/ /_/ /_/\\__,_/_/\\_,_/ /_/  /______/ /_____/  /____/    ",
+  ];
+  console.log();
+  const w = Math.max(...logo.map(l => l.length));
+  for (const l of logo) {
+    const pad = w - l.length;
+    console.log(`  ${C.PU}${C.B}${l}${" ".repeat(pad)}${C.R}`);
+  }
+  console.log(`  ${C.DG}local-first AI agent${" ".repeat(w - 20)}${C.R}`);
+  console.log();
+}
+
+/**
  * Print the banner — a clean ASCII box with brand + version + model +
  * provider + workspace. One block of output, no scattered lines.
  *
@@ -186,10 +210,11 @@ function inline(text: string): string {
 }
 
 /**
- * Render a response with fenced-code handling.
+ * Render a response with fenced-code + markdown-table handling.
  *
  * Code blocks get a rounded box with the language label in the top border.
- * Prose uses inline markdown rendering (bold / italic / `code`).
+ * Markdown tables (lines starting with `|` + a separator row `|---|---|`)
+ * render as proper box-drawing tables with aligned columns.
  * Bullets use ▸ for top-level and ‣ for nested.
  */
 export function printResponse(text: string, prefix = "  "): void {
@@ -200,9 +225,101 @@ export function printResponse(text: string, prefix = "  "): void {
   let inCode = false;
   let codeBuf: string[] = [];
   let codeLang = "";
+  let tableBuf: string[] = [];
+
+  /** Flush an accumulated markdown table as a proper box-drawing table. */
+  const flushTable = (): void => {
+    if (tableBuf.length < 2) {
+      // Not enough rows — just print as-is
+      for (const l of tableBuf) console.log(`${prefix}${C.GR}${inline(l)}${C.R}`);
+      tableBuf = [];
+      return;
+    }
+
+    // Parse rows into cells
+    const rows: string[][] = [];
+    for (const l of tableBuf) {
+      const cells = l.split("|").map((c) => c.trim()).filter((_, i, arr) => {
+        // Drop empty leading/trailing from outer pipes
+        return !(i === 0 && arr[0] === "") && !(i === arr.length - 1 && arr[arr.length - 1] === "");
+      });
+      rows.push(cells);
+    }
+
+    // Detect the separator row (e.g. "---|---:|:---")
+    let sepIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].every((c) => /^:?-{2,}:?$/.test(c))) {
+        sepIndex = i;
+        break;
+      }
+    }
+    if (sepIndex < 0) {
+      // No separator — render as plain lines
+      for (const l of tableBuf) console.log(`${prefix}${C.GR}${inline(l)}${C.R}`);
+      tableBuf = [];
+      return;
+    }
+
+    const header = rows[0];
+    const dataRows = rows.slice(sepIndex + 1);
+    const colCount = header.length;
+    const colWidths: number[] = [];
+    for (let c = 0; c < colCount; c++) {
+      const all = [header[c], ...dataRows.map((r) => r[c] ?? "")];
+      colWidths[c] = Math.max(...all.map((s) => s.length)) + 1;
+    }
+
+    // Top border
+    let top = `${prefix}${C.DG}╭${C.R}`;
+    for (let c = 0; c < colCount; c++) {
+      top += `${C.DG}${"─".repeat(colWidths[c] + 2)}${C.R}${c < colCount - 1 ? `${C.DG}┬${C.R}` : ""}`;
+    }
+    top += `${C.DG}╮${C.R}`;
+    console.log(top);
+
+    // Header row
+    let headerRow = `${prefix}${C.DG}│${C.R}`;
+    for (let c = 0; c < colCount; c++) {
+      const cell = header[c] ?? "";
+      const pad = " ".repeat(colWidths[c] - cell.length + 1);
+      headerRow += ` ${C.W}${C.B}${cell}${C.R}${pad}${C.DG}│${C.R}`;
+    }
+    console.log(headerRow);
+
+    // Header separator
+    let headerSep = `${prefix}${C.DG}├${C.R}`;
+    for (let c = 0; c < colCount; c++) {
+      headerSep += `${C.DG}${"─".repeat(colWidths[c] + 2)}${C.R}${c < colCount - 1 ? `${C.DG}┼${C.R}` : ""}`;
+    }
+    headerSep += `${C.DG}┤${C.R}`;
+    console.log(headerSep);
+
+    // Data rows
+    for (const row of dataRows) {
+      let rowStr = `${prefix}${C.DG}│${C.R}`;
+      for (let c = 0; c < colCount; c++) {
+        const cell = row[c] ?? "";
+        const pad = " ".repeat(colWidths[c] - cell.length + 1);
+        rowStr += ` ${C.GR}${inline(cell)}${C.R}${pad}${C.DG}│${C.R}`;
+      }
+      console.log(rowStr);
+    }
+
+    // Bottom border
+    let bot = `${prefix}${C.DG}╰${C.R}`;
+    for (let c = 0; c < colCount; c++) {
+      bot += `${C.DG}${"─".repeat(colWidths[c] + 2)}${C.R}${c < colCount - 1 ? `${C.DG}┴${C.R}` : ""}`;
+    }
+    bot += `${C.DG}╯${C.R}`;
+    console.log(bot);
+    tableBuf = [];
+  };
 
   for (const line of lines) {
+    // Code fence
     if (line.startsWith("```")) {
+      if (tableBuf.length > 0) flushTable();
       if (!inCode) {
         inCode = true;
         codeLang = line.slice(3).trim();
@@ -214,11 +331,17 @@ export function printResponse(text: string, prefix = "  "): void {
       }
       continue;
     }
-
     if (inCode) {
       codeBuf.push(line);
       continue;
     }
+
+    // Markdown table detection — line starts with `|` and has another `|` somewhere
+    if (line.trim().startsWith("|") && line.trim().endsWith("|") && line.includes("|", 1)) {
+      tableBuf.push(line.trim());
+      continue;
+    }
+    if (tableBuf.length > 0) flushTable();
 
     const s = line.replace(/\s+$/, "");
     if (!s.trim()) {
@@ -250,7 +373,8 @@ export function printResponse(text: string, prefix = "  "): void {
     console.log(`${prefix}${C.GR}${inline(s)}${C.R}`);
   }
 
-  // Flush an unterminated code block.
+  // Flush leftovers
+  if (tableBuf.length > 0) flushTable();
   if (inCode && codeBuf.length > 0) flushCode(codeBuf, codeLang);
 }
 
@@ -1241,6 +1365,34 @@ export class CLI {
     return this.checkEnvironment();
   }
 
+  /* ── Update check (background) ──────────────────────────────────────────── */
+
+  /**
+   * Background check against npm registry. If a newer version of
+   * @fraziym/axoniz exists, prints a banner update notification
+   * (Command-Code style) at the top of the REPL.
+   */
+  private async checkForUpdate(): Promise<void> {
+    try {
+      const pkgPath = path.resolve(__dirname, "..", "..", "package.json");
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { name: string; version: string };
+      const res = await fetch(`https://registry.npmjs.org/${pkg.name}/latest`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return;
+      const latest = (await res.json()) as { version?: string };
+      if (latest.version && latest.version !== pkg.version) {
+        console.log(`  ${C.DG}${BOX.tl}${"─".repeat(60)}${BOX.tr}${C.R}`);
+        console.log(`  ${C.DG}${BOX.v}${C.R} ${C.WN}\u26a1 Update available${C.R} ${C.GR}${pkg.version}${C.R} ${C.DG}\u2192${C.R} ${C.OK}${latest.version}${C.R}${" ".repeat(Math.max(0, 60 - 30 - pkg.version.length - latest.version.length))}${C.DG}${BOX.v}${C.R}`);
+        console.log(`  ${C.DG}${BOX.v}${C.R} ${C.DG}run${C.R} ${C.BL}npm install -g ${pkg.name}@latest${C.R}${" ".repeat(Math.max(0, 60 - 10 - pkg.name.length - 8))}${C.DG}${BOX.v}${C.R}`);
+        console.log(`  ${C.DG}${BOX.bl}${"─".repeat(60)}${BOX.br}${C.R}`);
+        console.log();
+      }
+    } catch {
+      /* network blocked — silent */
+    }
+  }
+
   /* ── REPL ──────────────────────────────────────────────────────────────── */
 
   async run(): Promise<void> {
@@ -1253,6 +1405,12 @@ export class CLI {
       console.log(`\n  ${C.RD}Essential environment checks failed.${C.R}\n`);
       return;
     }
+
+    // ── Big ASCII splash (one-time) ──
+    printSplash();
+
+    // ── Update check (background, won't block REPL) ──
+    void this.checkForUpdate();
 
     // Welcome — clean one-liner
     console.log(`  ${C.DG}type${C.R} ${C.AC}/help${C.R} ${C.DG}for commands${C.R} ${C.DG}\u00b7${C.R} ${C.DG}Ctrl-C clears line${C.R} ${C.DG}\u00b7${C.R} ${C.DG}exit to quit${C.R}`);
