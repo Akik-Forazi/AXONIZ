@@ -196,7 +196,7 @@ function ChatInput({ onSend, onStop, isStreaming }: { onSend: (content: string) 
   return (
     <div className="px-4 pb-3 pt-1">
       <div className="max-w-3xl mx-auto">
-        <div className="relative rounded-2xl border border-border bg-background shadow-sm focus-within:border-foreground/30 transition-colors">
+        <div className={`relative rounded-2xl border border-border bg-background shadow-sm composer-flow ${value.trim() ? "has-input" : ""}`}>
           <div className="flex items-center gap-2 px-3 pt-2.5 text-[11px] text-muted-foreground">
             <span className="font-mono">{model || "no model"}</span>
             <span className="opacity-40">·</span>

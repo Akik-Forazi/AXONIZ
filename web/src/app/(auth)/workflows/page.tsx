@@ -163,7 +163,7 @@ export default function WorkflowsPage() {
 
       <div className="p-4 max-w-3xl space-y-4">
         {/* Create new workflow */}
-        <Card className="surface p-4">
+        <Card className="glass elev-2 smooth p-4">
           <div className="text-[13px] font-medium mb-2 flex items-center gap-2">
             <FileCode className="w-3.5 h-3.5" />New workflow (YAML)
           </div>
@@ -200,7 +200,7 @@ export default function WorkflowsPage() {
         ) : (
           <div className="space-y-2">
             {workflows.map((wf) => (
-              <Card key={wf.name} className="surface p-3">
+              <Card key={wf.name} className="glass elev-1 smooth p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium flex items-center gap-2">
@@ -255,7 +255,7 @@ export default function WorkflowsPage() {
 
         {/* Recent runs */}
         {runs.length > 0 && (
-          <Card className="surface p-4">
+          <Card className="glass elev-2 smooth p-4">
             <div className="text-[13px] font-medium mb-2 flex items-center gap-2">
               <Clock className="w-3.5 h-3.5" />Recent runs
             </div>

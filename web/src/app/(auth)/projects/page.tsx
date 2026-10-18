@@ -103,7 +103,7 @@ export default function ProjectsPage() {
 
       <div className="p-4 max-w-3xl space-y-4">
         {/* Add new project */}
-        <Card className="surface p-4">
+        <Card className="glass elev-2 smooth p-4">
           <div className="text-[13px] font-medium mb-2 flex items-center gap-2">
             <Plus className="w-3.5 h-3.5" />Register a project folder
           </div>
@@ -133,7 +133,7 @@ export default function ProjectsPage() {
             <Loader2 className="w-4 h-4 animate-spin" />Loading...
           </div>
         ) : projects.length === 0 ? (
-          <Card className="surface p-6 text-center">
+          <Card className="glass elev-2 smooth p-6 text-center">
             <FolderKanban className="w-8 h-8 mx-auto mb-2 text-muted-foreground/60" />
             <div className="text-[13px] text-muted-foreground">No projects registered yet.</div>
             <div className="text-[11px] text-muted-foreground/60 mt-1">
@@ -143,7 +143,7 @@ export default function ProjectsPage() {
         ) : (
           <div className="space-y-2">
             {projects.map((p) => (
-              <Card key={p.id} className="surface p-3">
+              <Card key={p.id} className="glass elev-1 smooth p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium flex items-center gap-2">

@@ -14,6 +14,14 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { v4 as uuid } from "uuid";
+// Auto-import log search indexer (lazy, try/catch in appendLog)
+let _indexLog: ((entry: LogEntry) => void) | null = null;
+async function getIndexLog() {
+  if (!_indexLog) {
+    try { const m = await import("./v2-log-search"); _indexLog = m.indexLog; } catch {}
+  }
+  return _indexLog;
+}
 import * as yaml from "js-yaml";
 import { WorkflowSchema, type Workflow, type WorkflowStep, type WorkflowRun, type LogEntry } from "./v2-schemas";
 
@@ -391,12 +399,32 @@ registerTool("palace", async (args, ctx) => {
   throw new Error(`palace: unknown op "${op}"`);
 });
 
-// axodex tool — query the AXONIZ code graph
-registerTool("axodex", async (args) => {
+// axodex tool — query the AXONIZ code graph via the axodex CLI
+registerTool("axodex", async (args, ctx) => {
   const query = String(args.query ?? "");
+  const projectPath = String(args.project ?? ctx.projectPath ?? ".");
   if (!query) throw new Error("axodex: query required");
-  // For now, return a placeholder — full impl would call the Axodex module
-  return { results: [], query, message: "Axodex query received — full implementation pending" };
+  const { exec } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execAsync = promisify(exec);
+  try {
+    const escapedQuery = query.replace(/"/g, '\\"');
+    const result = await execAsync(
+      `axodex query "${escapedQuery}" --path "${projectPath}"`,
+      { timeout: 30_000, maxBuffer: 1024 * 1024 * 5 }
+    );
+    let parsed: unknown = result.stdout;
+    try { parsed = JSON.parse(result.stdout); } catch {}
+    return { results: parsed, query, projectPath };
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string; code?: number };
+    return {
+      results: err.stdout ?? "",
+      query, projectPath,
+      error: err.stderr || (e instanceof Error ? e.message : String(e)),
+      exitCode: err.code ?? 1,
+    };
+  }
 });
 
 /* ─── Log writer ────────────────────────────────────────────────────────
@@ -421,6 +449,9 @@ export function appendLog(entry: LogEntry) {
   fs.mkdirSync(dir, { recursive: true });
   const filePath = path.join(dir, `${dateStr}.jsonl`);
   fs.appendFileSync(filePath, JSON.stringify(entry) + "\n", "utf-8");
+  
+  // Index in SQLite for fast search (non-blocking, try/catch)
+  getIndexLog().then(fn => fn?.(entry)).catch(() => {});
 }
 
 export function getRecentLogs(limit = 50): LogEntry[] {
@@ -602,6 +633,12 @@ export async function runWorkflow(
     durationMs: run.endedAt - run.startedAt,
   });
 
+  // Generate artifact (markdown summary)
+  try {
+    const { saveArtifact } = await import("./v2-artifacts");
+    saveArtifact(run);
+  } catch { /* non-critical */ }
+  
   // Persist the run record
   const allRuns = loadRuns();
   allRuns.push(run);

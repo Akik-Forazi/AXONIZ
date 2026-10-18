@@ -110,7 +110,7 @@ export default function LogsPage() {
             <Loader2 className="w-4 h-4 animate-spin" />Loading...
           </div>
         ) : filtered.length === 0 ? (
-          <Card className="surface p-6 text-center">
+          <Card className="glass elev-2 smooth p-6 text-center">
             <ScrollText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/60" />
             <div className="text-[13px] text-muted-foreground">
               {logs.length === 0 ? "No logs yet." : "No logs match your filter."}

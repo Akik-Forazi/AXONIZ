@@ -168,6 +168,18 @@ export async function GET_logs(req: NextRequest) {
 /* ─── Templates ─────────────────────────────────────────────────── */
 import { listTemplates, getTemplate, initTemplates } from "@/lib/axoniz/v2-templates";
 
+/* ─── Git Hooks ─────────────────────────────────────────────────── */
+import { installGitHook, listGitHooks, removeGitHook } from "@/lib/axoniz/v2-git-hooks";
+
+/* ─── Log Search ────────────────────────────────────────────────── */
+import { searchLogs, getLogStats } from "@/lib/axoniz/v2-log-search";
+
+/* ─── Artifacts ────────────────────────────────────────────────── */
+import { getArtifact } from "@/lib/axoniz/v2-artifacts";
+
+/* ─── Grants ────────────────────────────────────────────────────── */
+import { listGrants } from "@/lib/axoniz/v2-grants";
+
 /* ─── Secrets ────────────────────────────────────────────────────── */
 import { loadSecrets, setSecret, deleteSecret } from "@/lib/axoniz/v2-secrets";
 
@@ -190,6 +202,38 @@ export async function GET(req: NextRequest) {
   if (p === "/secrets") {
     const secrets = loadSecrets();
     return NextResponse.json({ keys: Object.keys(secrets) });
+  }
+  // Log search
+  if (p === "/logs/search") {
+    const q = url.searchParams.get("q") ?? undefined;
+    const level = url.searchParams.get("level") ?? undefined;
+    const workflow = url.searchParams.get("workflow") ?? undefined;
+    const project = url.searchParams.get("project") ?? undefined;
+    const tool = url.searchParams.get("tool") ?? undefined;
+    const event = url.searchParams.get("event") ?? undefined;
+    const since = url.searchParams.get("since") ? Number(url.searchParams.get("since")) : undefined;
+    const limit = url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : 100;
+    return NextResponse.json({ entries: searchLogs({ query: q, level, workflowId: workflow, projectId: project, tool, event, since, limit }) });
+  }
+  // Log stats
+  if (p === "/logs/stats") {
+    return NextResponse.json(getLogStats());
+  }
+  // Artifacts
+  if (p.startsWith("/runs/") && p.endsWith("/artifact")) {
+    const runId = p.replace("/runs/", "").replace("/artifact", "");
+    const md = getArtifact(runId);
+    if (!md) return NextResponse.json({ error: "artifact not found" }, { status: 404 });
+    return new NextResponse(md, { headers: { "Content-Type": "text/markdown" } });
+  }
+  // Git hooks — list
+  if (p.startsWith("/projects/") && p.endsWith("/hooks")) {
+    const id = p.replace("/projects/", "").replace("/hooks", "");
+    return NextResponse.json({ hooks: listGitHooks(id) });
+  }
+  // Grants — list
+  if (p === "/grants") {
+    return NextResponse.json({ grants: listGrants() });
   }
   return NextResponse.json({ error: `unknown v2 path: ${p}` }, { status: 404 });
 }
@@ -227,6 +271,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
     }
   }
+  // Git hooks — install
+  if (p.startsWith("/projects/") && p.endsWith("/install-hook")) {
+    try {
+      const id = p.replace("/projects/", "").replace("/install-hook", "");
+      const body = await req.json();
+      const event = body.event ?? "post_commit";
+      const workflow = body.workflow;
+      if (!workflow) return NextResponse.json({ error: "workflow required" }, { status: 400 });
+      const hookFile = installGitHook(id, event, workflow);
+      return NextResponse.json({ ok: true, hookFile, event, workflow });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+    }
+  }
   return NextResponse.json({ error: `unknown v2 POST path: ${p}` }, { status: 404 });
 }
 
@@ -240,6 +298,19 @@ export async function DELETE(req: NextRequest) {
     const key = p.replace("/secrets/", "");
     deleteSecret(key);
     return NextResponse.json({ ok: true, key });
+  }
+  // Git hooks — remove
+  if (p.startsWith("/projects/") && p.includes("/hooks/")) {
+    const parts = p.replace("/projects/", "").split("/");
+    const id = parts[0];
+    const event = parts[2] ?? "";
+    const ok = removeGitHook(id, event as "post_commit" | "pre_push" | "post_merge");
+    return NextResponse.json({ ok, id, event });
+  }
+  // Grants — revoke
+  if (p.startsWith("/grants/")) {
+    // TODO: implement grant revocation
+    return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: `unknown v2 DELETE path: ${p}` }, { status: 404 });
 }

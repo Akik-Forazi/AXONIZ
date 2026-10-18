@@ -23,7 +23,7 @@ export function AppearanceSettingsPage() {
             actual background + accent colors. Clicking selects it
             (the store updates → ThemeProvider swaps <html data-theme>),
             CSS variables cascade, the entire app re-tints instantly. */}
-        <Card className="surface p-4 space-y-3">
+        <Card className="glass elev-2 smooth p-4 space-y-3">
           <div>
             <div className="text-[13px] font-medium">Theme</div>
             <div className="text-[11px] text-muted-foreground/80 mt-0.5">
@@ -75,7 +75,7 @@ export function AppearanceSettingsPage() {
           </div>
         </Card>
 
-        <Card className="surface p-4 space-y-3">
+        <Card className="glass elev-2 smooth p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[13px] font-medium">Reduced motion</div>
@@ -95,7 +95,7 @@ export function AppearanceSettingsPage() {
         {/* LIVE TOKEN ROWS — these now reflect the active theme's CSS
             variables (via `var(--name)`), so they update instantly when
             the user switches themes. Useful for designers debugging. */}
-        <Card className="surface p-4">
+        <Card className="glass elev-2 smooth p-4">
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Color tokens (live)</div>
           <div className="space-y-2 text-[11px] font-mono">
             <TokenRow name="--background" comment="canvas" />

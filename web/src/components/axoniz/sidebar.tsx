@@ -109,7 +109,7 @@ export function Sidebar() {
           <TooltipTrigger asChild>
             <Link
               href={item.href}
-              className={`group relative flex items-center gap-2.5 px-2.5 h-8 rounded-md text-[13px] transition-colors w-full
+              className={`group relative flex items-center gap-2.5 px-2.5 h-8 rounded-md text-[13px] transition-colors smooth w-full
                 ${active
                   ? "bg-foreground/5 text-foreground border border-foreground/15"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent"}`}
