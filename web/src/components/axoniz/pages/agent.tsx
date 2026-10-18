@@ -190,6 +190,7 @@ export function AgentPage() {
         method: "POST",
         body: JSON.stringify({
           message: text,
+          session_id: sessionId,  // ← was MISSING — caused HTTP 400
           mode: "agent",
           provider: activeProvider,
           baseUrl,
@@ -197,9 +198,7 @@ export function AgentPage() {
           model: activeModel || cfg.model || undefined,
           history: messages
             .filter((m) => m.id !== "welcome")
-            .slice(-20)  // cap at last 20 messages — was 6, but that's
-                          // too short for multi-step agent workflows
-                          // and the cap matters for CPU inference cost
+            .slice(-20)
             .map((m) => ({ role: m.role, content: m.content })),
         }),
         signal: controller.signal,

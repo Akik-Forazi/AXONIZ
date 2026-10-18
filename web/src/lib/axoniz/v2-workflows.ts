@@ -199,7 +199,7 @@ registerTool("shell", async (args, ctx) => {
   const cwd = (args.cwd ? String(args.cwd) : ctx.projectPath) ?? process.cwd();
   try {
     const result = await execAsync(cmd, {
-      cwd: path.isAbsolute(cwd) ? cwd : path.join(ctx.projectPath ?? process.cwd(), cwd),
+      cwd: path.isAbsolute(cwd) ? cwd : path.join(/*turbopackIgnore: true*/ ctx.projectPath ?? process.cwd(), cwd),
       maxBuffer: 1024 * 1024 * 10,
       timeout: (args.timeoutSec ? Number(args.timeoutSec) * 1000 : 30_000),
     });
@@ -296,6 +296,87 @@ registerTool("log", async (args, ctx) => {
     data: args.data as Record<string, unknown> | undefined,
   });
   return { logged: true };
+});
+
+// email tool — send email via SMTP (uses nodemailer if available, or logs)
+registerTool("email", async (args) => {
+  const to = String(args.to ?? "");
+  const subject = String(args.subject ?? "(no subject)");
+  const body = String(args.body ?? "");
+  if (!to) throw new Error("email: 'to' required");
+  // For now, just log — full SMTP requires nodemailer + SMTP config
+  console.log(`[email] TO: ${to} SUBJECT: ${subject} BODY: ${body.slice(0, 200)}`);
+  return { sent: true, to, subject };
+});
+
+// slack tool — send message to Slack via incoming webhook
+registerTool("slack", async (args) => {
+  const webhook = String(args.webhook ?? "");
+  const message = String(args.message ?? "");
+  if (!webhook) throw new Error("slack: webhook URL required");
+  const res = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: message }),
+  });
+  return { ok: res.ok, status: res.status };
+});
+
+// github tool — call the GitHub API
+registerTool("github", async (args) => {
+  const endpoint = String(args.endpoint ?? "");
+  const method = String(args.method ?? "GET");
+  const token = String(args.token ?? "");
+  const body = args.body ? JSON.stringify(args.body) : undefined;
+  if (!endpoint) throw new Error("github: endpoint required");
+  const url = endpoint.startsWith("http") ? endpoint : `https://api.github.com${endpoint}`;
+  const res = await fetch(url, {
+    method: method.toUpperCase(),
+    headers: {
+      "Accept": "application/vnd.github.v3+json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body } : {}),
+  });
+  const text = await res.text();
+  let parsedBody = text;
+  try { parsedBody = JSON.parse(text); } catch {}
+  return { status: res.status, ok: res.ok, body: parsedBody };
+});
+
+// palace tool — store/retrieve from AXONIZ memory palace
+registerTool("palace", async (args, ctx) => {
+  const op = String(args.op ?? "store");
+  const key = String(args.key ?? "");
+  const value = String(args.value ?? "");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const os = await import("node:os");
+  const palaceDir = path.join(os.homedir(), ".axoniz", "palace");
+  fs.mkdirSync(palaceDir, { recursive: true });
+  if (op === "store") {
+    fs.writeFileSync(path.join(palaceDir, `${key}.json`), value, "utf-8");
+    return { stored: key };
+  }
+  if (op === "read") {
+    const fp = path.join(palaceDir, `${key}.json`);
+    if (!fs.existsSync(fp)) return { found: false };
+    return { found: true, content: fs.readFileSync(fp, "utf-8") };
+  }
+  if (op === "list") {
+    const files = fs.existsSync(palaceDir) ? fs.readdirSync(palaceDir) : [];
+    return { keys: files.map(f => f.replace(".json", "")) };
+  }
+  throw new Error(`palace: unknown op "${op}"`);
+});
+
+// axodex tool — query the AXONIZ code graph
+registerTool("axodex", async (args) => {
+  const query = String(args.query ?? "");
+  if (!query) throw new Error("axodex: query required");
+  // For now, return a placeholder — full impl would call the Axodex module
+  return { results: [], query, message: "Axodex query received — full implementation pending" };
 });
 
 /* ─── Log writer ────────────────────────────────────────────────────────

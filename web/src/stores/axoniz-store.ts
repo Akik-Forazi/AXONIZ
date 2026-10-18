@@ -584,7 +584,7 @@ export const useAxonizStore = create<UiState>()(
           providers: mergedProviders,
           llamacpp: old.llamacpp ?? DEFAULT_LLAMACPP,
           modelPickerOpen: false,
-          activeTheme: old.activeTheme ?? DEFAULT_THEME_ID,
+          activeTheme: old.activeTheme ?? "shadow-monarch",
         };
       },
     },

@@ -66,7 +66,7 @@ export type WorkflowTrigger = z.infer<typeof WorkflowTriggerSchema>;
 export const WorkflowStepSchema = z.object({
   id: z.string(),                           // used for {{step_id.field}} refs
   tool: z.enum([
-    "http", "file", "shell", "agent", "log",
+    "http", "file", "shell", "agent", "log", "email", "slack", "github", "palace", "axodex",
     // Future: "email", "slack", "github", "palace", "axodex",
     // "axotest", "axovb", "xorvoid", "xorgis", "promochu", "voice", "office",
   ]),

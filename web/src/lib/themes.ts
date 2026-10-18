@@ -47,7 +47,7 @@ export const THEMES: Theme[] = [
 ];
 
 /** Default theme id used on first load (before the user has chosen). */
-export const DEFAULT_THEME_ID = "default";
+export const DEFAULT_THEME_ID = "shadow-monarch";
 
 /** Get a Theme by id (or null if not found). */
 export function getThemeById(id: string): Theme | null {
