@@ -539,7 +539,6 @@ export const useAxonizStore = create<UiState>()(
           body: JSON.stringify({ provider, model }),
         }).catch(() => { /* ignore — UI already updated */ });
       },
-        }),
       setActiveModel: (activeModel) => set({ activeModel }),
       setActiveProvider: (activeProvider) => set({ activeProvider }),
       setDataSource: (dataSource) => set({ dataSource }),
