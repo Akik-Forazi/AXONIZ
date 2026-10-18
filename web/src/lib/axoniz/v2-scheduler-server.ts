@@ -4,13 +4,28 @@
  * Uses node-cron to schedule workflows. Must be imported only from
  * server context (instrumentation.ts, API routes) — NOT from React
  * components.
+ *
+ * Uses DYNAMIC IMPORT for node-cron to avoid Turbopack bundling issues.
+ * node-cron is a native Node.js module that should NOT be bundled —
+ * it must be resolved at runtime from node_modules/.
  */
-import cron from "node-cron";
+import type cronType from "node-cron";
 import { listWorkflows, runWorkflow } from "./v2-workflows";
 
-const scheduledJobs: cron.ScheduledTask[] = [];
+let cron: typeof cronType | null = null;
 
-export function refreshSchedule() {
+async function ensureCron(): Promise<typeof cronType> {
+  if (!cron) {
+    const mod = await import("node-cron");
+    cron = mod.default ?? mod;
+  }
+  return cron!;
+}
+
+const scheduledJobs: cronType.ScheduledTask[] = [];
+
+export async function refreshSchedule() {
+  const cron = await ensureCron();
   // Stop all existing jobs
   for (const job of scheduledJobs) {
     try { job.stop(); } catch { /* ignore */ }
