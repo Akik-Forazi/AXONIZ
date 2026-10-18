@@ -56,54 +56,37 @@ export function InputPrompt({
     if (disabled) return;
 
     // Up/Down when suggestions are showing → navigate suggestions
-    // AND update the input box to match the highlighted suggestion,
-    // so when Enter is pressed, the input has the full command (was
-    // sending just "/" because the input box never updated as user
-    // navigated the dropdown — bug fix).
+    // (don't auto-sync the input box — that would re-filter the list
+    // and collapse it to 1 item. Just move the ▸ highlight.)
     if (suggestions.length > 0) {
-      if (key.upArrow) {
-        onSuggestionNav("up");
-        // Sync input to the new selection
-        const newIndex = Math.max(0, suggestionIndex - 1);
-        const newSel = suggestions[newIndex];
-        if (newSel) onChange(newSel.value + " ");
-        return;
-      }
-      if (key.downArrow) {
-        onSuggestionNav("down");
-        const newIndex = Math.min(suggestions.length - 1, suggestionIndex + 1);
-        const newSel = suggestions[newIndex];
-        if (newSel) onChange(newSel.value + " ");
-        return;
-      }
+      if (key.upArrow) { onSuggestionNav("up"); return; }
+      if (key.downArrow) { onSuggestionNav("down"); return; }
     } else {
       // Up/Down with no suggestions → history navigation
       if (key.upArrow) { onHistoryNav("up"); return; }
       if (key.downArrow) { onHistoryNav("down"); return; }
     }
 
-    // Enter — submit. If suggestions are showing AND the current input
-    // is a partial match for the highlighted suggestion, accept it first
-    // (so user can type "/" → arrow down → Enter to submit the command).
+    // Enter — submit. If suggestions are showing, submit the HIGHLIGHTED
+    // suggestion (so user can type "/" → ↓ ↓ ↓ → Enter to pick the 4th
+    // command). Otherwise submit the current input text.
     if (key.return) {
       if (suggestions.length > 0 && suggestions[suggestionIndex]) {
-        const sel = suggestions[suggestionIndex];
-        // Only auto-accept if the input is a prefix of the suggestion
-        if (sel.value.startsWith(value.trim()) || value.trim().startsWith(sel.value)) {
-          onSubmit(sel.value);
-          return;
-        }
+        onSubmit(suggestions[suggestionIndex].value);
+        return;
       }
       onSubmit(value);
       return;
     }
 
-    // Tab — accept current suggestion (explicit)
+    // Tab — accept current suggestion into the input box (so user can
+    // add args, e.g. /switch<Tab> → input becomes "/switch " ready for args)
     if (key.tab && suggestions.length > 0) {
       const s = suggestions[suggestionIndex];
       if (s) onAcceptSuggestion(s.value);
       return;
     }
+
     // Backspace
     if (key.backspace || key.delete) {
       onChange(value.slice(0, -1));

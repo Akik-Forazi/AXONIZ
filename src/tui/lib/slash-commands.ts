@@ -11,6 +11,24 @@
  *   - "__clear__"  → clear the message log
  *   - "__exit__"   → quit the TUI
  */
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+// Resolve <repo>/dist/ — same pattern as agent-bridge.ts
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const DIST = path.resolve(HERE, "..", "..", "..", "dist");
+const esmRequire = createRequire(import.meta.url);
+
+function distRequire(rel: string): any {
+  const full = path.join(DIST, rel);
+  if (!fs.existsSync(full)) {
+    throw new Error(`CLI not built: ${full} missing. Run "npm run build" in the project root.`);
+  }
+  return esmRequire(full);
+}
+
 export interface SlashContext {
   agent: any;  // The AXONIZ Agent instance
   cwd: string;
@@ -302,23 +320,16 @@ async function switchProvider(agent: any, target: string): Promise<string> {
 }
 
 async function listModels(): Promise<string> {
-  // Try to import the registry from the CLI
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const req = (eval('require') as any);
-    const path = await import("node:path");
-    const os = await import("node:os");
-    const fs = await import("node:fs");
-    const distDir = path.join(process.cwd(), "dist");
-    if (!fs.existsSync(path.join(distDir, "core", "models.js"))) {
-      return "CLI not built. Run `npm run build` in the project root.";
-    }
-    const { REGISTRY } = req(path.join(distDir, "core", "models.js"));
+    const { REGISTRY } = distRequire("core/models.js");
     const lines: string[] = ["Registry (vetted, downloadable):", ""];
-    for (const m of Object.values(REGISTRY)) {
-      const rec = (m as { recommended?: boolean; name: string; size_gb: number; speed_toks: string; tags: string[] }).recommended ? " ★" : "";
-      lines.push(`  ${(m as { name: string }).name}${rec}  ${(m as { size_gb: number }).size_gb}GB ${(m as { speed_toks: string }).speed_toks}  ${(m as { tags: string[] }).tags.slice(0, 3).join(", ")}`);
+    for (const m of Object.values(REGISTRY) as Array<{
+      recommended?: boolean; name: string; size_gb: number; speed_toks: string; tags: string[];
+    }>) {
+      const rec = m.recommended ? " ★" : "";
+      lines.push(`  ${m.name}${rec}  ${m.size_gb}GB ${m.speed_toks}  ${m.tags.slice(0, 3).join(", ")}`);
     }
+    lines.push("", "Switch with: /use <name>");
     return lines.join("\n");
   } catch (e) {
     return `Error listing models: ${e instanceof Error ? e.message : String(e)}`;
