@@ -20,7 +20,7 @@ import { Footer, type FooterData } from "./components/Footer.js";
 import type { Message } from "./components/MainContent.js";
 import type { SlashCommand } from "./components/SuggestionsDisplay.js";
 import type { AgentBridge } from "./lib/agent-bridge.js";
-import { handleSlashCommand } from "./lib/slash-commands.js";
+import { handleInput, type SlashResult } from "./lib/slash-commands.js";
 import { getAgent } from "./lib/agent-bridge.js";
 
 const SLASH_COMMANDS: SlashCommand[] = [
@@ -128,25 +128,23 @@ export function App({
     : [];
   useEffect(() => { setSuggestionIndex(0); }, [input]);
 
+  const [mode, setMode] = useState<"agent" | "chat" | "goal">("agent");
+
   const handleSubmit = async (raw: string) => {
     if (raw === "__exit__" || raw === "exit" || raw === "quit") {
-      // ── Exit with session stats summary ──
       const sessionElapsed = Math.floor((Date.now() - sessionStart.current) / 1000);
       setMessages(prev => [...prev, {
         id: "exit-summary",
         role: "assistant",
         content: `**Session summary**\n\n- Messages: ${messageCount}\n- Total tokens: ${totalTokens}\n- Session time: ${sessionElapsed}s\n- Provider: ${footer.provider}/${footer.model}\n\nBye. ◈`,
       }]);
-      // Give Ink a moment to render the summary before exiting
       setTimeout(() => exit(), 500);
       return;
     }
     if (!raw.trim() || busy) return;
 
-    // ── Slash command interception ──
-    // If input starts with /, run it locally instead of sending to the LLM.
-    // The result is rendered as an assistant message (or special action).
-    if (raw.trim().startsWith("/")) {
+    // ── Intercept / ! @ commands BEFORE sending to LLM ──
+    if (raw.trim().startsWith("/") || raw.trim().startsWith("!") || raw.trim().startsWith("@")) {
       const userMsg: Message = { id: `u${Date.now()}`, role: "user", content: raw };
       setMessages(prev => [...prev, userMsg]);
       setHistory(prev => [...prev, raw]);
@@ -160,18 +158,46 @@ export function App({
 
       try {
         const agent = getAgent();
-        const result = await handleSlashCommand(raw, { agent, cwd: footer.cwd });
-        let output: string;
-        if (result === "__clear__") {
+        const result: SlashResult = await handleInput(raw, { agent, cwd: footer.cwd });
+
+        // Handle special actions
+        if (result.action === "clear") {
           setMessages([]);
           setBusy(false);
           return;
         }
-        if (result === "__exit__") {
-          exit();
+        if (result.action === "exit") {
+          const sessionElapsed = Math.floor((Date.now() - sessionStart.current) / 1000);
+          setMessages([{ id: "exit", role: "assistant", content: `**Bye.** ◈\n\n- Messages: ${messageCount}\n- Tokens: ${totalTokens}\n- Time: ${sessionElapsed}s` }]);
+          setTimeout(() => exit(), 500);
+          setBusy(false);
           return;
         }
-        output = result ?? "(no output)";
+        if (result.action === "update-footer" && result.newFooter) {
+          setFooter(f => ({ ...f, provider: result.newFooter!.provider ?? f.provider, model: result.newFooter!.model ?? f.model }));
+        }
+        if (result.action === "launch-web") {
+          // Spawn web dashboard in background
+          try {
+            const { spawnWebOnPort } = await import("../web/web-spawn.js");
+            const result2 = await spawnWebOnPort(7860);
+            if (result2) {
+              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: `**Web dashboard launched:** ${result2!.url}\n\nOpening in your browser...`, pending: false } : m));
+            } else {
+              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: "Failed to launch web dashboard. Run `axoniz --web` from the CLI.", pending: false } : m));
+            }
+          } catch (e) {
+            setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: `Web launch failed: ${e instanceof Error ? e.message : String(e)}`, pending: false } : m));
+          }
+          setBusy(false);
+          return;
+        }
+        if (result.action === "set-mode" && result.mode) {
+          setMode(result.mode);
+        }
+
+        // Render the output text
+        const output = result.output ?? "(no output)";
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: output, pending: false } : m));
       } catch (e) {
         const err = e instanceof Error ? e.message : String(e);
