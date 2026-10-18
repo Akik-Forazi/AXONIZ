@@ -1440,8 +1440,25 @@ export class Agent {
             return final;
           }
 
-          msgs.push({ role: "assistant", content: "" });
-          msgs.push({ role: "tool", name, content: result });
+          const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          msgs.push({
+            role: "assistant",
+            content: "",
+            tool_calls: [{
+              id: callId,
+              type: "function" as const,
+              function: {
+                name,
+                arguments: JSON.stringify(args),
+              },
+            }],
+          } as ChatMessage);
+          msgs.push({
+            role: "tool",
+            name,
+            content: result,
+            tool_call_id: callId,
+          } as ChatMessage);
         }
         continue;
       }

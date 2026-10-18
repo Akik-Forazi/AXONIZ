@@ -40,6 +40,18 @@ export interface ChatMessage {
   content: string;
   name?: string;
   tool_call_id?: string;
+  /**
+   * For assistant messages — the OpenAI spec requires the assistant
+   * message to include `tool_calls` when the model invoked a tool,
+   * and the following tool messages must have matching `tool_call_id`.
+   * Without this, OpenAI-compatible APIs reject the request with
+   * "messages must follow an assistant message with tool_calls".
+   */
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>;
 }
 
 export interface BackendHealth {
