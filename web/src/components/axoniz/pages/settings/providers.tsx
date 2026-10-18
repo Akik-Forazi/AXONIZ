@@ -17,7 +17,7 @@ export function ProvidersListPage() {
   const [tests, setTests] = useState<Record<string, { status: "idle" | "loading" | "ok" | "error"; latencyMs?: number; error?: string; modelCount?: number }>>({});
 
   async function quickTest(id: ProviderId) {
-    const cfg = providers[id];
+    const cfg = providers[id] ?? { enabled: false, baseUrl: "", apiKey: "", model: "" };
     const meta = PROVIDER_CATALOG.find((p) => p.id === id)!;
     if (meta.needsApiKey && !cfg.apiKey) {
       toast.error(`${meta.name} needs an API key`, { description: "Open the provider to configure it." });
@@ -60,7 +60,7 @@ export function ProvidersListPage() {
             <ProviderRow
               key={meta.id}
               meta={meta}
-              cfg={providers[meta.id]}
+              cfg={providers[meta.id] ?? { enabled: false, baseUrl: meta.defaultBaseUrl, apiKey: "", model: meta.popularModels[0] ?? "" }}
               isActive={activeProvider === meta.id}
               test={tests[meta.id]}
               onActivate={() => setActiveProvider(meta.id)}
@@ -75,7 +75,7 @@ export function ProvidersListPage() {
             <ProviderRow
               key={meta.id}
               meta={meta}
-              cfg={providers[meta.id]}
+              cfg={providers[meta.id] ?? { enabled: false, baseUrl: meta.defaultBaseUrl, apiKey: "", model: meta.popularModels[0] ?? "" }}
               isActive={activeProvider === meta.id}
               test={tests[meta.id]}
               onActivate={() => setActiveProvider(meta.id)}
