@@ -24,6 +24,27 @@ import path from "node:path";
 import { loadConfig, saveConfig, MODELS_DIR } from "./config.js";
 import type { Agent } from "./agent.js";
 import { AbortFlag as AbortFlagClass } from "./agent.js";
+// New UI primitives — filled-block ASCII art, semantic theme, multi-column
+// footer, ⏺ tool indicators, minimal ❯ prompt. Inspired by actual
+// gemini-cli + claude-code source code research (see /download/cli-research.md).
+import {
+  printBanner as cliUiPrintBanner,
+  printResponse as cliUiPrintResponse,
+  printWelcome as cliUiPrintWelcome,
+  printToolCall as cliUiPrintToolCall,
+  printToolResult as cliUiPrintToolResult,
+  printFooter as cliUiPrintFooter,
+  printCodeBlock as cliUiPrintCodeBlock,
+  buildPrompt as cliUiBuildPrompt,
+  pickLogoByWidth,
+  theme,
+  compactNumber,
+  visualWidth,
+  Spinner as CliUiSpinner,
+  R as UI_R,
+  B as UI_B,
+  I as UI_I,
+} from "./cli-ui.js";
 
 /* ── Colour helpers ───────────────────────────────────────────────────────── */
 
@@ -99,64 +120,34 @@ const BOX = {
 /* ── Banner ──────────────────────────────────────────────────────────────── */
 
 /**
- * Print the splash — a big ASCII brand logo (Command-Code style).
- * One-time on REPL start. The smaller branded box banner is printed
- * later by printBanner() when we have provider+model info.
+ * Print the splash — a big filled-block ASCII brand logo (gemini-cli + claude-code style).
+ * One-time on REPL start. Uses pickLogoByWidth() to pick long/short/tiny
+ * variant based on terminal width.
+ *
+ * Old design used hollow characters (___ __ __ ___). New design uses
+ * filled blocks (████ ███░░) — same style as gemini-cli's AsciiArt.ts
+ * and claude-code's banner. Looks denser, more premium, and renders
+ * correctly in all terminals.
  */
 export function printSplash(): void {
-  // Big ASCII art logo — pixel-art style. Each line is ~32 chars wide.
-  // 4 rows of brand: AXONIZ in chunky block letters.
-  const logo = [
-    "   ___    __    __  ____  _____  _______    _____   __  __    ",
-    "  / __ | / /_  / /_/ / /  / ___// ___/ / / / /   /__// / / /  ",
-    " / / / // __ \\/ __/ / / / / /   / /  / /_/ / / /__  /  / / /   ",
-    "/_/ /_/ /_/ /_/\\__,_/_/\\_,_/ /_/  /______/ /_____/  /____/    ",
-  ];
+  const logo = pickLogoByWidth();
   console.log();
-  const w = Math.max(...logo.map(l => l.length));
-  for (const l of logo) {
-    const pad = w - l.length;
-    console.log(`  ${C.PU}${C.B}${l}${" ".repeat(pad)}${C.R}`);
+  for (const line of logo) {
+    console.log(`  ${theme.accent.primary}${line}${UI_R}`);
   }
-  console.log(`  ${C.DG}local-first AI agent${" ".repeat(w - 20)}${C.R}`);
+  console.log(`  ${theme.text.muted}local-first AI agent${UI_R}`);
   console.log();
 }
 
 /**
- * Print the banner — a clean ASCII box with brand + version + model +
- * provider + workspace. One block of output, no scattered lines.
- *
- * Respects terminal width — pads/truncates lines to fit inside the box.
+ * Print the banner — delegates to cli-ui.ts which uses:
+ *   - Filled-block ASCII art (gemini-cli + claude-code style)
+ *   - Multi-size logo variants picked by terminal width
+ *   - Brand purple on the filled blocks
+ *   - Single-line summary below: version + tagline + provider + model
  */
 export function printBanner(model = "", backend = ""): void {
-  const inner = Math.max(40, Math.min(TW - 6, 64));
-  // Strip ANSI codes when measuring visual width (so colors don't affect padding)
-  const visualWidth = (s: string): number => s.replace(/\u001b\[\d+m/g, "").length;
-  const pad = (s: string): string => {
-    const w = visualWidth(s);
-    if (w >= inner) return s;
-    return s + " ".repeat(inner - w);
-  };
-
-  const brand = `${C.PU}${C.B}AXONIZ${C.R}`;
-  const ver = `${C.DG}v${AXONIZ_VERSION_SHORT}${C.R}`;
-  const tagline = `${C.DG}local-first AI agent${C.R}`;
-  const prov = `${C.CY}${backend || "auto"}${C.R}`;
-  const mdl = `${C.GR}${model || "auto"}${C.R}`;
-
-  const bar = BOX.h.repeat(inner + 2);  // +2 for the leading/trailing space inside the box
-
-  const row1 = ` ${brand}  ${ver}  ${C.DG}\u00b7${C.R}  ${tagline}`;
-  const row2 = ` ${C.DG}provider${C.R} ${prov}`;
-  const row3 = ` ${C.DG}model${C.R}    ${mdl}`;
-
-  console.log();
-  console.log(`  ${C.DG}${BOX.stl}${bar}${BOX.str}${C.R}`);
-  console.log(`  ${C.DG}${BOX.v}${C.R}${pad(row1)}${C.DG}${BOX.v}${C.R}`);
-  console.log(`  ${C.DG}${BOX.v}${C.R}${pad(row2)}${C.DG}${BOX.v}${C.R}`);
-  console.log(`  ${C.DG}${BOX.v}${C.R}${pad(row3)}${C.DG}${BOX.v}${C.R}`);
-  console.log(`  ${C.DG}${BOX.sbl}${bar}${BOX.sbr}${C.R}`);
-  console.log();
+  cliUiPrintBanner(model || "auto", backend, AXONIZ_VERSION_SHORT);
 }
 
 // Resolve the version lazily so cli.ts doesn't pull runner.ts into a circular import.
@@ -217,168 +208,137 @@ function inline(text: string): string {
  * render as proper box-drawing tables with aligned columns.
  * Bullets use ▸ for top-level and ‣ for nested.
  */
+/**
+ * Render a model response — delegates to cli-ui.ts for:
+ *   - Filled-box code blocks (rounded corners + language label)
+ *   - ▸ top-level bullets + ‣ nested bullets
+ *   - Inline markdown (**bold**, *italic*, `code`)
+ *   - Numbered lists
+ *
+ * Markdown tables are still handled here (cli-ui doesn't support them yet)
+ * so the model's tabular output renders properly.
+ */
 export function printResponse(text: string, prefix = "  "): void {
   if (!text) return;
-  console.log();
 
+  // Extract any markdown tables first, render them via the legacy table
+  // renderer, then hand the rest to cli-ui's printResponse for code blocks
+  // + bullets + inline markdown.
   const lines = text.split("\n");
-  let inCode = false;
-  let codeBuf: string[] = [];
-  let codeLang = "";
+  let inTable = false;
   let tableBuf: string[] = [];
-
-  /** Flush an accumulated markdown table as a proper box-drawing table. */
-  const flushTable = (): void => {
-    if (tableBuf.length < 2) {
-      // Not enough rows — just print as-is
-      for (const l of tableBuf) console.log(`${prefix}${C.GR}${inline(l)}${C.R}`);
-      tableBuf = [];
-      return;
-    }
-
-    // Parse rows into cells
-    const rows: string[][] = [];
-    for (const l of tableBuf) {
-      const cells = l.split("|").map((c) => c.trim()).filter((_, i, arr) => {
-        // Drop empty leading/trailing from outer pipes
-        return !(i === 0 && arr[0] === "") && !(i === arr.length - 1 && arr[arr.length - 1] === "");
-      });
-      rows.push(cells);
-    }
-
-    // Detect the separator row (e.g. "---|---:|:---")
-    let sepIndex = -1;
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i].every((c) => /^:?-{2,}:?$/.test(c))) {
-        sepIndex = i;
-        break;
-      }
-    }
-    if (sepIndex < 0) {
-      // No separator — render as plain lines
-      for (const l of tableBuf) console.log(`${prefix}${C.GR}${inline(l)}${C.R}`);
-      tableBuf = [];
-      return;
-    }
-
-    const header = rows[0];
-    const dataRows = rows.slice(sepIndex + 1);
-    const colCount = header.length;
-    const colWidths: number[] = [];
-    for (let c = 0; c < colCount; c++) {
-      const all = [header[c], ...dataRows.map((r) => r[c] ?? "")];
-      colWidths[c] = Math.max(...all.map((s) => s.length)) + 1;
-    }
-
-    // Top border
-    let top = `${prefix}${C.DG}╭${C.R}`;
-    for (let c = 0; c < colCount; c++) {
-      top += `${C.DG}${"─".repeat(colWidths[c] + 2)}${C.R}${c < colCount - 1 ? `${C.DG}┬${C.R}` : ""}`;
-    }
-    top += `${C.DG}╮${C.R}`;
-    console.log(top);
-
-    // Header row
-    let headerRow = `${prefix}${C.DG}│${C.R}`;
-    for (let c = 0; c < colCount; c++) {
-      const cell = header[c] ?? "";
-      const pad = " ".repeat(colWidths[c] - cell.length + 1);
-      headerRow += ` ${C.W}${C.B}${cell}${C.R}${pad}${C.DG}│${C.R}`;
-    }
-    console.log(headerRow);
-
-    // Header separator
-    let headerSep = `${prefix}${C.DG}├${C.R}`;
-    for (let c = 0; c < colCount; c++) {
-      headerSep += `${C.DG}${"─".repeat(colWidths[c] + 2)}${C.R}${c < colCount - 1 ? `${C.DG}┼${C.R}` : ""}`;
-    }
-    headerSep += `${C.DG}┤${C.R}`;
-    console.log(headerSep);
-
-    // Data rows
-    for (const row of dataRows) {
-      let rowStr = `${prefix}${C.DG}│${C.R}`;
-      for (let c = 0; c < colCount; c++) {
-        const cell = row[c] ?? "";
-        const pad = " ".repeat(colWidths[c] - cell.length + 1);
-        rowStr += ` ${C.GR}${inline(cell)}${C.R}${pad}${C.DG}│${C.R}`;
-      }
-      console.log(rowStr);
-    }
-
-    // Bottom border
-    let bot = `${prefix}${C.DG}╰${C.R}`;
-    for (let c = 0; c < colCount; c++) {
-      bot += `${C.DG}${"─".repeat(colWidths[c] + 2)}${C.R}${c < colCount - 1 ? `${C.DG}┴${C.R}` : ""}`;
-    }
-    bot += `${C.DG}╯${C.R}`;
-    console.log(bot);
-    tableBuf = [];
-  };
+  let beforeTable: string[] = [];
+  let afterTable: string[] = [];
 
   for (const line of lines) {
-    // Code fence
-    if (line.startsWith("```")) {
-      if (tableBuf.length > 0) flushTable();
-      if (!inCode) {
-        inCode = true;
-        codeLang = line.slice(3).trim();
-        codeBuf = [];
-      } else {
-        inCode = false;
-        flushCode(codeBuf, codeLang);
-        codeBuf = [];
+    const isTableRow = line.trim().startsWith("|") && line.trim().endsWith("|");
+    const isTableSep = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line);
+
+    if (isTableRow && !inTable) {
+      // Starting a new table — flush beforeTable to cli-ui
+      if (beforeTable.length > 0) {
+        cliUiPrintResponse(beforeTable.join("\n"), prefix);
       }
-      continue;
+      beforeTable = [];
+      inTable = true;
+      tableBuf.push(line);
+    } else if (inTable && (isTableRow || isTableSep)) {
+      tableBuf.push(line);
+    } else if (inTable) {
+      // End of table — render it
+      flushTable(tableBuf, prefix);
+      tableBuf = [];
+      inTable = false;
+      afterTable.push(line);
+    } else {
+      beforeTable.push(line);
     }
-    if (inCode) {
-      codeBuf.push(line);
-      continue;
-    }
-
-    // Markdown table detection — line starts with `|` and has another `|` somewhere
-    if (line.trim().startsWith("|") && line.trim().endsWith("|") && line.includes("|", 1)) {
-      tableBuf.push(line.trim());
-      continue;
-    }
-    if (tableBuf.length > 0) flushTable();
-
-    const s = line.replace(/\s+$/, "");
-    if (!s.trim()) {
-      console.log();
-      continue;
-    }
-
-    // Bullet list items (top-level)
-    if (/^\s*[-*]\s+/.test(s)) {
-      const body = s.replace(/^\s*[-*]\s+/, "").trim();
-      console.log(`${prefix}${C.AC}\u25b8${C.R} ${inline(body)}${C.R}`);
-      continue;
-    }
-
-    // Nested bullets (indent + dash/asterisk)
-    if (/^ {2,}[-*]\s+/.test(s)) {
-      const body = s.replace(/^\s*[-*]\s+/, "").trim();
-      console.log(`${prefix}  ${C.DG}\u2023${C.R} ${inline(body)}${C.R}`);
-      continue;
-    }
-
-    // Numbered list items
-    const num = s.match(/^(\s*)(\d+)\. (.*)/);
-    if (num) {
-      console.log(`${prefix}${C.AC}${num[2]}.${C.R} ${inline(num[3])}${C.R}`);
-      continue;
-    }
-
-    console.log(`${prefix}${C.GR}${inline(s)}${C.R}`);
   }
 
-  // Flush leftovers
-  if (tableBuf.length > 0) flushTable();
-  if (inCode && codeBuf.length > 0) flushCode(codeBuf, codeLang);
+  if (tableBuf.length > 0) {
+    flushTable(tableBuf, prefix);
+  }
+
+  // Render the non-table content via cli-ui
+  const nonTable = (beforeTable.length > 0 ? beforeTable : afterTable);
+  if (beforeTable.length > 0 && afterTable.length > 0) {
+    // Mixed — render before-table first via cli-ui, then after-table separately
+    cliUiPrintResponse(beforeTable.join("\n"), prefix);
+    cliUiPrintResponse(afterTable.join("\n"), prefix);
+  } else if (nonTable.length > 0) {
+    cliUiPrintResponse(nonTable.join("\n"), prefix);
+  }
 }
 
-/** Render a fenced code block inside a rounded box with the language label. */
+/** Render a markdown table with box-drawing borders. Kept from the old
+ *  implementation because cli-ui's printResponse doesn't handle tables. */
+function flushTable(tableBuf: string[], prefix: string): void {
+  if (tableBuf.length < 2) {
+    for (const l of tableBuf) console.log(`${prefix}${theme.text.secondary}${l}${UI_R}`);
+    return;
+  }
+  const rows: string[][] = [];
+  for (const l of tableBuf) {
+    const cells = l.split("|").map((c) => c.trim()).filter((_, i, arr) => {
+      return !(i === 0 && arr[0] === "") && !(i === arr.length - 1 && arr[arr.length - 1] === "");
+    });
+    rows.push(cells);
+  }
+  let sepIndex = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].every((c) => /^:?-{2,}:?$/.test(c))) {
+      sepIndex = i;
+      break;
+    }
+  }
+  if (sepIndex < 0) {
+    for (const l of tableBuf) console.log(`${prefix}${theme.text.secondary}${l}${UI_R}`);
+    return;
+  }
+  const header = rows[0];
+  const dataRows = rows.slice(sepIndex + 1);
+  const colCount = header.length;
+  const colWidths: number[] = [];
+  for (let c = 0; c < colCount; c++) {
+    const all = [header[c] ?? "", ...dataRows.map((r) => r[c] ?? "")];
+    colWidths[c] = Math.max(...all.map((s) => s.length)) + 1;
+  }
+  let top = `${prefix}${theme.ui.border}\u256d${UI_R}`;
+  for (let c = 0; c < colCount; c++) {
+    top += `${theme.ui.border}${"\u2500".repeat(colWidths[c] + 2)}${UI_R}${c < colCount - 1 ? `${theme.ui.border}\u252c${UI_R}` : ""}`;
+  }
+  top += `${theme.ui.border}\u256e${UI_R}`;
+  console.log(top);
+  let headerRow = `${prefix}${theme.ui.border}\u2502${UI_R}`;
+  for (let c = 0; c < colCount; c++) {
+    const cell = header[c] ?? "";
+    const pad = " ".repeat(colWidths[c] - cell.length + 1);
+    headerRow += ` ${theme.text.primary}${UI_B}${cell}${UI_R}${pad}${theme.ui.border}\u2502${UI_R}`;
+  }
+  console.log(headerRow);
+  let headerSep = `${prefix}${theme.ui.border}\u251c${UI_R}`;
+  for (let c = 0; c < colCount; c++) {
+    headerSep += `${theme.ui.border}${"\u2500".repeat(colWidths[c] + 2)}${UI_R}${c < colCount - 1 ? `${theme.ui.border}\u253c${UI_R}` : ""}`;
+  }
+  headerSep += `${theme.ui.border}\u2524${UI_R}`;
+  console.log(headerSep);
+  for (const row of dataRows) {
+    let rowStr = `${prefix}${theme.ui.border}\u2502${UI_R}`;
+    for (let c = 0; c < colCount; c++) {
+      const cell = row[c] ?? "";
+      const pad = " ".repeat(colWidths[c] - cell.length + 1);
+      rowStr += ` ${theme.text.secondary}${cell}${UI_R}${pad}${theme.ui.border}\u2502${UI_R}`;
+    }
+    console.log(rowStr);
+  }
+  let bottom = `${prefix}${theme.ui.border}\u2570${UI_R}`;
+  for (let c = 0; c < colCount; c++) {
+    bottom += `${theme.ui.border}${"\u2500".repeat(colWidths[c] + 2)}${UI_R}${c < colCount - 1 ? `${theme.ui.border}\u2534${UI_R}` : ""}`;
+  }
+  bottom += `${theme.ui.border}\u256f${UI_R}`;
+  console.log(bottom);
+}
+
 function flushCode(buf: string[], lang: string): void {
   const inner = Math.min(TW - 6, 72);
   const label = (lang || "code").toUpperCase();
@@ -404,42 +364,29 @@ export const _rule = rule;
 
 const SPINNER_FRAMES = ["\u2802", "\u2812", "\u2810", "\u2830", "\u2828", "\u2840", "\u2844", "\u2804"]; // braille dots
 
+/**
+ * Spinner — delegates to cli-ui's Spinner (braille dots, same as gemini-cli's
+ * CliSpinner.tsx). The old version used its own implementation; this delegates
+ * to a single source of truth so changes to spinner behavior happen in one place.
+ */
 export class Spinner {
-  private timer: NodeJS.Timeout | null = null;
-  private i = 0;
-  private lastText = "";
+  private inner: InstanceType<typeof CliUiSpinner>;
 
-  constructor(private text = "working", private delay = 80) {}
-
-  start(text?: string): void {
-    if (!tty()) return;
-    if (text !== undefined) {
-      this.text = text;
-      this.lastText = text;
-    }
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      const f = SPINNER_FRAMES[this.i++ % SPINNER_FRAMES.length];
-      const line = `  ${C.AC}${f}${C.R} ${C.DG}${this.text}${C.R}`;
-      const pad = " ".repeat(Math.max(0, TW - line.length + 4));
-      process.stdout.write(`\r${line}${pad}`.slice(0, TW));
-    }, this.delay);
-    this.timer.unref?.();
+  constructor(text = "thinking", delay = 80) {
+    this.inner = new CliUiSpinner(text, delay);
   }
 
-  /** Update the spinner's text without restarting the animation. */
+  start(text?: string): void {
+    if (text !== undefined) this.inner.setText(text);
+    this.inner.start();
+  }
+
   setText(text: string): void {
-    this.text = text;
+    this.inner.setText(text);
   }
 
   stop(finalText?: string): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-      // Clear the spinner line
-      process.stdout.write(`\r${" ".repeat(Math.min(TW, 100))}\r`);
-      if (finalText) console.log(`  ${finalText}`);
-    }
+    this.inner.stop(finalText);
   }
 }
 
@@ -527,12 +474,17 @@ export class CLI {
    * The `▸` glyph + mode word is colored by mode (cyan=agent, purple=goal, gray=chat).
    * No multi-line continuation — that was the old design that broke visually.
    */
+  /**
+   * Build the prompt — minimal `● cwd ❯ ` (claude-code style).
+   * Colored mode dot:
+   *   - agent: cyan (action-oriented)
+   *   - goal:  purple (autonomous)
+   *   - chat:  gray (passive)
+   *
+   * Delegates to cli-ui's buildPrompt so all the styling lives in one place.
+   */
   private prompt(): string {
-    const cwd = require$basename(this.agent.workspace);
-    const modeColor = { agent: C.CY, goal: C.PU, chat: C.DG }[this.mode] ?? C.DG;
-    const dot = `${modeColor}\u25c8${C.R}`;
-    const mode = `${modeColor}${this.mode}${C.R}`;
-    return `\n  ${dot} ${mode} ${C.DG}${cwd}${C.R}${C.DG}\u203a${C.R} `;
+    return cliUiBuildPrompt(this.mode, this.agent.workspace);
   }
 
   /* ── Run agent ──────────────────────────────────────────────────────────── */
@@ -712,6 +664,11 @@ export class CLI {
 
   /* ── Footer status line ────────────────────────────────────────────────── */
 
+  /**
+   * Multi-column footer (gemini-cli Footer.tsx pattern) — model + tokens
+   * (compact) + elapsed + cwd + git-branch, with width-fitting that drops
+   * low-priority columns + appends `…` when narrow.
+   */
   private printFooter(): void {
     const elapsed = Math.floor((Date.now() - (this.runStartTime || this.startTime)) / 1000);
     const cfg = this.agent.config as Record<string, unknown>;
@@ -720,10 +677,16 @@ export class CLI {
     const pCfg = llm?.providers?.[prov] ?? {};
     const model = String(pCfg.model_name ?? pCfg.model_path ?? cfg.model_name ?? "?");
     const modelShort = model.split(/[\\/]/).pop()?.replace(/\.(gguf|bin)$/i, "") ?? model;
-    const toks = this.tokensOut > 0 ? `${C.GR}${this.tokensOut}${C.R} tokens` : `${C.DG}\u2014${C.R}`;
-    const tools = this.toolCalls > 0 ? `${C.AC}${this.toolCalls}${C.R} tools` : "";
-    const sep = tools ? `${C.DG}\u00b7${C.R} ` : "";
-    console.log(`\n  ${C.DG}${prov}${C.R}${C.DG}/${C.R}${C.DG}${modelShort}${C.R} ${C.DG}\u00b7${C.R} ${toks}${tools ? ` ${C.DG}\u00b7${C.R} ${sep}` : ""}${tools}${tools ? ` ${C.DG}\u00b7${C.R} ` : " "}${C.DG}${elapsed}s${C.R}`);
+
+    cliUiPrintFooter({
+      provider: prov,
+      model: modelShort,
+      tokens: this.tokensOut > 0 ? this.tokensOut : undefined,
+      elapsedSec: elapsed,
+      cwd: this.agent.workspace,
+      // git-branch + code-changes could be added here with a git rev-parse call
+      // but that adds latency to every footer render — skip for now.
+    });
   }
 
   /* ── Slash commands ────────────────────────────────────────────────────── */
@@ -1412,10 +1375,8 @@ export class CLI {
     // ── Update check (background, won't block REPL) ──
     void this.checkForUpdate();
 
-    // Welcome — clean one-liner
-    console.log(`  ${C.DG}type${C.R} ${C.AC}/help${C.R} ${C.DG}for commands${C.R} ${C.DG}\u00b7${C.R} ${C.DG}Ctrl-C clears line${C.R} ${C.DG}\u00b7${C.R} ${C.DG}exit to quit${C.R}`);
-    if (this.webUrl) console.log(`  ${C.DG}web \u2192${C.R} ${C.BL}${this.webUrl}${C.R}`);
-    console.log();
+    // Welcome — clean one-liner (delegates to cli-ui's printWelcome)
+    cliUiPrintWelcome(this.webUrl ?? undefined);
 
     // Show the last diary entry, if the palace has one.
     try {
