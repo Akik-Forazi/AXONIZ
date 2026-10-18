@@ -134,6 +134,7 @@ function attachHandlers(es: EventSource, chatId: string, execId: string) {
     } catch { /* ignore */ }
   });
 
+  
   es.addEventListener("state_change", (e: MessageEvent) => {
     try {
       const data = JSON.parse(e.data);
@@ -218,6 +219,64 @@ function attachHandlers(es: EventSource, chatId: string, execId: string) {
       }
     } catch { /* ignore */ }
     try { es.close(); } catch { /* ignore */ }
+  });
+
+  // ── Tool call events ──────────────────────────────────────────────
+  es.addEventListener("tool_call", (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data);
+      const toolName = data.tool ?? "unknown";
+      const args = data.args ?? {};
+      const argsStr = JSON.stringify(args, null, 2).slice(0, 500);
+
+      const msgs = useAxonizStore.getState().messagesByChatId[chatId] ?? [];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        const toolMd = "\n\n---\n**Tool: " + toolName + "**\n```json\n" + argsStr + "\n```\n";
+        useAxonizStore.getState().updateMessageIn(chatId, last.id, {
+          content: last.content + toolMd,
+        });
+      }
+    } catch { /* ignore */ }
+  });
+
+  // ── Tool result events ───────────────────────────────────────────
+  es.addEventListener("tool_result", (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data);
+      const toolName = data.tool ?? "unknown";
+      const result = data.result ?? "";
+      const success = data.success ?? true;
+      const icon = success ? "PASS" : "FAIL";
+      const resultStr = (typeof result === "string" ? result : JSON.stringify(result)).slice(0, 500);
+
+      const msgs = useAxonizStore.getState().messagesByChatId[chatId] ?? [];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        const resultMd = "\n**Result (" + icon + "): " + toolName + "**\n```\n" + resultStr + "\n```\n---\n";
+        useAxonizStore.getState().updateMessageIn(chatId, last.id, {
+          content: last.content + resultMd,
+        });
+      }
+    } catch { /* ignore */ }
+  });
+
+  // ── Swarm events ─────────────────────────────────────────────────
+  es.addEventListener("swarm", (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data);
+      const phase = data.phase ?? "";
+      const detail = data.detail ?? data.status ?? "";
+
+      const msgs = useAxonizStore.getState().messagesByChatId[chatId] ?? [];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant" && phase) {
+        const swarmMd = "\n> **Swarm: " + phase + "** - " + detail + "\n\n";
+        useAxonizStore.getState().updateMessageIn(chatId, last.id, {
+          content: last.content + swarmMd,
+        });
+      }
+    } catch { /* ignore */ }
   });
 
   // Suppress console noise from EventSource native reconnect failures.

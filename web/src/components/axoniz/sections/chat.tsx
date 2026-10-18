@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { Sparkles, Code, BookOpen, Lightbulb, User, Bot, Copy, Check, RefreshCw, AlertCircle, ArrowUp, Square, Brain, Globe, Mic, Paperclip } from "lucide-react";
+import { Sparkles, Code, BookOpen, Lightbulb, User, Bot, Copy, Check, RefreshCw, AlertCircle, ArrowUp, Square, Brain, Globe, Mic, Paperclip, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -17,6 +17,66 @@ const SUGGESTIONS = [
   { icon: BookOpen, title: "Explain a concept", prompt: "Explain how WebTransport differs from WebSockets, with concrete use cases for each" },
   { icon: Lightbulb, title: "Solve a problem", prompt: "My Next.js production build is failing with 'Module not found' — how do I debug this?" },
 ];
+
+/* ─── Think-tag parser ───────────────────────────────────────────────
+ * Many models (GLM, Qwen, DeepSeek) output <think>...</think> blocks
+ * for reasoning. This parser splits the content into:
+ *   - thinkingParts: array of reasoning snippets (hidden by default)
+ *   - responseParts: the actual response (shown as the main content)
+ */
+function parseThinkTags(content: string): { thinking: string[]; response: string } {
+  const thinking: string[] = [];
+  let response = content;
+
+  // Match <think>...</think> (including unclosed <think> at the end during streaming)
+  const thinkRegex = /<think>([\s\S]*?)(<\/think>|$)/g;
+  let match;
+  let lastIndex = 0;
+  const responseParts: string[] = [];
+
+  while ((match = thinkRegex.exec(content)) !== null) {
+    // Text before <think> tag → response
+    if (match.index > lastIndex) {
+      responseParts.push(content.slice(lastIndex, match.index));
+    }
+    // The thinking content
+    thinking.push(match[1].trim());
+    lastIndex = match.index + match[0].length;
+  }
+  // Remaining text after last </think> → response
+  if (lastIndex < content.length) {
+    responseParts.push(content.slice(lastIndex));
+  }
+
+  response = responseParts.join('').trim();
+  return { thinking, response };
+}
+
+/* ─── Think section (collapsible reasoning) ────────────────────────── */
+function ThinkSection({ parts }: { parts: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (parts.length === 0) return null;
+  return (
+    <div className="mb-2 border border-border/40 rounded-md overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-secondary/40 smooth"
+      >
+        <Brain className="w-3 h-3" />
+        <span>Reasoning ({parts.length} step{parts.length > 1 ? 's' : ''})</span>
+        <ChevronRight className={`w-3 h-3 ml-auto transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="px-3 py-2 text-[11px] text-muted-foreground/80 border-t border-border/40 space-y-2 max-h-48 overflow-y-auto">
+          {parts.map((p, i) => (
+            <div key={i} className="whitespace-pre-wrap font-mono leading-relaxed">{p}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export function ChatSection() {
   const params = useParams<{ id: string }>();
@@ -103,7 +163,15 @@ export function ChatSection() {
                       </div>
                     ) : m.content ? (
                       <div className="text-sm">
-                        <Markdown content={m.content} />
+                        {(() => {
+                          const { thinking, response } = parseThinkTags(m.content);
+                          return (
+                            <>
+                              <ThinkSection parts={thinking} />
+                              {response && <Markdown content={response} />}
+                            </>
+                          );
+                        })()}
                         {stream.isStreaming && m.pending && <span className="inline-block w-1.5 h-3.5 bg-foreground/80 ml-0.5 animate-pulse rounded-[1px]" />}
                         {!m.pending && m.content.length > 0 && (
                           <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
