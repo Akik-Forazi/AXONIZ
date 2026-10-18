@@ -79,7 +79,7 @@ function createAgent(): any {
 }
 
 let _agent: any = null;
-function getAgent(): any {
+export function getAgent(): any {
   if (_agent === null) {
     _agent = createAgent();
   }

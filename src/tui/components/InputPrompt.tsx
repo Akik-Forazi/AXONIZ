@@ -55,21 +55,50 @@ export function InputPrompt({
   useInput((input, key) => {
     if (disabled) return;
 
-    // Enter — submit
-    if (key.return) {
-      onSubmit(value);
-      return;
-    }
     // Up/Down when suggestions are showing → navigate suggestions
+    // AND update the input box to match the highlighted suggestion,
+    // so when Enter is pressed, the input has the full command (was
+    // sending just "/" because the input box never updated as user
+    // navigated the dropdown — bug fix).
     if (suggestions.length > 0) {
-      if (key.upArrow) { onSuggestionNav("up"); return; }
-      if (key.downArrow) { onSuggestionNav("down"); return; }
+      if (key.upArrow) {
+        onSuggestionNav("up");
+        // Sync input to the new selection
+        const newIndex = Math.max(0, suggestionIndex - 1);
+        const newSel = suggestions[newIndex];
+        if (newSel) onChange(newSel.value + " ");
+        return;
+      }
+      if (key.downArrow) {
+        onSuggestionNav("down");
+        const newIndex = Math.min(suggestions.length - 1, suggestionIndex + 1);
+        const newSel = suggestions[newIndex];
+        if (newSel) onChange(newSel.value + " ");
+        return;
+      }
     } else {
       // Up/Down with no suggestions → history navigation
       if (key.upArrow) { onHistoryNav("up"); return; }
       if (key.downArrow) { onHistoryNav("down"); return; }
     }
-    // Tab — accept current suggestion
+
+    // Enter — submit. If suggestions are showing AND the current input
+    // is a partial match for the highlighted suggestion, accept it first
+    // (so user can type "/" → arrow down → Enter to submit the command).
+    if (key.return) {
+      if (suggestions.length > 0 && suggestions[suggestionIndex]) {
+        const sel = suggestions[suggestionIndex];
+        // Only auto-accept if the input is a prefix of the suggestion
+        if (sel.value.startsWith(value.trim()) || value.trim().startsWith(sel.value)) {
+          onSubmit(sel.value);
+          return;
+        }
+      }
+      onSubmit(value);
+      return;
+    }
+
+    // Tab — accept current suggestion (explicit)
     if (key.tab && suggestions.length > 0) {
       const s = suggestions[suggestionIndex];
       if (s) onAcceptSuggestion(s.value);

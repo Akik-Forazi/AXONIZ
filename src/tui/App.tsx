@@ -20,6 +20,8 @@ import { Footer, type FooterData } from "./components/Footer.js";
 import type { Message } from "./components/MainContent.js";
 import type { SlashCommand } from "./components/SuggestionsDisplay.js";
 import type { AgentBridge } from "./lib/agent-bridge.js";
+import { handleSlashCommand } from "./lib/slash-commands.js";
+import { getAgent } from "./lib/agent-bridge.js";
 
 const SLASH_COMMANDS: SlashCommand[] = [
   { id: "help", value: "/help", label: "/help", description: "Show this help" },
@@ -97,7 +99,46 @@ export function App({
     }
     if (!raw.trim() || busy) return;
 
-    // Add user message
+    // ── Slash command interception ──
+    // If input starts with /, run it locally instead of sending to the LLM.
+    // The result is rendered as an assistant message (or special action).
+    if (raw.trim().startsWith("/")) {
+      const userMsg: Message = { id: `u${Date.now()}`, role: "user", content: raw };
+      setMessages(prev => [...prev, userMsg]);
+      setHistory(prev => [...prev, raw]);
+      setHistoryIndex(-1);
+      setInput("");
+
+      const assistantId = `a${Date.now()}`;
+      setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "", pending: true }]);
+      setBusy(true);
+      setElapsed(0);
+
+      try {
+        const agent = getAgent();
+        const result = await handleSlashCommand(raw, { agent, cwd: footer.cwd });
+        let output: string;
+        if (result === "__clear__") {
+          setMessages([]);
+          setBusy(false);
+          return;
+        }
+        if (result === "__exit__") {
+          exit();
+          return;
+        }
+        output = result ?? "(no output)";
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: output, pending: false } : m));
+      } catch (e) {
+        const err = e instanceof Error ? e.message : String(e);
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: `[ERROR] ${err}`, pending: false } : m));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // ── Regular chat — send to the LLM ──
     const userMsg: Message = { id: `u${Date.now()}`, role: "user", content: raw };
     setMessages(prev => [...prev, userMsg]);
 
@@ -107,7 +148,6 @@ export function App({
     setBusy(true);
     setElapsed(0);
 
-    // Pending assistant message — tokens stream into it
     const assistantId = `a${Date.now()}`;
     setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "", pending: true }]);
 
