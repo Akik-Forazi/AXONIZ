@@ -109,7 +109,7 @@ export function ModelPicker() {
 
   // Auto-test the selected provider when user opens picker or switches provider.
   useEffect(() => {
-    const cfg = providers[selectedProvider];
+    const cfg = providers[selectedProvider] ?? { enabled: false, baseUrl: "", apiKey: "", model: "" };
     const meta = PROVIDER_CATALOG.find((p) => p.id === selectedProvider)!;
     if (!cfg.baseUrl && meta.category === "cloud") return;
     if (meta.needsApiKey && !cfg.apiKey) return;
@@ -151,7 +151,7 @@ export function ModelPicker() {
 
   const test = tests[selectedProvider];
   const meta = PROVIDER_CATALOG.find((p) => p.id === selectedProvider)!;
-  const cfg = providers[selectedProvider];
+  const cfg = providers[selectedProvider] ?? { enabled: false, baseUrl: "", apiKey: "", model: "" };
 
   const filtered = (test?.models ?? []).filter((m) =>
     m.id.toLowerCase().includes(query.toLowerCase()),

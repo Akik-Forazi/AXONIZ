@@ -545,7 +545,7 @@ export const useAxonizStore = create<UiState>()(
         set((s) => ({ llamacpp: { ...s.llamacpp, ...patch } })),
     }),
     {
-      name: "axoniz-store-v8",
+      name: "axoniz-store-v9",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         token: s.token,
@@ -558,19 +558,35 @@ export const useAxonizStore = create<UiState>()(
         activeChatId: s.activeChatId,
         activeTheme: s.activeTheme,
       }),
-      version: 8,
-      migrate: () => ({
-        token: null,
-        username: null,
-        sidebarCollapsed: false,
-        activeModel: null,
-        activeProvider: "llamacpp" as ProviderId,
-        dataSource: "unknown" as "mock" | "live" | "unknown",
-        providers: DEFAULT_PROVIDERS,
-        llamacpp: DEFAULT_LLAMACPP,
-        modelPickerOpen: false,
-        activeTheme: DEFAULT_THEME_ID,
-      }),
+      version: 9,
+      migrate: (persisted: unknown) => {
+        // Merge DEFAULT_PROVIDERS with any persisted provider configs.
+        // This preserves user-configured API keys while adding new
+        // providers (like OrcaRouter) that were added after the last
+        // persist. Without this, providers["orca"] would be undefined
+        // and crash the UI.
+        const old = (persisted ?? {}) as Partial<UiState>;
+        const oldProviders = (old.providers ?? {}) as Record<string, ProviderConfig>;
+        const mergedProviders = { ...DEFAULT_PROVIDERS } as Record<ProviderId, ProviderConfig>;
+        // Preserve any user-configured provider settings
+        for (const [id, cfg] of Object.entries(oldProviders)) {
+          if (id in mergedProviders) {
+            mergedProviders[id as ProviderId] = cfg as ProviderConfig;
+          }
+        }
+        return {
+          token: old.token ?? null,
+          username: old.username ?? null,
+          sidebarCollapsed: old.sidebarCollapsed ?? false,
+          activeModel: old.activeModel ?? null,
+          activeProvider: old.activeProvider ?? "llamacpp" as ProviderId,
+          dataSource: "unknown" as "mock" | "live" | "unknown",
+          providers: mergedProviders,
+          llamacpp: old.llamacpp ?? DEFAULT_LLAMACPP,
+          modelPickerOpen: false,
+          activeTheme: old.activeTheme ?? DEFAULT_THEME_ID,
+        };
+      },
     },
   ),
 );
