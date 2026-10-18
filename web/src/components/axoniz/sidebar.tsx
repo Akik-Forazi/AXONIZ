@@ -70,8 +70,7 @@ export function Sidebar() {
   const [recentChats, setRecentChats] = useState<ChatMeta[]>([]);
 
   // Fetch recent chats when on /chat or /agent.
-  const showChats = pathname === "/chat" || pathname.startsWith("/chat/s") ||
-                     pathname === "/agent" || pathname.startsWith("/agent/s");
+  const showChats = pathname === "/chat" || pathname.startsWith("/chat/s");
 
   useEffect(() => {
     if (!showChats || collapsed) return;

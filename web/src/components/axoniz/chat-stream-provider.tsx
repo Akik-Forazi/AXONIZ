@@ -92,18 +92,21 @@ function attachHandlers(es: EventSource, chatId: string, execId: string) {
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant" && last.pending) {
         // Append to existing pending assistant message.
+        // DO NOT set pending: false here — that was the bug that caused
+        // each token to become a separate message bubble. The message
+        // stays pending until the stream completes (done/error events).
         useAxonizStore.getState().updateMessageIn(chatId, last.id, {
           content: last.content + data.value,
-          pending: false,
         });
       } else {
-        // Create a new assistant message.
+        // Create a new assistant message — keep it pending so
+        // subsequent tokens append to THIS message, not new bubbles.
         const newMsg: ChatMessageStore = {
           id: `asst-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           role: "assistant",
           content: data.value,
           timestamp: Date.now(),
-          pending: false,
+          pending: true,
         };
         useAxonizStore.getState().appendMessageTo(chatId, newMsg);
       }
