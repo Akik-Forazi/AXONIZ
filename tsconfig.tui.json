@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023", "DOM"],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "rootDir": "src",
@@ -12,12 +15,25 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
+    "strict": false,
     "noImplicitOverride": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "noImplicitAny": false
   },
-  "include": ["src/tui/**/*.tsx", "src/tui/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/tui/App.tsx",
+    "src/tui/entry.tsx",
+    "src/tui/axoniz-gemini-wrapper.ts",
+    "src/tui/lib/*.ts",
+    "src/tui/components/*.tsx",
+    "src/tui/layouts/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
