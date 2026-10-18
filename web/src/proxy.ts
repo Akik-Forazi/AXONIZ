@@ -41,6 +41,7 @@ const PUBLIC_PATHS = [
   "/api/axoniz/health",
   "/api/axoniz/stream",
   "/api/axoniz/diagnostics/log",
+  "/api/axoniz/v2",
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -78,7 +79,7 @@ function checkCSRF(req: NextRequest): NextResponse | null {
   return null;
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const secret = getSecret();
   const clientIP = getClientIP(req);
   const pathname = req.nextUrl.pathname;

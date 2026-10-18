@@ -210,13 +210,13 @@ registerTool("shell", async (args, ctx) => {
   }
 });
 
-// agent tool — call an LLM via AXONIZ's existing chat endpoint
+// agent tool — call an LLM via the existing /api/axoniz/chat endpoint.
+// Submits a durable execution, polls for completion, returns the output.
 registerTool("agent", async (args, ctx) => {
   const prompt = String(args.prompt);
   const model = args.model ? String(args.model) : undefined;
-  // Reuse the existing /api/axoniz/chat durable execution path.
-  // This is a placeholder — for now, return a stub.
-  // TODO: wire to the existing execution-manager.
+  const baseUrl = process.env.AXONIZ_BASE_URL ?? `http://localhost:${process.env.PORT ?? 7860}`;
+
   ctx.log({
     level: "info",
     workflowId: null,
@@ -226,7 +226,62 @@ registerTool("agent", async (args, ctx) => {
     message: `agent call (prompt length ${prompt.length}, model ${model ?? "default"})`,
     data: { promptPreview: prompt.slice(0, 100) },
   });
-  return { result: `[agent placeholder — prompt was: ${prompt.slice(0, 200)}]` };
+
+  // Submit a durable execution via the existing chat endpoint
+  const chatRes = await fetch(`${baseUrl}/api/axoniz/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: prompt,
+      session_id: `workflow-${ctx.runId}`,
+      mode: "chat",
+    }),
+  });
+
+  if (!chatRes.ok) {
+    const errText = await chatRes.text().catch(() => "");
+    throw new Error(`agent: chat endpoint returned ${chatRes.status} ${errText.slice(0, 200)}`);
+  }
+
+  const chatData = await chatRes.json();
+  if (chatData.error) {
+    throw new Error(`agent: ${chatData.error}`);
+  }
+
+  const executionId = chatData.execution_id;
+  if (!executionId) {
+    throw new Error("agent: no execution_id returned from chat endpoint");
+  }
+
+  // Poll for completion (simplified — in production, connect to SSE stream)
+  const pollDeadline = Date.now() + 120_000; // 2 min timeout
+  while (Date.now() < pollDeadline) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const statusRes = await fetch(`${baseUrl}/api/axoniz/executions/${executionId}`);
+      if (!statusRes.ok) continue;
+      const statusData = await statusRes.json();
+      const state = statusData.state ?? statusData.status;
+      if (["completed", "success", "failed", "cancelled"].includes(state)) {
+        ctx.log({
+          level: state === "completed" || state === "success" ? "info" : "error",
+          workflowId: null,
+          stepId: null,
+          tool: "agent",
+          event: "tool_result",
+          message: `agent returned (state: ${state})`,
+          data: { outputPreview: (statusData.output ?? "").slice(0, 200) },
+        });
+        return {
+          result: statusData.output ?? "",
+          status: state,
+          executionId,
+        };
+      }
+    } catch { /* retry */ }
+  }
+
+  return { result: "", status: "timeout", executionId };
 });
 
 // log tool — write a custom log line (useful for debugging workflows)
@@ -333,7 +388,8 @@ export async function runWorkflow(
   });
 
   // Load secrets (placeholder — full impl would read ~/.axoniz/secrets.json encrypted)
-  const secrets: Record<string, string> = {}; // TODO: load from secrets.json
+  const { loadSecrets } = await import("./v2-secrets");
+  const secrets = loadSecrets();
 
   const stepResults: Record<string, unknown> = {};
   const deadline = Date.now() + workflow.maxMinutes * 60_000;

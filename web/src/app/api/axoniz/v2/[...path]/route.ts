@@ -165,6 +165,12 @@ export async function GET_logs(req: NextRequest) {
   return NextResponse.json({ entries: getRecentLogs(limit) });
 }
 
+/* ─── Templates ─────────────────────────────────────────────────── */
+import { listTemplates, getTemplate, initTemplates } from "@/lib/axoniz/v2-templates";
+
+/* ─── Secrets ────────────────────────────────────────────────────── */
+import { loadSecrets, setSecret, deleteSecret } from "@/lib/axoniz/v2-secrets";
+
 /* ─── Catch-all router ───────────────────────────────────────────────
  * Mounted at src/app/api/axoniz/v2/[...path]/route.ts
  */
@@ -175,6 +181,16 @@ export async function GET(req: NextRequest) {
   if (p === "/workflows" || p.startsWith("/workflows/")) return GET_workflows(req);
   if (p === "/runs" || p.startsWith("/runs/")) return GET_runs(req);
   if (p === "/logs" || (p.includes("/projects/") && p.endsWith("/logs"))) return GET_logs(req);
+  // Templates
+  if (p === "/templates") {
+    initTemplates();
+    return NextResponse.json({ templates: listTemplates() });
+  }
+  // Secrets — list keys only (NEVER return values)
+  if (p === "/secrets") {
+    const secrets = loadSecrets();
+    return NextResponse.json({ keys: Object.keys(secrets) });
+  }
   return NextResponse.json({ error: `unknown v2 path: ${p}` }, { status: 404 });
 }
 
@@ -183,6 +199,19 @@ export async function POST(req: NextRequest) {
   const p = url.pathname.replace("/api/axoniz/v2", "");
   if (p === "/projects") return POST_projects(req);
   if (p === "/workflows" || p.startsWith("/workflows/")) return POST_workflows(req);
+  // Secrets — set a key/value pair
+  if (p === "/secrets") {
+    try {
+      const body = await req.json();
+      const key = String(body.key ?? "");
+      const value = String(body.value ?? "");
+      if (!key) return NextResponse.json({ error: "key required" }, { status: 400 });
+      setSecret(key, value);
+      return NextResponse.json({ ok: true, key });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 400 });
+    }
+  }
   return NextResponse.json({ error: `unknown v2 POST path: ${p}` }, { status: 404 });
 }
 
@@ -191,5 +220,11 @@ export async function DELETE(req: NextRequest) {
   const p = url.pathname.replace("/api/axoniz/v2", "");
   if (p.startsWith("/projects/")) return DELETE_projects(req);
   if (p.startsWith("/workflows/")) return DELETE_workflows(req);
+  // Secrets — delete a key
+  if (p.startsWith("/secrets/")) {
+    const key = p.replace("/secrets/", "");
+    deleteSecret(key);
+    return NextResponse.json({ ok: true, key });
+  }
   return NextResponse.json({ error: `unknown v2 DELETE path: ${p}` }, { status: 404 });
 }

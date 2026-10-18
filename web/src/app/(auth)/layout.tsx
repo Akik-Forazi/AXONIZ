@@ -4,6 +4,7 @@ import { useAxonizStore } from "@/stores/axoniz-store";
 import { TopBar } from "@/components/axoniz/top-bar";
 import { Sidebar } from "@/components/axoniz/sidebar";
 import { EventStreamProvider } from "@/components/axoniz/event-stream-provider";
+import { SchedulerProvider } from "@/components/axoniz/scheduler-provider";
 import { ChatStreamProvider } from "@/components/axoniz/chat-stream-provider";
 import { ModelPicker } from "@/components/axoniz/model-picker";
 import { useAxonizBoot } from "@/components/axoniz/boot";
@@ -60,6 +61,7 @@ export default function AuthLayout({
           flowing into the store. When they return, the messages are
           already there — no reload, no lost progress. */}
       <ChatStreamProvider />
+      <SchedulerProvider />
     </div>
   );
 }
