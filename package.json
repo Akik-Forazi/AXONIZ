@@ -1,7 +1,7 @@
 {
   "name": "@fraziym/axoniz",
   "version": "0.1.8-beta.1",
-  "description": "AXONIZ \u2014 Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
+  "description": "AXONIZ — Autonomous Local Agentic System. 100% offline AI agent with tool use, multi-memory, code graph, swarm orchestration, and computer control.",
   "type": "module",
   "license": "MIT",
   "author": "AKIK FARAJI <akikfaraji@gmail.com> (https://fraziym.com)",
@@ -90,6 +90,10 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "grammy": "^1.46.0",
+    "ink": "^8.0.0",
+    "ink-select-input": "^6.2.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
     "jose": "^6.2.12",
     "js-yaml": "^5.4.2",
     "multer": "^2.4.0",
@@ -98,6 +102,8 @@
     "picocolors": "^1.1.1",
     "pidusage": "^4.0.1",
     "prom-client": "^15.1.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "systeminformation": "^5.33.15",
     "undici": "^8.11.2",
     "zod": "^4.6.5"
