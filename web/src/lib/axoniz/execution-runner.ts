@@ -19,6 +19,7 @@ import {
   releaseClaim,
 } from "@/lib/axoniz/execution-manager";
 import { streamAgentChat, execAgent, loadCliConfig } from "@/lib/axoniz/cli-bridge";
+import { publish, closeChannel } from "@/lib/axoniz/event-bus";
 
 const WORKER_ID = randomBytes(4).toString("hex");
 
@@ -35,6 +36,7 @@ export async function runExecution(executionId: string): Promise<void> {
   }
 
   appendEvent(executionId, "state_change", { state: "running", ts: Date.now() / 1000 });
+  publish(executionId, { type: "state_change", data: { state: "running", ts: Date.now() / 1000 } });
 
   try {
     if (exec.mode === "agent") {
@@ -45,6 +47,7 @@ export async function runExecution(executionId: string): Promise<void> {
       appendEvent(executionId, "state_change", { state: "completed", ts: Date.now() / 1000 });
     } else {
       appendEvent(executionId, "thinking", { value: "streaming from backend…", ts: Date.now() / 1000 });
+      publish(executionId, { type: "thinking", data: { value: "streaming from backend…", ts: Date.now() / 1000 } });
 
       // ── BATCHED TOKEN WRITES ──────────────────────────────────────
       // Instead of writing each token to SQLite individually (which
@@ -69,11 +72,18 @@ export async function runExecution(executionId: string): Promise<void> {
       for await (const token of streamAgentChat(exec.prompt)) {
         if (isCancellationRequested(executionId)) {
           flushTokenBuffer(); // flush remaining tokens before cancelling
+          flushTokenBuffer();
           appendEvent(executionId, "state_change", { state: "cancelled", ts: Date.now() / 1000 });
           transitionState(executionId, "cancelled", { recovery_note: "Cancellation requested by user" });
+          publish(executionId, { type: "done", data: { state: "cancelled", summary: "Cancelled" } });
+          closeChannel(executionId);
           releaseClaim(executionId);
           return;
         }
+        // INSTANT push to event bus (sub-ms latency — no SQLite)
+        publish(executionId, { type: "token", data: { value: token } });
+
+        // ALSO buffer for background SQLite write (durability)
         tokenBuffer.push(token);
         if (tokenBuffer.length >= 20) {
           // Batch is full — flush immediately
@@ -90,6 +100,8 @@ export async function runExecution(executionId: string): Promise<void> {
 
       transitionState(executionId, "completed");
       appendEvent(executionId, "state_change", { state: "completed", ts: Date.now() / 1000 });
+      publish(executionId, { type: "done", data: { state: "completed", summary: "Response complete" } });
+      closeChannel(executionId);
     }
   } catch (err) {
     const e = err as Error;

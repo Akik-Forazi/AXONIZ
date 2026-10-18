@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
  */
 import type { NextRequest } from "next/server";
 import { getEvents, getExecution } from "@/lib/axoniz/execution-manager";
+import { subscribe, closeChannel } from "@/lib/axoniz/event-bus";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -57,27 +58,43 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             return;
           }
 
-          // 4. Poll for new events every 200ms
-          while (!closed) {
-            await new Promise(r => setTimeout(r, 200));
-            const currentExec = getExecution(id);
-            if (!currentExec) { enqueue("error", { error: "execution vanished" }); break; }
+          // 4a. Subscribe to the in-memory event bus for INSTANT token delivery
+          //     (sub-ms latency — no SQLite polling)
+          const unsubscribe = subscribe(id, (event) => {
+            enqueue(event.type, event.data);
+            // Update lastSeq from event data (for reconnect support)
+            if (event.type === "done" || event.type === "error") {
+              closed = true;
+            }
+          });
 
+          // 4b. SQLite fallback — poll every 500ms for any events missed
+          //     by the event bus (e.g., events that were written to SQLite
+          //     before the subscription was established)
+          const fallbackInterval = setInterval(() => {
+            if (closed) return;
             const newEvents = getEvents(id, lastSeq);
             for (const ev of newEvents) {
               enqueue(ev.type, ev.data);
               lastSeq = ev.seq;
             }
-
-            // Check if execution reached terminal state
-            if (terminalStates.includes(currentExec.state)) {
+            const currentExec = getExecution(id);
+            if (currentExec && terminalStates.includes(currentExec.state)) {
               enqueue("done", { state: currentExec.state, summary: currentExec.state === "completed" ? "Response complete" : currentExec.state, error: currentExec.error });
-              break;
+              closed = true;
             }
+          }, 500);
 
-            // Check for client disconnect
-            if (req.signal.aborted) break;
+          // 4c. Wait until closed (by event bus "done" event, fallback, or client disconnect)
+          while (!closed) {
+            await new Promise(r => setTimeout(r, 50));
+            if (req.signal.aborted) { closed = true; break; }
           }
+
+          // Cleanup
+          unsubscribe();
+          clearInterval(fallbackInterval);
+          closeChannel(id);
         } catch (e) {
           enqueue("error", { error: e instanceof Error ? e.message : String(e) });
         } finally {
