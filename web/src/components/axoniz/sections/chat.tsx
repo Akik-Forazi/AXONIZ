@@ -87,7 +87,7 @@ export function ChatSection() {
       {hasMessages ? (
         <>
           <div ref={scrollRef} className="flex-1 overflow-y-auto">
-            <div className="max-w-3xl mx-auto py-4 divide-y divide-border/40">
+            <div className="w-full px-12 py-4 divide-y divide-border/40">
               {stream.messages.map((m) => (
                 <div key={m.id} className={cn("flex gap-3 px-6 py-3 group", m.role === "user" && "justify-end")}>
                   {m.role === "assistant" && (
@@ -142,7 +142,7 @@ export function ChatSection() {
             <div className="size-16 rounded-2xl bg-gradient-to-br from-blue-500 via-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-violet-500/20 mb-6">A</div>
             <h1 className="text-2xl font-semibold tracking-tight mb-1.5">How can I help you today?</h1>
             <p className="text-muted-foreground text-sm mb-8">Ask anything — your model responds in real-time</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-4xl">
               {SUGGESTIONS.map((s) => {
                 const Icon = s.icon;
                 return (
@@ -195,7 +195,7 @@ function ChatInput({ onSend, onStop, isStreaming }: { onSend: (content: string) 
 
   return (
     <div className="px-4 pb-3 pt-1">
-      <div className="max-w-3xl mx-auto">
+      <div className="w-full px-12">
         <div className={`relative rounded-2xl border border-border bg-background shadow-sm composer-flow ${value.trim() ? "has-input" : ""}`}>
           <div className="flex items-center gap-2 px-3 pt-2.5 text-[11px] text-muted-foreground">
             <span className="font-mono">{model || "no model"}</span>

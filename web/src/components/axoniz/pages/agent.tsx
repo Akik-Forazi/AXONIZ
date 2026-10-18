@@ -367,7 +367,7 @@ export function AgentPage() {
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 w-full">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
             {msg.role === "assistant" && (
