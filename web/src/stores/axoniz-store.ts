@@ -520,7 +520,8 @@ export const useAxonizStore = create<UiState>()(
 
       openModelPicker: () => set({ modelPickerOpen: true }),
       closeModelPicker: () => set({ modelPickerOpen: false }),
-      pickModel: (provider, model) =>
+      pickModel: (provider, model) => {
+        // 1. Update frontend state IMMEDIATELY (instant UI feedback)
         set({
           activeProvider: provider,
           activeModel: model,
@@ -529,6 +530,15 @@ export const useAxonizStore = create<UiState>()(
             [provider]: { ...get().providers[provider], model },
           },
           modelPickerOpen: false,
+        });
+        // 2. Tell the backend to switch provider (fire-and-forget)
+        //    This writes config.json, kills local model, disables daemon
+        fetch("/api/axoniz/v2/provider/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider, model }),
+        }).catch(() => { /* ignore — UI already updated */ });
+      },
         }),
       setActiveModel: (activeModel) => set({ activeModel }),
       setActiveProvider: (activeProvider) => set({ activeProvider }),
