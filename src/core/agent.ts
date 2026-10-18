@@ -449,16 +449,29 @@ export class Agent {
     });
     this.corrector = new SelfCorrector();
 
-    // ── Phase 4: background daemon — always on ──
+    // ── Phase 4: background daemon — respects config.daemon.enabled ──
+    // The daemon uses a local model for heartbeat/audit tasks. When the
+    // active provider is a cloud one (orca/openai/etc.), config.daemon.enabled
+    // is set to false by Runner.buildAgent() — so the daemon never starts
+    // and never tries to load a local GGUF in the background.
+    const daemonEnabled = Boolean(
+      (this.config as Record<string, unknown>).daemon ? (this.config as Record<string, unknown>).daemon : true,
+    );
+    const daemonCfg = (this.config as Record<string, unknown>).daemon as { enabled?: boolean } | undefined;
+    const daemonShouldRun = daemonCfg?.enabled !== false;
     this.daemon = new axonizDaemon({
       agent: this,
       workspace: this.workspace,
       on_event: (e: DaemonEvent) => this.onDaemonEvent(e),
     });
-    try {
-      this.daemon.start();
-    } catch (e) {
-      warn(`[Daemon] failed to start: ${errText(e)}`);
+    if (daemonShouldRun && daemonEnabled) {
+      try {
+        this.daemon.start();
+      } catch (e) {
+        warn(`[Daemon] failed to start: ${errText(e)}`);
+      }
+    } else {
+      debug("[Daemon] disabled in config (provider is cloud)");
     }
 
     // ── Phase 5 + 11 ──

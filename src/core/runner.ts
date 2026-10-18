@@ -374,11 +374,43 @@ export class Runner {
 
     if (clean.model_path) cfg.model_name = path.basename(String(clean.model_path));
 
+    // ── Propagate --provider to all the places the backend factory reads ──
+    // The backend factory (src/core/backend/index.ts:50) reads cfg.llm.active_provider
+    // first, falling back to cfg.provider/cfg.backend. If the user passes
+    // --provider orca on the CLI, we must write it to ALL THREE places —
+    // otherwise the factory still picks up the default "llamacpp" from
+    // cfg.llm.active_provider (which is what config.json had saved).
+    if (clean.provider) {
+      const prov = String(clean.provider);
+      cfg.provider = prov;
+      cfg.backend = prov;
+      if (!cfg.llm) cfg.llm = { active_provider: prov, providers: {} } as Record<string, unknown>;
+      else (cfg.llm as Record<string, unknown>).active_provider = prov;
+    }
+
     // Default to llamacpp only when no provider is configured at all.
     const active = cfg.provider ?? cfg.backend ?? (cfg.llm as Record<string, unknown> | undefined)?.active_provider;
     if (!active) {
       cfg.provider = "llamacpp";
       cfg.backend = "llamacpp";
+      if (!cfg.llm) cfg.llm = { active_provider: "llamacpp", providers: {} } as Record<string, unknown>;
+      else (cfg.llm as Record<string, unknown>).active_provider = "llamacpp";
+    }
+
+    // ── When switching to a cloud provider, disable daemon + awareness ──
+    // The daemon uses a local model for heartbeat/audit tasks — when the
+    // active provider is a cloud one, running the daemon would load a
+    // local GGUF in the background, defeating the whole point of switching
+    // to a cloud provider.
+    const CLOUD_PROVIDERS = new Set([
+      "orca", "openrouter", "openai", "anthropic", "gemini",
+      "groq", "together", "mistral", "deepseek", "fireworks", "perplexity",
+    ]);
+    const finalProvider = String(cfg.provider ?? cfg.backend ?? (cfg.llm as Record<string, unknown>)?.active_provider ?? "llamacpp");
+    if (CLOUD_PROVIDERS.has(finalProvider.toLowerCase())) {
+      if (!cfg.daemon) cfg.daemon = {};
+      (cfg.daemon as Record<string, unknown>).enabled = false;
+      cfg.awareness = { enabled: false };
     }
 
     const { Agent } = await import("./agent.js");

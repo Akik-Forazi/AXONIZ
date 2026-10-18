@@ -22,24 +22,30 @@ import { getLogger } from "../core/logger.js";
  *
  * node-llama-cpp prints yellow ANSI warnings like:
  *   \u001b[33mWARN: token </s> type mismatch\u001b[0m
+ *   \u001b[33m\n\u001b[33mwarn: token 212 </s> is not a control-type token, ...
  *
  * These warnings are confusing to users — they look like AXONIZ errors
  * but they're model-template quirks. The filter:
- *   1. Matches lines starting with WARN: or [WARN] or with ANSI yellow color.
- *   2. Suppresses them by default (set AXONIZ_DEBUG=1 to see them).
- *   3. Forwards everything else untouched.
- *
- * We also strip the legacy "(Ctrl-C — type exit to quit)" reminder that
- * the readline SIGINT handler used to spam.
+ *   1. Matches yellow ANSI lines (starts with \u001b[33m)
+ *   2. Matches lines containing "possibly model bug"
+ *   3. Matches lines containing "not control-type" / "not a control-type token"
+ *   4. Matches lines containing "token \d+ </s>" anywhere
+ *   5. Forwards everything else untouched.
+ *   6. Set AXONIZ_DEBUG=1 to see suppressed lines.
  */
 const NOISE_PATTERNS = [
-  /^\u001b\[33mWARN:/,                        // yellow WARN: lines (node-llama-cpp)
-  /^\u001b\[33m.*token.*mismatch/i,           // any yellow line about token mismatch
-  /^\u001b\[33m.*\bbpe\b/i,                   // BPE encoding warnings
-  /^\[WARN\]/i,                              // [WARN] prefix
-  /^\[node-llama-cpp\]/i,                    // node-llama-cpp prefix
-  /^\[gpt-2\]/i,                              // gpt-2 tokenizer warnings
-  /^\[llama-internal\]/i,                    // llama.cpp internal warnings
+  /^\u001b\[33m/,                                // any yellow ANSI line
+  /\bpossibly model bug\b/i,                     // "possibly model bug" anywhere
+  /\bnot (?:a )?control[- ]type (?:token)?\b/i,  // "not control-type" / "not a control-type token"
+  /\btoken \d+\s*<\/?s?>\b/i,                    // "token 212 </s>" anywhere
+  /<\/?s?>\s+is not/i,                           // "</s> is not" anywhere
+  /^\[WARN\]/i,                                  // [WARN] prefix
+  /^\s*warn:/i,                                  // "warn:" prefix (lowercase)
+  /^\[node-llama-cpp\]/i,                        // node-llama-cpp prefix
+  /^\[gpt-2\]/i,                                  // gpt-2 tokenizer warnings
+  /^\[llama-internal\]/i,                        // llama.cpp internal warnings
+  /\bBPE\b/i,                                    // any BPE warning
+  /\bGGUF\b.*\bwarning\b/i,                      // GGUF warnings
 ];
 
 const originalStderrWrite = process.stderr.write.bind(process.stderr);
