@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import {
   getExecution,
   transitionState,
-  appendToken,
+  appendToken, appendTokenBatch,
   appendEvent,
   isCancellationRequested,
   claimExecution,
@@ -46,15 +46,47 @@ export async function runExecution(executionId: string): Promise<void> {
     } else {
       appendEvent(executionId, "thinking", { value: "streaming from backend…", ts: Date.now() / 1000 });
 
+      // ── BATCHED TOKEN WRITES ──────────────────────────────────────
+      // Instead of writing each token to SQLite individually (which
+      // causes 200 fsyncs/second at 200 t/s — disk I/O bottleneck
+      // that slows streaming from 200 t/s to 2 t/s), we buffer tokens
+      // and flush them as a SINGLE SQLite transaction every 50ms or
+      // every 20 tokens (whichever comes first).
+      // This reduces SQLite writes by 10-50x.
+      const tokenBuffer: string[] = [];
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+      function flushTokenBuffer() {
+        if (tokenBuffer.length === 0) return;
+        const batch = tokenBuffer.splice(0);
+        try { appendTokenBatch(executionId, batch); } catch (e) {
+          // Fallback to individual writes if batch fails
+          for (const t of batch) { try { appendToken(executionId, t); } catch {} }
+        }
+        flushTimer = null;
+      }
+
       for await (const token of streamAgentChat(exec.prompt)) {
         if (isCancellationRequested(executionId)) {
+          flushTokenBuffer(); // flush remaining tokens before cancelling
           appendEvent(executionId, "state_change", { state: "cancelled", ts: Date.now() / 1000 });
           transitionState(executionId, "cancelled", { recovery_note: "Cancellation requested by user" });
           releaseClaim(executionId);
           return;
         }
-        appendToken(executionId, token);
+        tokenBuffer.push(token);
+        if (tokenBuffer.length >= 20) {
+          // Batch is full — flush immediately
+          if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+          flushTokenBuffer();
+        } else if (!flushTimer) {
+          // Start a 50ms timer to flush small batches
+          flushTimer = setTimeout(flushTokenBuffer, 50);
+        }
       }
+      // Final flush — write any remaining buffered tokens
+      if (flushTimer) { clearTimeout(flushTimer); }
+      flushTokenBuffer();
 
       transitionState(executionId, "completed");
       appendEvent(executionId, "state_change", { state: "completed", ts: Date.now() / 1000 });

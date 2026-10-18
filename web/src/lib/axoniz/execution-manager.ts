@@ -264,6 +264,26 @@ export function isCancellationRequested(id: string): boolean {
 }
 
 /** Append an event to the journal. Returns the event with sequence number. */
+export function appendTokenBatch(executionId: string, tokens: string[]): void {
+  if (tokens.length === 0) return;
+  const batch = tokens.join("");
+  const db = getDb();
+  const ts = Date.now() / 1000;
+  db.exec("BEGIN");
+  try {
+    db.prepare("UPDATE executions SET output = output || ?, updated_at = ? WHERE id = ?").run(batch, ts, executionId);
+    const maxSeq = db.prepare("SELECT MAX(seq) as max_seq FROM events WHERE execution_id = ?").get(executionId) as { max_seq: number | null } | undefined;
+    const seq = (maxSeq?.max_seq ?? 0) + 1;
+    // Store the ENTIRE batch as a single event — not one event per token.
+    // This reduces SQLite writes by 10-50x (from 200/s to ~10/s).
+    db.prepare("INSERT INTO events (execution_id, seq, type, data, ts) VALUES (?, ?, 'token', ?, ?)").run(executionId, seq, JSON.stringify({ value: batch }), ts);
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+}
+
 export function appendEvent(executionId: string, type: string, data: Record<string, unknown>): ExecutionEvent {
   const db = getDb();
   const ts = Date.now() / 1000;
