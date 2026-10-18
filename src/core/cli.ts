@@ -1369,8 +1369,10 @@ export class CLI {
       return;
     }
 
-    // ── Big ASCII splash (one-time) ──
-    printSplash();
+    // ── Big ASCII splash already shown by printBanner() in runner.ts ──
+    // The banner prints the user's official AXONIZ logo + version + provider
+    // + model. We used to call printSplash() here too — that printed the logo
+    // a SECOND time, cluttering the screen. Removed: one logo is enough.
 
     // ── Update check (background, won't block REPL) ──
     void this.checkForUpdate();

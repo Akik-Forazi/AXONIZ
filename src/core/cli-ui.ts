@@ -95,30 +95,29 @@ export const R = e("0");
 export const B = e("1");  // bold
 export const I = e("3");  // italic
 
-/* ── Filled-block ASCII art (gemini-cli AsciiArt.ts style) ──────────────── */
+/* ── AXONIZ ASCII art logo (user-provided design) ──────────────────────── */
 
 /**
- * Three size variants of the AXONIZ logo. The Header picks the largest
- * one that fits the terminal width — same technique as gemini-cli's
- * Header.tsx.
+ * The official AXONIZ logo — slanted hollow-style using _, /, \, |.
+ * Provided by the user. ~38 cols wide.
  *
- * Uses █ (full block) and ░ (light shade) — NOT hollow #// characters.
- * This is the claude-code style that gemini-cli copied.
+ * Three size variants are kept for narrow terminals — the user's logo
+ * is the LONG_LOGO, used whenever the terminal can fit it. SHORT and
+ * TINY variants fall back to filled-block style for very narrow
+ * terminals (since the user's design doesn't scale down cleanly).
  */
 
-// Long logo — needs ~56 cols (with side padding)
+// Long logo — the user's official AXONIZ design. ~38 cols wide.
 export const LONG_LOGO = [
-  " █████  ██   ██  ██████   █████  █████ ██████   █████ ",
-  "░███░░  ░░███░░ ░░██████ ░░███  ░░███ ░░██████ ░░███ ",
-  " ░░░░██   ░███    ░███░███ ░███  ░███  ░███░███ ░███ ",
-  "   ████   ░███    ░███ ░░  ░███  ░███  ░███ ░░██████ ",
-  "  ░░░███  ░███    ░███     ░███  ░███  ░███  ░░█████ ",
-  "   ███░ ░███     ░███     ░███  ░███  ░███   ░░████ ",
-  "  ██████  ██████ █████     █████ █████ █████  ░░████ ",
-  " ░░░░░  ░░░░░░ ░░░░░     ░░░░░ ░░░░░ ░░░░░    ░░░░ ",
+  " ___  __   _______ _   _ _____ ______  ",
+  "/ _ \\ \\ \\ / /  _  | \\ | |_   _|___  / ",
+  "/ /_\\ \\ \\ V /| | | |  \\| | | |    / /  ",
+  "|  _  | /   \\| | | | . ` | | |   / /   ",
+  "| | | |/ /^\\ \\ \\_/ / |\\  |_| |_./ /___",
+  "\\_| |_/\\/   \\/\\___/\\_| \\_/\\___/\\_____/",
 ];
 
-// Short logo — needs ~30 cols
+// Short logo — filled-block fallback for narrow terminals (~30 cols)
 export const SHORT_LOGO = [
   "  █████  ██  ██ ██████  █████ ██████ ",
   " ░███░░  ░░███░░ ░░██████ ░░███ ░░██████ ",
@@ -130,7 +129,7 @@ export const SHORT_LOGO = [
   " ░░░░░  ░░░░░░ ░░░░░    ░░░░░ ░░░░░    ░░░░ ",
 ];
 
-// Tiny logo — fits in 20 cols
+// Tiny logo — for very narrow terminals (~20 cols)
 export const TINY_LOGO = [
   " █████ ██  ██ ███████",
   "░███░░ ░░███░░ ░░██████ ",
