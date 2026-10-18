@@ -62,6 +62,9 @@ export function App({
   const [busy, setBusy] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [totalTokens, setTotalTokens] = useState(0);
+  const [totalElapsed, setTotalElapsed] = useState(0);
+  const [messageCount, setMessageCount] = useState(0);
   const [footer, setFooter] = useState<FooterData>({
     cwd: cwd ?? process.cwd(),
     gitBranch: null,
@@ -72,6 +75,39 @@ export function App({
     isTrusted: true,
   });
   const elapsedStart = useRef<number | null>(null);
+  const sessionStart = useRef(Date.now());
+
+  // ── On startup, read real provider + model from the agent config ──
+  // (was showing "axoniz/auto" because initialFooter defaults were wrong)
+  useEffect(() => {
+    try {
+      const agent = getAgent();
+      const cfg = agent.config as Record<string, unknown>;
+      const llm = cfg.llm as { active_provider?: string; providers?: Record<string, Record<string, unknown>> } | undefined;
+      const prov = String(cfg.provider ?? cfg.backend ?? llm?.active_provider ?? "llamacpp");
+      const pCfg = llm?.providers?.[prov] ?? {};
+      const model = String(pCfg.model_name ?? pCfg.model_path ?? cfg.model_name ?? "auto");
+      const modelShort = model.split(/[\\/]/).pop()?.replace(/\.(gguf|bin)$/i, "") ?? model;
+      setFooter(f => ({ ...f, provider: prov, model: modelShort }));
+
+      // ── API key check — warn the user if the provider needs a key but
+      // doesn't have one (so the first message doesn't fail silently)
+      const CLOUD = ["orca", "openrouter", "openai", "anthropic", "gemini", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity"];
+      if (CLOUD.includes(prov) && !pCfg.api_key) {
+        const envKey = `${prov.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
+        const envVal = process.env[envKey] ?? process.env[`${prov}_API_KEY`];
+        if (!envVal) {
+          setMessages([{
+            id: "warn-apikey",
+            role: "assistant",
+            content: `⚠ No API key configured for **${prov}**.\n\nSet it with:\n\`\`\`bash\nexport ${envKey}=your-key-here\n\`\`\`\n\nOr restart with: \`node dist/tui/entry.js --provider ${prov}\`\nafter setting the env var.\n\nOr switch to a local provider: \`/switch lmstudio\``,
+          }]);
+        }
+      }
+    } catch {
+      // Agent might not be ready yet — skip
+    }
+  }, []);
 
   // Live elapsed timer — updates every 1s while busy
   useEffect(() => {
@@ -94,7 +130,15 @@ export function App({
 
   const handleSubmit = async (raw: string) => {
     if (raw === "__exit__" || raw === "exit" || raw === "quit") {
-      exit();
+      // ── Exit with session stats summary ──
+      const sessionElapsed = Math.floor((Date.now() - sessionStart.current) / 1000);
+      setMessages(prev => [...prev, {
+        id: "exit-summary",
+        role: "assistant",
+        content: `**Session summary**\n\n- Messages: ${messageCount}\n- Total tokens: ${totalTokens}\n- Session time: ${sessionElapsed}s\n- Provider: ${footer.provider}/${footer.model}\n\nBye. ◈`,
+      }]);
+      // Give Ink a moment to render the summary before exiting
+      setTimeout(() => exit(), 500);
       return;
     }
     if (!raw.trim() || busy) return;
@@ -139,6 +183,7 @@ export function App({
     }
 
     // ── Regular chat — send to the LLM ──
+    setMessageCount(c => c + 1);
     const userMsg: Message = { id: `u${Date.now()}`, role: "user", content: raw };
     setMessages(prev => [...prev, userMsg]);
 
@@ -156,12 +201,14 @@ export function App({
       raw,
       (token) => {
         tokenCount += token.length;
+        setTotalTokens(t => t + token.length);
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m));
         setFooter(f => ({ ...f, tokens: tokenCount }));
       },
       () => {
         setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, pending: false } : m));
         setBusy(false);
+        setTotalElapsed(t => t + elapsed);
         setFooter(f => ({ ...f, elapsedSec: elapsed, tokens: tokenCount }));
       },
     );

@@ -3,18 +3,19 @@
  *
  * The scrolling message log. Renders:
  *   - Header (banner + version + tips) at the top, ONCE
- *   - All past messages (user + assistant + tool results) in order
+ *   - All past messages (user + assistant + tool) in order
  *   - Spinner when busy
  *
  * Each message type renders differently:
- *   - user:        `> hi`              (cyan prefix)
- *   - assistant:   `  response text`   (gray body, ▋ cursor when pending)
+ *   - user:        `> hi`              (magenta prefix)
+ *   - assistant:   markdown-rendered   (MarkdownText component)
  *   - tool:        `  ✓ result preview` (indented, green check)
  */
 import React from "react";
 import { Box, Text } from "ink";
 import { Header } from "./Header.js";
 import { Spinner } from "./Spinner.js";
+import { MarkdownText } from "./MarkdownText.js";
 
 export interface Message {
   id: string;
@@ -59,13 +60,6 @@ function MessageRow({ message: m }: { message: Message }) {
       </Box>
     );
   }
-  // assistant
-  return (
-    <Box flexDirection="column">
-      <Box paddingLeft={2}>
-        <Text color="gray">{m.content}</Text>
-        {m.pending && <Text color="magenta">▋</Text>}
-      </Box>
-    </Box>
-  );
+  // assistant — render with markdown
+  return <MarkdownText content={m.content} pending={m.pending} />;
 }
