@@ -1,35 +1,27 @@
 /**
- * Next.js instrumentation — runs ONCE on server startup.
+ * Next.js instrumentation hook — runs once on server startup.
  *
- * This is the official Next.js way to run code when the server starts.
- * We use it to call execution-manager.recoverOnStartup() which:
- *   1. Finds all non-terminal executions (queued, running, cancel_requested)
- *   2. Marks them as "interrupted" with a recovery note
- *   3. The user can then retry them explicitly (no automatic rerun)
+ * This is where we initialize the v2 workflow scheduler (node-cron).
+ * It runs in the Node.js runtime (NOT the browser), so node-cron
+ * works here. The SchedulerProvider was a "use client" component
+ * that tried to import node-cron in the browser → crashed every page.
  *
- * This is idempotent — calling it multiple times is safe because
- * terminal executions are not affected.
- *
- * @see https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation
+ * This file is automatically called by Next.js on startup.
  */
-
 export async function register() {
-  // Only run on the server (Node.js runtime), not in the browser or Edge.
-  // node:sqlite is only available in Node.js, not Edge.
-  if (typeof window !== "undefined") return;
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-
-  try {
-    const { recoverOnStartup } = await import("@/lib/axoniz/execution-manager");
-    const result = recoverOnStartup();
-    if (result.interrupted > 0) {
-      console.log(`[axoniz] startup recovery: ${result.interrupted} interrupted executions found`);
-      for (const exec of result.recovered) {
-        console.log(`[axoniz]   ${exec.id} (${exec.mode}): ${exec.prompt.slice(0, 60)} → interrupted`);
-      }
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    try {
+      // Initialize templates (writes 5 starter templates to ~/.axoniz/templates/)
+      const { initTemplates } = await import("@/lib/axoniz/v2-templates");
+      initTemplates();
+      // Start the workflow scheduler (node-cron, server-only)
+      const { refreshSchedule } = await import("@/lib/axoniz/v2-scheduler-server");
+      refreshSchedule();
+      // Re-scan every 60s for new workflows created via the UI
+      setInterval(refreshSchedule, 60_000);
+      console.log("[instrumentation] v2 scheduler started");
+    } catch (e) {
+      console.warn("[instrumentation] scheduler init failed:", e instanceof Error ? e.message : String(e));
     }
-  } catch (e) {
-    // Don't crash the server if recovery fails — log and continue.
-    console.error("[axoniz] startup recovery failed:", e instanceof Error ? e.message : String(e));
   }
 }
