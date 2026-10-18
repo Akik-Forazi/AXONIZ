@@ -114,3 +114,49 @@ export function stopAllSchedules(): void {
     intervalId = null;
   }
 }
+
+
+/* ─── File watcher triggers ──────────────────────────────────────── */
+const watchers: Array<{ path: string; watcher: ReturnType<typeof import("fs").watch> }> = [];
+
+export function refreshFileWatchers(): void {
+  // Stop existing watchers
+  for (const w of watchers) { try { w.watcher.close(); } catch {} }
+  watchers.length = 0;
+
+  const workflows = listWorkflows();
+  for (const wf of workflows) {
+    if (!wf.enabled) continue;
+    if (wf.trigger.type !== "file_watch") continue;
+
+    const glob = (wf.trigger as { glob?: string }).glob;
+    if (!glob) continue;
+
+    // Simple fs.watch on the project directory — full glob matching
+    // would need a glob library. For now, watch the project root.
+    const projectPath = wf.projectId ? getProjectPath(wf.projectId) : process.cwd();
+    if (!projectPath) continue;
+
+    try {
+      const fs = require("fs");
+      const watcher = fs.watch(projectPath, { recursive: true }, async (event: string, filename: string | null) => {
+        if (!filename) return;
+        console.log(`[file_watch] "${wf.name}" detected: ${event} ${filename}`);
+        try { await runWorkflow(wf as Workflow, "file_watch"); }
+        catch (e) { console.error(`[file_watch] "${wf.name}" failed:`, e); }
+      });
+      watchers.push({ path: projectPath, watcher });
+    } catch (e) {
+      console.warn(`[file_watch] failed to watch ${projectPath}:`, e);
+    }
+  }
+  console.log(`[file_watch] ${watchers.length} file watcher(s) active`);
+}
+
+function getProjectPath(projectId: string | null): string | null {
+  if (!projectId) return null;
+  try {
+    const { getProject } = require("./v2-projects");
+    return getProject(projectId)?.path ?? null;
+  } catch { return null; }
+}

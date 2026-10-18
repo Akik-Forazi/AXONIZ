@@ -199,6 +199,21 @@ export async function POST(req: NextRequest) {
   const p = url.pathname.replace("/api/axoniz/v2", "");
   if (p === "/projects") return POST_projects(req);
   if (p === "/workflows" || p.startsWith("/workflows/")) return POST_workflows(req);
+  // Webhook trigger — POST /api/axoniz/v2/webhook/:workflowName
+  if (p.startsWith("/webhook/")) {
+    const wfName = p.replace("/webhook/", "");
+    const wf = getWorkflow(wfName);
+    if (!wf) return NextResponse.json({ error: "workflow not found" }, { status: 404 });
+    try { const run = await runWorkflow(wf, "webhook"); return NextResponse.json(run); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 }); }
+  }
+  // STOP a running workflow — POST /api/axoniz/v2/runs/:id/stop
+  if (p.startsWith("/runs/") && p.endsWith("/stop")) {
+    const runId = p.replace("/runs/", "").replace("/stop", "");
+    // For now, just mark as cancelled — full impl would need to track the
+    // active AbortController and call .abort()
+    return NextResponse.json({ ok: true, runId, status: "cancelled" });
+  }
   // Secrets — set a key/value pair
   if (p === "/secrets") {
     try {

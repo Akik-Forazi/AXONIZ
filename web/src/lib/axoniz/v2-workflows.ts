@@ -298,15 +298,35 @@ registerTool("log", async (args, ctx) => {
   return { logged: true };
 });
 
-// email tool — send email via SMTP (uses nodemailer if available, or logs)
+// email tool — send email via SMTP (nodemailer)
 registerTool("email", async (args) => {
   const to = String(args.to ?? "");
   const subject = String(args.subject ?? "(no subject)");
   const body = String(args.body ?? "");
+  const html = args.html ? String(args.html) : undefined;
   if (!to) throw new Error("email: 'to' required");
-  // For now, just log — full SMTP requires nodemailer + SMTP config
-  console.log(`[email] TO: ${to} SUBJECT: ${subject} BODY: ${body.slice(0, 200)}`);
-  return { sent: true, to, subject };
+
+  // SMTP config from args or environment
+  const host = String(args.smtp_host ?? process.env.SMTP_HOST ?? "");
+  const port = Number(args.smtp_port ?? process.env.SMTP_PORT ?? 587);
+  const user = String(args.smtp_user ?? process.env.SMTP_USER ?? "");
+  const pass = String(args.smtp_pass ?? process.env.SMTP_PASS ?? "");
+  const from = String(args.from ?? process.env.SMTP_FROM ?? user);
+
+  if (!host) {
+    // No SMTP configured — log instead of failing
+    console.log(`[email] NO SMTP — would send: TO=${to} SUBJECT=${subject}`);
+    return { sent: false, reason: "no SMTP configured", to, subject };
+  }
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.createTransport({ host, port, auth: { user, pass } });
+    const info = await transporter.sendMail({ from, to, subject, text: body, html });
+    return { sent: true, messageId: info.messageId, to, subject };
+  } catch (e) {
+    throw new Error(`email: ${e instanceof Error ? e.message : String(e)}`);
+  }
 });
 
 // slack tool — send message to Slack via incoming webhook

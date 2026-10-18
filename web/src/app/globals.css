@@ -334,3 +334,119 @@
 .animate-blink {
   animation: axoniz-blink 2s ease-in-out infinite;
 }
+
+/* ============================================================
+   STUDIO AESTHETIC — applied on top of theme variables
+   Clean Linear/Vercel-grade polish: 8px grid, 1px borders,
+   3-level elevation shadows, 150ms cubic-bezier transitions.
+   ============================================================ */
+
+/* Typography — Inter for body, JetBrains Mono for code/numerals */
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss01', 'tnum';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.003em;
+  }
+  code, pre, .font-mono, [class*="mono"] {
+    font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Crisp 1px borders everywhere (not blurry glows) */
+  *, *::before, *::after {
+    border-color: var(--border);
+  }
+  /* Selection — violet tint */
+  ::selection {
+    background: oklch(0.62 0.27 295 / 0.30);
+  }
+  /* Focus ring — subtle, NOT a glowing box */
+  :focus-visible {
+    outline: 1.5px solid oklch(0.62 0.27 295 / 0.55);
+    outline-offset: 1px;
+    border-radius: 4px;
+  }
+}
+
+/* Glassmorphism utility — use on cards that should feel "floating" */
+@layer utilities {
+  .glass {
+    background: oklch(0.085 0.035 280 / 0.65);
+    backdrop-filter: blur(12px) saturate(1.2);
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    border: 1px solid oklch(0.74 0.20 295 / 0.10);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.4), 0 1px 2px oklch(0.62 0.27 295 / 0.04);
+  }
+  .glass:hover {
+    border-color: oklch(0.74 0.20 295 / 0.16);
+    box-shadow: 0 4px 12px oklch(0 0 0 / 0.5), 0 2px 4px oklch(0.62 0.27 295 / 0.06);
+  }
+  /* Elevation levels (Material 3 standard, violet-tinted) */
+  .elev-1 { box-shadow: 0 1px 2px oklch(0 0 0 / 0.3); }
+  .elev-2 { box-shadow: 0 1px 3px oklch(0 0 0 / 0.4), 0 1px 2px oklch(0.62 0.27 295 / 0.04); }
+  .elev-3 { box-shadow: 0 4px 12px oklch(0 0 0 / 0.5), 0 2px 4px oklch(0.62 0.27 295 / 0.06); }
+  /* Smooth transition utility */
+  .smooth {
+    transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* Flowing underline animation for the composer */
+  .composer-flow {
+    position: relative;
+    overflow: hidden;
+  }
+  .composer-flow::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(0.62 0.27 295 / 0.10) 30%,
+      oklch(0.74 0.20 295 / 0.22) 50%,
+      oklch(0.62 0.27 295 / 0.10) 70%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    animation: composer-flow-anim 3.2s linear infinite;
+    pointer-events: none;
+  }
+  .composer-flow.has-input::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(0.62 0.27 295 / 0.28) 30%,
+      oklch(0.74 0.20 295 / 0.55) 50%,
+      oklch(0.62 0.27 295 / 0.28) 70%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    animation: composer-flow-anim 1.8s linear infinite;
+  }
+  @keyframes composer-flow-anim {
+    0% { background-position: 200% 0; }
+    100% { background-position: -100% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .composer-flow::after { animation: none; background: oklch(0.74 0.20 295 / 0.18); background-size: 100% 100%; }
+    .composer-flow.has-input::after { background: oklch(0.74 0.20 295 / 0.35); background-size: 100% 100%; }
+  }
+  /* Streaming cursor — solid violet bar, no blink */
+  .stream-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 16px;
+    background: oklch(0.62 0.27 295);
+    vertical-align: text-bottom;
+    margin-left: 2px;
+  }
+}

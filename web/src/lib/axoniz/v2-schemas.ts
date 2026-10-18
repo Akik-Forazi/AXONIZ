@@ -67,7 +67,7 @@ export const WorkflowStepSchema = z.object({
   id: z.string(),                           // used for {{step_id.field}} refs
   tool: z.enum([
     "http", "file", "shell", "agent", "log", "email", "slack", "github", "palace", "axodex",
-    // Future: "email", "slack", "github", "palace", "axodex",
+    // All tools above are implemented. Future:
     // "axotest", "axovb", "xorvoid", "xorgis", "promochu", "voice", "office",
   ]),
   // Tool-specific args — validated at runtime by each tool's own schema.

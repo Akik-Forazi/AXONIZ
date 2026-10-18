@@ -12,6 +12,8 @@ export async function register() {
       initTemplates();
       const { refreshSchedule } = await import("@/lib/axoniz/v2-scheduler-server");
       refreshSchedule();
+      const { refreshFileWatchers } = await import("@/lib/axoniz/v2-scheduler-server");
+      refreshFileWatchers();
       console.log("[instrumentation] v2 scheduler started");
     } catch (e) {
       console.warn("[instrumentation] scheduler init failed:", e instanceof Error ? e.message : String(e));
