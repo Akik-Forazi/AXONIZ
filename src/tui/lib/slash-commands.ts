@@ -4,9 +4,9 @@
  */
 import path from "node:path";
 import fs from "node:fs";
-import os from "node:os";
 import { execSync } from "node:child_process";
 import { PROVIDER_CATALOG, distRequire, saveConfig } from "./agent-bridge.js";
+import { MODELS_DIR } from "../../core/config.js";
 
 export interface SlashCommandEntry {
   value: string;
@@ -151,7 +151,7 @@ async function useModel(agent: any, name: string): Promise<SlashResult> {
 
 async function listModels(agent: any): Promise<string> {
   const lines = ["Available models:", ""];
-  const modelsDir = path.join(os.homedir(), ".axoniz", "models");
+  const modelsDir = MODELS_DIR;
   const vault: string[] = [];
   function walk(dir: string, d = 0) {
     if (d > 6) return;

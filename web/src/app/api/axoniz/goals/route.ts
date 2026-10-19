@@ -1,4 +1,4 @@
-/** GET /api/axoniz/goals — list goals from ~/.axoniz/goals.db */
+/** GET /api/axoniz/goals — list goals from ~/.fraziym/axoniz/goals.db */
 import { NextResponse } from "next/server";
 import { listGoals } from "@/lib/axoniz/cli-bridge";
 export const dynamic = "force-dynamic";

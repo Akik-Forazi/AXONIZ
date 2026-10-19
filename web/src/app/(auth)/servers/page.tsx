@@ -151,7 +151,7 @@ export default function ServersPage() {
       // Use the llamacpp.modelPath from the store — set when user picks a model
       // in the Vault or ModelPicker.
       const modelPath = llamacpp.modelPath;
-      if (!modelPath || modelPath === "~/.axoniz/models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf") {
+      if (!modelPath || modelPath === "%LOCALAPPDATA%\\FRAZIYM\\axoniz\\models\\Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf") {
         // The default placeholder — user hasn't picked a model yet.
         toast.error("No model selected", {
           description: "Open the Vault page and click 'Load & launch' on a model first.",

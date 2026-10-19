@@ -192,7 +192,7 @@ export function DevicesSettingsPage() {
             onClick={() => {
               if (confirm("This will invalidate ALL authorized devices. They'll need to re-enter the code. Continue?")) {
                 toast.success("To revoke all devices:", {
-                  description: "Run: del ~/.axoniz/web-secret  (then restart axoniz --web)",
+                  description: "Run: del %USERPROFILE%\\.fraziym\\axoniz\\web-secret  (then restart axoniz --web)",
                 });
               }
             }}

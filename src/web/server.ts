@@ -182,7 +182,6 @@ export function getModelSearchDirs(): string[] {
     path.join(HERE, "..", "models"),
     path.join(home, "Downloads"),
     path.join(home, "models"),
-    "C:\\Users\\akikf\\.axoniz\\models\\lmstudio-community",
     path.join(HERE, ".."),
   ];
   const unique: string[] = [];

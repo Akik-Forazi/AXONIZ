@@ -27,11 +27,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { whichSync } from "../core/which.js";
-import { AXONIZ_HOME } from "../core/config.js";
+import { VOICE_MODELS_DIR } from "../core/config.js";
 
 /* ── Paths ─────────────────────────────────────────────────────────────────── */
 
-export const MODELS_DIR = path.join(AXONIZ_HOME, "voice_models");
+export const MODELS_DIR = VOICE_MODELS_DIR;
 fs.mkdirSync(MODELS_DIR, { recursive: true });
 
 /** `os.path.dirname(os.path.dirname(abspath(__file__)))` → the `src/` directory. */

@@ -1,6 +1,6 @@
 /**
  * AXONIZ-ZERO History — v2
- * Stores sessions in ~/.axoniz/history/ as JSONL files.
+ * Stores sessions in ~/.fraziym/axoniz/history/ as JSONL files.
  * Supports saving/loading full chat history for conversation resume.
  * Port of axoniz/core/history.py.
  */

@@ -30,7 +30,7 @@
 
 ### MCP Integration
 - [ ] MCP Host: AXONIZ can spawn/connect to external MCP servers
-- [ ] Configure via ~/.axoniz/mcp.json
+- [ ] Configure via ~/.fraziym/axoniz/mcp.json
 - [ ] MCP Server: axoniz-axodex (code graph queries)
 - [ ] MCP Server: axoniz-palace (memory palace + KG)
 - [ ] MCP Server: axoniz-forge (model downloader)
@@ -56,7 +56,7 @@
 ### Sandbox + Approval Modes
 - [ ] Approval modes: auto / read-only / full-access (switchable mid-session)
 - [ ] Per-tool-call approval prompt (first time touching outside project folder)
-- [ ] Grants system (~/.axoniz/grants.json remembering approved expansions)
+- [ ] Grants system (~/.fraziym/axoniz/grants.json remembering approved expansions)
 - [ ] STOP button per workflow + global STOP ALL
 
 ### Artifacts + Async Manager

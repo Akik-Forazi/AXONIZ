@@ -7,7 +7,7 @@
  * one tool invocation. Steps can reference previous results via
  * {{step_id.field}} mustache syntax.
  *
- * Stored at ~/.axoniz/workflows/<name>.yml — git-syncable.
+ * Stored at ~/.fraziym/axoniz/workflows/<name>.yml — git-syncable.
  */
 import { useState, useEffect, useCallback } from "react";
 import { Workflow, Play, Trash2, Loader2, Clock, FileCode, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
@@ -168,7 +168,7 @@ export default function WorkflowsPage() {
             <FileCode className="w-3.5 h-3.5" />New workflow (YAML)
           </div>
           <div className="text-[11px] text-muted-foreground/80 mb-3">
-            Edit the YAML below, then click Save. The file is stored at <code className="font-mono">~/.axoniz/workflows/&lt;name&gt;.yml</code> — git-syncable.
+            Edit the YAML below, then click Save. The file is stored at <code className="font-mono">~/.fraziym/axoniz/workflows/&lt;name&gt;.yml</code> — git-syncable.
           </div>
           <textarea
             value={newYaml}

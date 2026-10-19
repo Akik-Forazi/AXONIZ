@@ -1,7 +1,7 @@
 /**
  * AXONIZ diagnostic logging bridge — POST /api/axoniz/diagnostics/log
  *
- * The browser cannot write to ~/.axoniz/logs/ directly. It POSTs events
+ * The browser cannot write to %LOCALAPPDATA%\FRAZIYM\axoniz\logs\ directly. It POSTs events
  * here as JSON; this route forwards them to the singleton DiagLogger.
  *
  * Privacy contract:

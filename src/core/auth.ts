@@ -5,10 +5,10 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { SignJWT, jwtVerify } from "jose";
+import { AXONIZ_HOME } from "./config.js";
 
-export const DEFAULT_SECRET_FILE = path.join(os.homedir(), ".axoniz", "secret.key");
+export const DEFAULT_SECRET_FILE = path.join(AXONIZ_HOME, "secret.key");
 
 interface StoredUser {
   password_hash: string;

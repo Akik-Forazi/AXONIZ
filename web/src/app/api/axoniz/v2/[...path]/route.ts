@@ -34,7 +34,7 @@ import {
 import { WorkflowSchema } from "@/lib/axoniz/v2-schemas";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "@/lib/axoniz/paths";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -156,7 +156,7 @@ export async function GET_logs(req: NextRequest) {
     const project = getProject(id);
     if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
     const dateStr = new Date().toISOString().slice(0, 10);
-    const logFile = path.join(os.homedir(), ".axoniz", "projects", id, "logs", `${dateStr}.jsonl`);
+    const logFile = path.join(axonizHome(), "projects", id, "logs", `${dateStr}.jsonl`);
     if (!fs.existsSync(logFile)) return NextResponse.json({ entries: [] });
     const lines = fs.readFileSync(logFile, "utf-8").trimEnd().split("\n").filter(Boolean).slice(-limit);
     const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
@@ -296,8 +296,7 @@ export async function POST(req: NextRequest) {
       // 1. Update config file
       const fs = await import("node:fs");
       const path = await import("node:path");
-      const os = await import("node:os");
-      const configPath = path.join(os.homedir(), ".axoniz", "config.json");
+      const configPath = path.join(axonizHome(), "config.json");
       let config: Record<string, unknown> = {};
       try { config = JSON.parse(fs.readFileSync(configPath, "utf-8")); } catch {}
       if (!config.llm) config.llm = {};
@@ -321,7 +320,7 @@ export async function POST(req: NextRequest) {
       });
 
       // 4. Write a reload signal for the daemon
-      const signalPath = path.join(os.homedir(), ".axoniz", "db", "daemon-signal.json");
+      const signalPath = path.join(axonizHome(), "db", "daemon-signal.json");
       try { fs.mkdirSync(path.dirname(signalPath), { recursive: true }); } catch {}
       fs.writeFileSync(signalPath, JSON.stringify({ action: "reload", provider: providerId, ts: Date.now() }), "utf-8");
 

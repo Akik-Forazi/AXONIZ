@@ -70,7 +70,7 @@
 | v2-schemas.ts (Zod) | ✅ | ProjectMeta, Workflow, WorkflowStep, LogEntry, WorkflowRun |
 | v2-projects.ts (register + auto-detect) | ✅ | git/npm/TS/Next.js/framework/tests/docker detection |
 | v2-workflows.ts (YAML parser + runner) | ✅ | Sequential, mustache templating, JSONL logs |
-| v2-secrets.ts | ✅ | ~/.axoniz/secrets.json, mode 0600 |
+| v2-secrets.ts | ✅ | ~/.fraziym/axoniz/secrets.json, mode 0600 |
 | v2-templates.ts | ✅ | 5 starter templates |
 | v2-scheduler-server.ts | ✅ | Built-in setInterval + cron parser (no node-cron) |
 | instrumentation.ts | ✅ | Server-side scheduler init |
@@ -91,7 +91,7 @@
 | email | ⚠️ | Logs to console only — full SMTP pending nodemailer |
 | slack | ✅ | Incoming webhook URL |
 | github | ✅ | REST API (GET/POST/PUT/DELETE) with token auth |
-| palace | ✅ | store/read/list from ~/.axoniz/palace/ |
+| palace | ✅ | store/read/list from ~/.fraziym/axoniz/palace/ |
 | axodex | ⚠️ | Returns placeholder — full impl needs Axodex module call |
 
 ## 8. v2 Triggers

@@ -2,7 +2,7 @@
  * AXONIZ v2 — starter templates.
  *
  * 5 pre-built workflow templates that cover the most common automation
- * patterns. On init, these are written to ~/.axoniz/templates/ if they
+ * patterns. On init, these are written to ~/.fraziym/axoniz/templates/ if they
  * don't already exist. Users can then instantiate them via the UI or CLI.
  *
  * Templates are simple YAML files — same format as user-defined workflows.
@@ -10,9 +10,9 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "./paths";
 
-const TEMPLATES_DIR = path.join(os.homedir(), ".axoniz", "templates");
+const TEMPLATES_DIR = path.join(axonizHome(), "templates");
 
 interface Template {
   filename: string;
@@ -158,7 +158,7 @@ enabled: false
   },
 ];
 
-/** Write templates to ~/.axoniz/templates/ if they don't exist. */
+/** Write templates to ~/.fraziym/axoniz/templates/ if they don't exist. */
 export function initTemplates() {
   fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
   for (const tpl of TEMPLATES) {
@@ -169,7 +169,7 @@ export function initTemplates() {
   }
 }
 
-/** List all available templates (from ~/.axoniz/templates/). */
+/** List all available templates (from ~/.fraziym/axoniz/templates/). */
 export function listTemplates(): Array<{ filename: string; content: string }> {
   initTemplates();
   const result: Array<{ filename: string; content: string }> = [];

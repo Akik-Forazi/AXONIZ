@@ -5,7 +5,7 @@
  * lmstudio) and exposes:
  *   - ring buffer of last N stdout/stderr lines
  *   - SSE broadcast to live subscribers
- *   - persistence to ~/.axoniz/logs/servers/<provider>-<timestamp>.log
+ *   - persistence to %LOCALAPPDATA%\FRAZIYM\axoniz\logs\servers\<provider>-<timestamp>.log
  *
  * Used by:
  *   - /api/axoniz/models/launch  (spawn + attach pipes)
@@ -18,8 +18,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { EventEmitter } from "node:events";
+import { axonizLocal } from "./paths";
 
 export interface ServerStatus {
   running: boolean;
@@ -114,8 +114,8 @@ class ServerProcessManager extends EventEmitter {
     this.args = opts.args;
     this.lastExitCode = null;
 
-    // Open a log file for this session: ~/.axoniz/logs/servers/<provider>-<ts>.log
-    const logDir = path.join(os.homedir(), ".axoniz", "logs", "servers");
+    // Open a log file for this session: %LOCALAPPDATA%\FRAZIYM\axoniz\logs\servers\<provider>-<ts>.log
+    const logDir = path.join(axonizLocal(), "logs", "servers");
     try { fs.mkdirSync(logDir, { recursive: true }); } catch { /* ignore */ }
     const ts = new Date();
     const pad = (n: number, w = 2) => String(n).padStart(w, "0");

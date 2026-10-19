@@ -27,29 +27,30 @@ import {
 } from "../dist/core/diagnostics.js";
 
 let tmpHome: string;
-const ORIG_HOME = process.env.HOME;
+const ORIG_FRAZIYM_LOCAL = process.env.FRAZIYM_LOCAL;
 
 beforeEach(() => {
   tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "axoniz-fault-"));
-  process.env.HOME = tmpHome;
+  process.env.FRAZIYM_LOCAL = tmpHome;
   _setDiagLoggerForTest(null);
 });
 
 afterEach(() => {
   _setDiagLoggerForTest(null);
-  process.env.HOME = ORIG_HOME;
+  if (ORIG_FRAZIYM_LOCAL === undefined) delete process.env.FRAZIYM_LOCAL;
+  else process.env.FRAZIYM_LOCAL = ORIG_FRAZIYM_LOCAL;
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
-/* ── 1. First-run creation of ~/.axoniz/logs/ ─────────────────────────── */
+/* ── 1. First-run creation of the T2 axoniz logs dir ──────────────────── */
 
-test("1. first-run creates ~/.axoniz/logs/ directory", () => {
+test("1. first-run creates <FRAZIYM_LOCAL>/axoniz/logs/ directory", () => {
   // Make sure tmpHome is empty before.
-  assert.ok(!fs.existsSync(path.join(tmpHome, ".axoniz", "logs")));
+  assert.ok(!fs.existsSync(path.join(tmpHome, "axoniz", "logs")));
   const log = getDiagLogger("first-run-user");
   try {
-    assert.ok(fs.existsSync(path.join(tmpHome, ".axoniz", "logs")));
-    assert.ok(log.filePath.startsWith(path.join(tmpHome, ".axoniz", "logs")));
+    assert.ok(fs.existsSync(path.join(tmpHome, "axoniz", "logs")));
+    assert.ok(log.filePath.startsWith(path.join(tmpHome, "axoniz", "logs")));
   } finally {
     log.close();
   }
@@ -77,7 +78,7 @@ test("3. username sanitization strips path traversal + unsafe chars", () => {
 /* ── 4. Filename collision handling ───────────────────────────────────── */
 
 test("4. filename collision appends -2, -3, ...", () => {
-  const dir = path.join(tmpHome, ".axoniz", "logs");
+  const dir = path.join(tmpHome, "axoniz", "logs");
   fs.mkdirSync(dir, { recursive: true });
   const d = new Date(2026, 9, 14, 21, 15, 30);
   const a = buildAxologFilename(d, "user");
@@ -196,7 +197,7 @@ test("10. abrupt process termination leaves parseable records", () => {
   // paths (C:\\Users\\runner\\...) are properly escaped when the
   // path is interpolated into the generated script string. Without
   // this, JS string-literal escape parsing eats the backslashes
-  // (\\U -> U, \\r -> CR, etc.) and the child sets HOME to a mangled
+  // (\\U -> U, \\r -> CR, etc.) and the child sets FRAZIYM_LOCAL to a mangled
   // path that doesn't exist, causing ENOENT on the parent's
   // readdirSync call. We use JSON.stringify() on the path values
   // (not the whole script) because we still want real newlines in
@@ -205,7 +206,7 @@ test("10. abrupt process termination leaves parseable records", () => {
   const homeLit = JSON.stringify(tmpHome);
   const script = `
     import { getDiagLogger } from ${diagPath};
-    process.env.HOME = ${homeLit};
+    process.env.FRAZIYM_LOCAL = ${homeLit};
     const log = getDiagLogger("abrupt");
     for (let i = 0; i < 10; i++) {
       log.emit({ component: "test", event_type: "tick", details: { i } });
@@ -217,10 +218,10 @@ test("10. abrupt process termination leaves parseable records", () => {
   // backslashes (Windows paths) and quotes (script content).
   execSync(`node --input-type=module`, {
     input: script,
-    env: { ...process.env, HOME: tmpHome },
+    env: { ...process.env, FRAZIYM_LOCAL: tmpHome },
   });
   // Find the file
-  const dir = path.join(tmpHome, ".axoniz", "logs");
+  const dir = path.join(tmpHome, "axoniz", "logs");
   const files = fs.readdirSync(dir).filter(f => f.endsWith(".axolog"));
   assert.equal(files.length, 1);
   const content = fs.readFileSync(path.join(dir, files[0]), "utf-8");
@@ -411,7 +412,7 @@ test("18. multiple processes write to separate files (different usernames)", () 
   const script = (username) => {
     const u = JSON.stringify(username);
     return `
-    process.env.HOME = ${homeLit};
+    process.env.FRAZIYM_LOCAL = ${homeLit};
     import(${diagPath}).then(async (mod) => {
       const log = mod.getDiagLogger(${u});
       log.emit({ component: "child", event_type: "tick", details: { user: ${u} } });
@@ -422,7 +423,7 @@ test("18. multiple processes write to separate files (different usernames)", () 
   };
   execSync(`node --input-type=module`, { input: script("alice") });
   execSync(`node --input-type=module`, { input: script("bob") });
-  const dir = path.join(tmpHome, ".axoniz", "logs");
+  const dir = path.join(tmpHome, "axoniz", "logs");
   const files = fs.readdirSync(dir).filter(f => f.endsWith(".axolog"));
   assert.ok(files.length >= 2);
   const hasAlice = files.some(f => f.includes("alice"));

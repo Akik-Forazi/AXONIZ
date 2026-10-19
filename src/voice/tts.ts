@@ -21,7 +21,7 @@
  * WAV output is written by hand (44-byte RIFF/PCM header, `node:fs`) — see
  * `src/voice/wav.ts`. No `soundfile` package is used anywhere.
  *
- * Model files (kokoro, searched cwd → ~/.axoniz/voice_models → ~/Downloads):
+ * Model files (kokoro, searched cwd → <LOCALAPPDATA>\FRAZIYM\axoniz\voice_models → ~/Downloads):
  *   kokoro-v1.0.int8.onnx   (88MB  — recommended, CPU-optimized)
  *   kokoro-v1.0.onnx        (310MB — full quality)
  *   voices-v1.0.bin         (voice embeddings, always required)
@@ -33,7 +33,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getLogger } from "../core/logger.js";
 import { whichSync } from "../core/which.js";
-import { loadConfig, AXONIZ_HOME } from "../core/config.js";
+import { loadConfig, VOICE_MODELS_DIR } from "../core/config.js";
 import {
   AUDIO_OUTPUT_MISSING_ERROR,
   getAudioOutputDriver,
@@ -63,7 +63,7 @@ let _tts: TTSEngine | null = null; // ← TTS engine singleton
 
 /* ── Model file search ─────────────────────────────────────────────────────── */
 
-export const VOICE_MODELS = path.join(AXONIZ_HOME, "voice_models");
+export const VOICE_MODELS = VOICE_MODELS_DIR;
 
 const _ONNX_NAMES = [
   "kokoro-v1.0.int8.onnx", // int8, 88MB — preferred

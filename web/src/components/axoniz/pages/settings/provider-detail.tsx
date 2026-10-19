@@ -80,7 +80,7 @@ export function ProviderDetailPage({
   }
 
   /**
-   * Save the provider config to ~/.axoniz/config.json via the merge-patch
+   * Save the provider config to ~/.fraziym/axoniz/config.json via the merge-patch
    * route POST /api/axoniz/config/cli.
    *
    * The frontend store uses camelCase (apiKey, baseUrl, model); the CLI's
@@ -140,7 +140,7 @@ export function ProviderDetailPage({
         throw new Error((data as { error?: string }).error ?? `Save failed: ${res.status}`);
       }
       toast.success("Saved", {
-        description: `${meta.name} config persisted to ~/.axoniz/config.json`,
+        description: `${meta.name} config persisted to ~/.fraziym/axoniz/config.json`,
       });
     } catch (err) {
       toast.error("Save failed", {
@@ -233,7 +233,7 @@ export function ProviderDetailPage({
         {/* Config form */}
         {providerId === "llamacpp" ? (
           <Card className="surface p-4 space-y-3.5">
-            <Field label="Model path" hint="Absolute path to the .gguf file in your Vault" value={llamacpp.modelPath} placeholder="~/.axoniz/models/your-model.gguf" onChange={(v) => setLlamacpp({ modelPath: v })} mono />
+            <Field label="Model path" hint="Absolute path to the .gguf file in your Vault" value={llamacpp.modelPath} placeholder="%LOCALAPPDATA%\FRAZIYM\axoniz\models\your-model.gguf" onChange={(v) => setLlamacpp({ modelPath: v })} mono />
             <Field label="llama-server URL" hint="If running llama.cpp in server mode. Test connection hits /health." value={cfg.baseUrl} placeholder="http://localhost:8080" onChange={(v) => setProvider(providerId, { baseUrl: v })} mono />
             <div className="grid grid-cols-3 gap-3">
               <SliderCell label="Context" value={llamacpp.nCtx} min={1024} max={32768} step={1024} onChange={(v) => setLlamacpp({ nCtx: v })} format={(v) => `${(v / 1024).toFixed(0)}K`} />

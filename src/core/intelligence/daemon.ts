@@ -46,7 +46,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 
-import { AXONIZ_HOME } from "../config.js";
+import { AXONIZ_LOCAL } from "../config.js";
 import { debug, error, info, warn } from "../debug.js";
 import { AsyncQueue } from "../backend/async_queue.js";
 
@@ -465,7 +465,7 @@ export interface AxonizDaemonInit {
  * This is the OS layer. It's always running.
  */
 export class axonizDaemon {
-  static readonly DAEMON_STATE_PATH = path.join(AXONIZ_HOME, "daemon_state.json");
+  static readonly DAEMON_STATE_PATH = path.join(AXONIZ_LOCAL, "daemon_state.json");
 
   agent: DaemonAgent;
   workspace: string;

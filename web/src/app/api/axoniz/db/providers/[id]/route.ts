@@ -4,7 +4,7 @@
  * DELETE /api/axoniz/db/providers/[id] — remove a provider's config
  *
  * Provider config shape: { enabled, baseUrl, apiKey, model }
- * Keys are stored on disk at ~/.axoniz/db/config.json (0600 perms).
+ * Keys are stored on disk at ~/.fraziym/axoniz/db/config.json (0600 perms).
  *
  * AUTH: All three endpoints require a valid Bearer JWT (auth-guard.ts).
  * Previously they were completely unauthenticated — anyone could read

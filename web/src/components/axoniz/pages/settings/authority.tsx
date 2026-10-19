@@ -27,7 +27,7 @@ export function AuthoritySettingsPage() {
           <p className="text-[12px] text-muted-foreground/80 leading-relaxed pt-2 border-t border-border">
             Authority level gates which tools the agent can invoke without asking.
             Level 1 = read-only. Level 3 = file edits + shell. Level 5 = destructive (rm, git push, package install).
-            Configure in <code className="font-mono text-foreground/80">~/.axoniz/roles/axoniz.yaml</code>.
+            Configure in <code className="font-mono text-foreground/80">~/.fraziym/axoniz/roles/axoniz.yaml</code>.
           </p>
         </Card>
         <Card className="surface p-4">

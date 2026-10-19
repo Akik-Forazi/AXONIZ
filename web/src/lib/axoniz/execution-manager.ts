@@ -2,7 +2,7 @@
  * Durable Execution Manager — owns task lifetime independently of
  * browser connections, HTTP requests, and SSE streams.
  *
- * SQLite database at ~/.axoniz/db/executions.db
+ * SQLite database at ~/.fraziym/axoniz/db/executions.db
  *
  * Tables:
  *   executions — one row per chat/agent task
@@ -23,15 +23,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { randomBytes } from "node:crypto";
+import { axonizHome } from "./paths";
 
 // ── Database setup ─────────────────────────────────────────────────────────
 
 function getDbPath(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  const dir = path.join(home, ".axoniz", "db");
+  const dir = path.join(axonizHome(), "db");
   try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ignore */ }
   return path.join(dir, "executions.db");
 }

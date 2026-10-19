@@ -52,7 +52,7 @@ export interface AxonizConfig {
 /* ---------- Models / Vault ---------- */
 
 /**
- * A single .gguf / .bin model file discovered by scanning ~/.axoniz/models.
+ * A single .gguf / .bin model file discovered by scanning %LOCALAPPDATA%\FRAZIYM\axoniz\models.
  * Returned by GET /api/axoniz/models (catch-all route's /models case)
  * and GET /api/axoniz/models/local.
  */

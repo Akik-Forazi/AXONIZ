@@ -7,8 +7,8 @@
  * For per-project logs, visit /projects/:id (the project page has a
  * logs section).
  *
- * The full log file is at ~/.axoniz/logs/YYYY-MM-DD.jsonl (global)
- * or ~/.axoniz/projects/:id/logs/YYYY-MM-DD.jsonl (project-scoped).
+ * The full log file is at %LOCALAPPDATA%\FRAZIYM\axoniz\logs\YYYY-MM-DD.jsonl (global)
+ * or ~/.fraziym/axoniz/projects/:id/logs/YYYY-MM-DD.jsonl (project-scoped).
  *
  * Each entry is a single JSON line. Searchable, exportable via the CLI:
  *   axoniz logs --project foo --since 1h

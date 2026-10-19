@@ -3,7 +3,7 @@
  * useConversations — backend-persisted chat list.
  *
  * Each conversation is stored on the user's filesystem at
- * ~/.axoniz/chats/<id>.json (see src/lib/axoniz/chat-store.ts).
+ * ~/.fraziym/axoniz/db/chats/<id>.json (see src/lib/axoniz/chat-store.ts).
  * The ID has format <username>_<YYYYMMDDHHmmss>_<8hexhash> and is
  * URL-safe — used in the shareable route /chat/s/<id>.
  *

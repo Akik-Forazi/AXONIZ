@@ -7,7 +7,7 @@
  * The secret is generated in-memory (Web Crypto API) and persists
  * for the server process lifetime. On restart, localhost users get
  * a new cookie automatically (invisible). Non-localhost devices
- * re-enter the 9-digit code (the code persists in ~/.axoniz/temp-code.json,
+ * re-enter the 9-digit code (the code persists in ~/.fraziym/axoniz/temp-code.json,
  * read by API routes which DO run in Node.js runtime).
  */
 

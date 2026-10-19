@@ -113,7 +113,7 @@ export function ChatSection() {
   }, [loading, conversations.length, activeId]);
 
   // Pass the chatId from the URL to useChatStream so it loads/saves
-  // from ~/.axoniz/db/chats/<id>.jsonl.
+  // from ~/.fraziym/axoniz/db/chats/<id>.jsonl.
   const stream = useChatStream(activeId);
 
   const handleSend = (content: string) => {

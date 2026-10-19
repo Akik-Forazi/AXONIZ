@@ -3,8 +3,8 @@
  * Run: node --test --experimental-strip-types test/diagnostics.test.ts
  *
  * Uses a per-test tmpHome. The DiagLogger reads the log dir via
- * getDiagLogDir(), which reads process.env.HOME at construction time —
- * so setting HOME *before* calling getDiagLogger() redirects writes.
+ * getDiagLogDir(), which resolves fresh from process.env.FRAZIYM_LOCAL —
+ * so setting FRAZIYM_LOCAL *before* calling getDiagLogger() redirects writes.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import * as assert from "node:assert/strict";
@@ -22,17 +22,18 @@ import {
 } from "../dist/core/diagnostics.js";
 
 let tmpHome: string;
-const ORIG_HOME = process.env.HOME;
+const ORIG_FRAZIYM_LOCAL = process.env.FRAZIYM_LOCAL;
 
 beforeEach(() => {
   tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "axoniz-test-"));
-  process.env.HOME = tmpHome;
+  process.env.FRAZIYM_LOCAL = tmpHome;
   _setDiagLoggerForTest(null);
 });
 
 afterEach(() => {
   _setDiagLoggerForTest(null);
-  process.env.HOME = ORIG_HOME;
+  if (ORIG_FRAZIYM_LOCAL === undefined) delete process.env.FRAZIYM_LOCAL;
+  else process.env.FRAZIYM_LOCAL = ORIG_FRAZIYM_LOCAL;
   try { fs.rmSync(tmpHome, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 

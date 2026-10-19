@@ -96,7 +96,7 @@ export function VaultPage() {
             The Vault
           </h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Local GGUF armory — {models.length} model{models.length === 1 ? "" : "s"} indexed in {config?._models_dir ?? "~/.axoniz/models"}
+            Local GGUF armory — {models.length} model{models.length === 1 ? "" : "s"} indexed in {config?._models_dir ?? "%LOCALAPPDATA%\\FRAZIYM\\axoniz\\models"}
           </p>
         </div>
         <Button
@@ -124,7 +124,7 @@ export function VaultPage() {
           : models.length === 0
             ? (
               <div className="col-span-full p-8 rounded-md border border-border bg-secondary/30 text-[12px] text-muted-foreground">
-                No .gguf models found in <code className="font-mono text-foreground/80">~/.axoniz/models/</code>.
+                No .gguf models found in <code className="font-mono text-foreground/80">%LOCALAPPDATA%\FRAZIYM\axoniz\models\</code>.
                 <br /><br />
                 Place .gguf files (optionally in subdirectories) under that path, then click <strong>Rescan</strong>.
               </div>

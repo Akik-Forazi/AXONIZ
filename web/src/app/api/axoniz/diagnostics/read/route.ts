@@ -25,16 +25,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import readline from "node:readline";
 import { requireAuth } from "@/lib/axoniz/auth-guard";
+import { axonizLocal } from "@/lib/axoniz/paths";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function getDiagLogDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "logs");
+  return path.join(axonizLocal(), "logs");
 }
 
 interface LogEvent {

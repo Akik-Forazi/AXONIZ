@@ -1,6 +1,6 @@
 /**
  * JSONL chat store — append-only message storage at
- * ~/.axoniz/db/chats/<id>.jsonl
+ * ~/.fraziym/axoniz/db/chats/<id>.jsonl
  *
  * Each line is a JSON object representing one event:
  *   {"type":"message","role":"user","content":"hello","ts":1792...}
@@ -14,7 +14,7 @@
  *     If the browser crashes mid-generation, partial response is preserved.
  *   - Navigation-safe: when the user leaves /chat and comes back, the
  *     chat reloads from the JSONL file. No lost state.
- *   - Human-readable: `cat ~/.axoniz/db/chats/<id>.jsonl | jq .`
+ *   - Human-readable: `cat ~/.fraziym/axoniz/db/chats/<id>.jsonl | jq .`
  *   - No schema migrations: add new event types freely.
  *
  * The chat index (metadata) is still in SQLite/Prisma for fast lookups.
@@ -22,7 +22,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "./paths";
 
 export interface ChatEvent {
   type: "message" | "token" | "thought" | "done" | "error" | "meta";
@@ -34,8 +34,7 @@ export interface ChatEvent {
 }
 
 function getChatsDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "db", "chats");
+  return path.join(axonizHome(), "db", "chats");
 }
 
 function chatFilePath(id: string): string {

@@ -19,6 +19,7 @@ import {
   resetConfig,
   MODELS_DIR,
   AXONIZ_HOME,
+  AXONIZ_LOCAL,
   activeProvider,
   type AxonizConfig,
 } from "./config.js";
@@ -348,7 +349,7 @@ export const HELP = `
     ${BL}axoniz memory${R}          Show memory
     ${BL}axoniz palace${R}          Show palace status
     ${BL}axoniz health${R}          System health report
-    ${BL}axoniz logs list${R}       List diagnostic sessions (~/.axoniz/logs/*.axolog)
+    ${BL}axoniz logs list${R}       List diagnostic sessions (${AXONIZ_LOCAL}/logs/*.axolog)
     ${BL}axoniz logs show${R}       Show events from a session
     ${BL}axoniz logs verify${R}     Check for malformed records
     ${BL}axoniz logs cleanup${R}    Remove old sessions

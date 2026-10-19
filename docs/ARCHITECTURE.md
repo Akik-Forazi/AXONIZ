@@ -328,11 +328,11 @@ UnifiedMemory
 │   ├── Wings → Rooms → Drawers (hierarchical namespace)
 │   ├── TF-IDF semantic search
 │   ├── Graph traversal (tunnel discovery between wings)
-│   └── SQLite backend at ~/.axoniz/palace/
+│   └── SQLite backend at ~/.fraziym/axoniz/palace/
 ├── KnowledgeGraph (temporal facts)
 │   ├── subject → predicate → object + valid_from + ended_at
 │   ├── Timeline queries
-│   └── SQLite backend at ~/.axoniz/knowledge_graph.sqlite3
+│   └── SQLite backend at ~/.fraziym/axoniz/knowledge_graph.sqlite3
 ├── SemanticMemory (TF-IDF key-value store)
 └── DiaryManager (session event log)
 ```

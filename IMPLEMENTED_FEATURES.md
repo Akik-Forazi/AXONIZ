@@ -15,7 +15,7 @@ These changes extract axodex from the AXONIZ repo and ship it as its own npm pac
 *   **One-command install** — `npm install -g @fraziym/axoniz @fraziym/axodex` installs both the AXONIZ agent core and the axodex graph-engine binary in a single npm transaction.
 *   **`@fraziym/axodex` declared as a peerDependency** — In `package.json`, axodex is a required (non-optional) peerDependency so `npm install @fraziym/axoniz` warns if it's missing.
 *   **Simplified axodex resolver** — `src/tools/axodex_tools.ts` now checks for the `axodex` binary on PATH (preferred) or falls back to `npx @fraziym/axodex`. No more probing for a bundled clone.
-*   **Custom integrations path preserved** — `axoniz install <git-url>` still clones into `~/.axoniz/integrations/` for git-hosted integrations that aren't on npm yet. The npm path is the default for known integrations (currently just `axodex` in the registry).
+*   **Custom integrations path preserved** — `axoniz install <git-url>` still clones into `%LOCALAPPDATA%\FRAZIYM\axoniz\integrations\` for git-hosted integrations that aren't on npm yet. The npm path is the default for known integrations (currently just `axodex` in the registry).
 
 ---
 
@@ -86,7 +86,7 @@ Five new modules bring the agent core up to the PEAK architecture target. All li
     *   **Model Downloader**: Implemented a background model downloader. Users can now download GGUF models directly from HuggingFace via the Web UI's Model Manager.
     *   **Real-time Download Progress**: Download status and progress are tracked and displayed in the UI.
     *   **Dynamic Context Size**: Users can adjust `n_ctx` (context window size) and `n_gpu_layers` directly from the settings panel, with changes dynamically applied to the loaded model via the `/api/config/update_model_params` endpoint.
-    *   **Improved Model Discovery**: The system correctly detects and utilizes local GGUF models stored in the `~/.axoniz/models` directory, and the model registry reflects the user's local model versions.
+    *   **Improved Model Discovery**: The system correctly detects and utilizes local GGUF models stored in the `%LOCALAPPDATA%\FRAZIYM\axoniz\models` directory, and the model registry reflects the user's local model versions.
 
 ## Advanced Intelligence & Autonomy (pre-v0.3.4)
 

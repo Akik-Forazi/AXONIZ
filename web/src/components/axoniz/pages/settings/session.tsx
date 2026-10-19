@@ -24,15 +24,15 @@ export function SessionSettingsPage() {
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Vault home</div>
-              <div className="font-mono">~/.axoniz</div>
+              <div className="font-mono">~/.fraziym/axoniz</div>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Models dir</div>
-              <div className="font-mono">~/.axoniz/models</div>
+              <div className="font-mono">%LOCALAPPDATA%\FRAZIYM\axoniz\models</div>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Config file</div>
-              <div className="font-mono">~/.axoniz/config.json</div>
+              <div className="font-mono">~/.fraziym/axoniz/config.json</div>
             </div>
           </div>
           <Separator className="my-3 bg-border" />

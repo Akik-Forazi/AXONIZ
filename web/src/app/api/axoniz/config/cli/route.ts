@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Read the CLI's canonical config from ~/.axoniz/config.json.
+ * Read the CLI's canonical config from ~/.fraziym/axoniz/config.json.
  * API keys are redacted to "[REDACTED]" so they don't leak to the browser
  * on every config pull. The frontend boot code converts "[REDACTED]" back
  * to "" so the form shows an empty field, and the save route skips empty

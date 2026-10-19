@@ -3,17 +3,17 @@
  *
  * A "project" is just a folder the user pointed AXONIZ at. We scan it,
  * detect what's there (git, package manager, language, framework), and
- * register it under ~/.axoniz/projects/:id/.
+ * register it under ~/.fraziym/axoniz/projects/:id/.
  *
  * No sandbox. No capability tokens. The folder is the scope.
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { z } from "zod";
 import { ProjectMetaSchema, type ProjectMeta } from "./v2-schemas";
+import { axonizHome } from "./paths";
 
-const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
+const AXONIZ_HOME = axonizHome();
 const PROJECTS_DIR = path.join(AXONIZ_HOME, "projects");
 const PROJECTS_DB = path.join(AXONIZ_HOME, "db", "projects.json");
 
@@ -102,7 +102,7 @@ export function detectProject(absPath: string): ProjectMeta["detected"] {
 }
 
 /* ─── Project store ────────────────────────────────────────────────────
- * Simple JSON file at ~/.axoniz/db/projects.json. Map of project_id → ProjectMeta.
+ * Simple JSON file at ~/.fraziym/axoniz/db/projects.json. Map of project_id → ProjectMeta.
  * (Could use SQLite, but for the typical case of <100 projects, JSON is fine.)
  */
 function ensureDirs() {
@@ -199,6 +199,6 @@ export function unregisterProject(id: string): boolean {
   delete all[id];
   saveAllProjects(all);
   // Don't delete the project workspace dir — user might want to keep logs.
-  // They can manually delete ~/.axoniz/projects/:id/ if they want.
+  // They can manually delete ~/.fraziym/axoniz/projects/:id/ if they want.
   return true;
 }

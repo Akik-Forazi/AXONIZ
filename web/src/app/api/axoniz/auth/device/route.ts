@@ -14,13 +14,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "@/lib/axoniz/paths";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const ROTATE_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
-const CODE_PATH = path.join(os.homedir(), ".axoniz", "temp-code.json");
+const CODE_PATH = path.join(axonizHome(), "temp-code.json");
 
 interface TempCode {
   code: string;
@@ -50,7 +50,7 @@ function isCodeAlive(code: TempCode): boolean {
 }
 
 function getSecret(): string {
-  const secretPath = path.join(os.homedir(), ".axoniz", "web-secret");
+  const secretPath = path.join(axonizHome(), "web-secret");
   try {
     if (existsSync(secretPath)) return readFileSync(secretPath, "utf-8").trim();
   } catch {}

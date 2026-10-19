@@ -21,7 +21,7 @@ Axoniz is not just a chatbot — it is a **multi-phase autonomous agent framewor
 1. **Entry** (`src/cli/entry.ts`):
    - Dispatches to the runner (`src/core/runner.ts`) — a hand-rolled arg parser (no commander for subcommand dispatch) preserves the Python semantics: free-form positional args that may also be subcommands (`config`, `model`, `memory`, `palace`, `setup`, `install`, `goal`, `--web`, `--lc`).
 2. **Config Load (`src/core/config.ts`)**:
-   - Loads global config from `~/.axoniz/config.json`.
+   - Loads global config from `~/.fraziym/axoniz/config.json`.
    - **Scenario: Legacy Config** — Old flat configs trigger `migrate_legacy_config` to convert them to hierarchical structures.
    - **Scenario: No Model** — If no model path is provided, an interactive selector lists available GGUFs in `MODELS_DIR`.
 3. **Agent Build (`src/core/agent.ts`)**:
@@ -145,7 +145,7 @@ The bot acts as a bridge between the local agent and your mobile device:
 | **Axodex** | Renaming folders or deleting `.axodex/` | `AxodexTools` returns empty / stale-index warning | Run `axodex analyze` (binary on PATH after `npm install -g @fraziym/axodex`) |
 | **Axodex binary missing** | Skipped global install of `@fraziym/axodex` | `axoniz` logs "axodex not on PATH" at boot | `npm install -g @fraziym/axodex` (or `axoniz install axodex` as a wrapper) |
 | **LLM Backend** | Port conflict (`:8080`/`:1234`/`:11434`) or OOM | Agent hangs on `ensure_llm` | Check `taskmanager` / `ps` for zombie `llama-server` processes |
-| **Auth Engine** | Missing `default.yaml` | Authority level resets to 1 | Verify `src/roles/default.yaml` exists (and `~/.axoniz/roles/` if you've overridden) |
+| **Auth Engine** | Missing `default.yaml` | Authority level resets to 1 | Verify `src/roles/default.yaml` exists (and `~/.fraziym/axoniz/roles/` if you've overridden) |
 | **Awareness** | Missing optional deps (`screenshot-desktop`, `sharp`) | Suggestion loop stops | `npm install` in the AXONIZ repo to pull optional deps |
 | **Web dashboard** | `web/` missing or `bun`/`npm` not on PATH | `axoniz --web` falls back to legacy static UI with a warning | Clone `web/` into the repo, or `npm install` inside `web/` |
 | **Verify Gate** | `tsc`/`eslint`/`vitest`/`pytest` not installed | Verification reports "skipped" for missing checks | Install the relevant runner in the workspace's devDeps |

@@ -10,7 +10,7 @@
  * Unlike conversation history (which is prompt text), trajectory is structured
  * behavioral data that the agent and planner can query programmatically.
  *
- * Storage: SQLite at ~/.axoniz/trajectory.db
+ * Storage: SQLite at %LOCALAPPDATA%\FRAZIYM\axoniz\trajectory.db
  * WAL mode — safe for concurrent reads while agent is writing.
  *
  * Key capabilities:
@@ -34,9 +34,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
-import { AXONIZ_HOME } from "../config.js";
+import { AXONIZ_LOCAL } from "../config.js";
 
-export const TRAJECTORY_DB = path.join(AXONIZ_HOME, "trajectory.db");
+export const TRAJECTORY_DB = path.join(AXONIZ_LOCAL, "trajectory.db");
 
 /* ── Schema ───────────────────────────────────────────────────────────────── */
 

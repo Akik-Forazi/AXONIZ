@@ -6,7 +6,7 @@
  * Setup:
  *   1. Create a bot via @BotFather, get the token
  *   2. Set AXONIZ_TELEGRAM_TOKEN / AXONIZ_TELEGRAM_CHAT_ID, or put them in
- *      ~/.axoniz/config.json under `telegram: { token, chat_id }`
+ *      ~/.fraziym/axoniz/config.json under `telegram: { token, chat_id }`
  *
  * Port of axoniz/comms/telegram.py (python-telegram-bot / raw HTTP -> grammy).
  *

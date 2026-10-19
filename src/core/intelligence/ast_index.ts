@@ -14,7 +14,7 @@
  * Before editing anything, axoniz knows what will break.
  * After editing, it compares semantic meaning, not just text.
  *
- * Storage: SQLite at ~/.axoniz/ast_indexes/ast_<hash>.db (per workspace)
+ * Storage: SQLite at %LOCALAPPDATA%\FRAZIYM\axoniz\ast_indexes\ast_<hash>.db (per workspace)
  * Incremental: only re-indexes changed files (mtime-based)
  *
  * ────────────────────────────────────────────────────────────────────────────
@@ -69,10 +69,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
-import { AXONIZ_HOME } from "../config.js";
+import { AXONIZ_LOCAL } from "../config.js";
 import { debug, warn } from "../debug.js";
 
-export const AST_INDEX_DIR = path.join(AXONIZ_HOME, "ast_indexes");
+export const AST_INDEX_DIR = path.join(AXONIZ_LOCAL, "ast_indexes");
 try {
   fs.mkdirSync(AST_INDEX_DIR, { recursive: true });
 } catch {

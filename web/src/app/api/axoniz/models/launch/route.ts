@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/axoniz/auth-guard";
+import { llamaBinDir } from "@/lib/axoniz/paths";
 /**
  * POST /api/axoniz/models/launch
  *
@@ -65,7 +66,7 @@ function resolveBinary(provider: string): { path: string | null; error?: string 
     const candidate = path.join(/*turbopackIgnore: true*/ dir, binName);
     if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) return { path: candidate };
   }
-  const homeBin = path.join(/*turbopackIgnore: true*/ os.homedir(), ".axoniz", "llama", binName);
+  const homeBin = path.join(/*turbopackIgnore: true*/ llamaBinDir(), binName);
   if (fs.existsSync(/*turbopackIgnore: true*/ homeBin)) return { path: homeBin };
   if (isWin) {
     const pf = process.env.PROGRAMFILES || "C:\\Program Files";

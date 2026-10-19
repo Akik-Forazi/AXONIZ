@@ -2,14 +2,14 @@
  * GET  /api/axoniz/db/config    — read the full config DB
  * POST /api/axoniz/db/config    — merge-patch the config DB
  *
- * The config DB lives at ~/.axoniz/db/config.json and stores:
+ * The config DB lives at ~/.fraziym/axoniz/db/config.json and stores:
  *   - Provider API keys + baseUrls + models
  *   - llamacpp-specific settings (modelPath, nCtx, nGpuLayers, nThreads)
  *   - Active provider + model selection
  *
  * This replaces the old approach of storing API keys in browser
  * localStorage (which is lost on cache clear + not shared across
- * browsers). Now keys persist on disk at ~/.axoniz/db/.
+ * browsers). Now keys persist on disk at ~/.fraziym/axoniz/db/.
  *
  * AUTH: Both endpoints require a valid Bearer JWT. Previously they were
  * completely unauthenticated — anyone could read or write provider

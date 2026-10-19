@@ -9,9 +9,9 @@ import { useHealthQuery, useConfigQuery } from "./queries";
  * On mount (when authenticated), pulls health + config from the backend
  * and populates the store with the active model name + data source tag.
  *
- * Config now loads from ~/.axoniz/config.json (the CLI's canonical config)
+ * Config now loads from ~/.fraziym/axoniz/config.json (the CLI's canonical config)
  * via GET /api/axoniz/config/cli — the SAME file the CLI uses. No more
- * ~/.axoniz/db/config.json duplicate. API keys are redacted by the API.
+ * ~/.fraziym/axoniz/db/config.json duplicate. API keys are redacted by the API.
  *
  * The boot fetch uses authedFetch() so the Bearer JWT is attached
  * automatically from the Zustand store. Without the header, /config/cli
@@ -30,7 +30,7 @@ export function useAxonizBoot() {
   // Load CLI config on mount (once per authentication).
   useEffect(() => {
     if (!token) return;
-    // Load from the CLI's canonical config: ~/.axoniz/config.json
+    // Load from the CLI's canonical config: ~/.fraziym/axoniz/config.json
     // API keys are redacted by the GET /api/axoniz/config/cli endpoint.
     authedFetch("/api/axoniz/config/cli")
       .then(r => r.ok ? r.json() : null)

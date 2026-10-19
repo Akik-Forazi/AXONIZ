@@ -86,7 +86,7 @@ export const WorkflowSchema = z.object({
   projectId: z.string().nullable().default(null),  // null = global workflow
   trigger: WorkflowTriggerSchema,
   steps: z.array(WorkflowStepSchema).min(1),
-  // Secrets referenced via {{secrets.foo}} — resolved from ~/.axoniz/secrets.json
+  // Secrets referenced via {{secrets.foo}} — resolved from ~/.fraziym/axoniz/secrets.json
   secrets: z.array(z.string()).default([]),
   // Optional error handler — runs if any step fails.
   onError: z.array(WorkflowStepSchema).default([]),
@@ -100,8 +100,8 @@ export type Workflow = z.infer<typeof WorkflowSchema>;
 
 /* ─── Log entry ─────────────────────────────────────────────────────────
  * One JSON line per action. Written to:
- *   ~/.axoniz/projects/:id/logs/YYYY-MM-DD.jsonl  (project-scoped)
- *   ~/.axoniz/logs/YYYY-MM-DD.jsonl                (global workflows)
+ *   ~/.fraziym/axoniz/projects/:id/logs/YYYY-MM-DD.jsonl  (project-scoped)
+ *   %LOCALAPPDATA%\FRAZIYM\axoniz\logs\YYYY-MM-DD.jsonl   (global workflows)
  *
  * Also indexed in SQLite for fast search.
  */

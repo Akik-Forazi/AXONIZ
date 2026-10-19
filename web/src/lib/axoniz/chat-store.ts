@@ -1,9 +1,9 @@
 /**
- * Chat storage backend — persists chats to ~/.axoniz/chats/.
+ * Chat storage backend — persists chats to ~/.fraziym/axoniz/db/chats/.
  *
  * File layout:
- *   ~/.axoniz/chats/<id>.json   — one file per chat, full message history
- *   ~/.axoniz/chats/index.json  — list of chat metadata (id, title, timestamps)
+ *   ~/.fraziym/axoniz/db/chats/<id>.json   — one file per chat, full message history
+ *   ~/.fraziym/axoniz/db/chats/index.json  — list of chat metadata (id, title, timestamps)
  *
  * ID format: <username>_<YYYYMMDDHHmmss>_<8hexhash>
  *   Example: akik_20261014231015_a3f9b2c1
@@ -17,8 +17,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import crypto from "node:crypto";
+import { axonizHome } from "./paths";
 
 export interface ChatMessage {
   id: string;
@@ -57,11 +57,10 @@ export interface ChatMetadata {
 }
 
 function getChatsDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  // Chats now live under ~/.axoniz/db/chats/ (was ~/.axoniz/chats/).
+  // Chats live under ~/.fraziym/axoniz/db/chats/.
   // The db/ directory is the canonical persistent storage location
   // for all AXONIZ data (chats, provider configs, etc.).
-  return path.join(home, ".axoniz", "db", "chats");
+  return path.join(axonizHome(), "db", "chats");
 }
 
 function ensureChatsDir(): void {

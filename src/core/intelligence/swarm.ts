@@ -13,7 +13,7 @@
  *
  * Models are loaded sequentially and unloaded from RAM between phases
  * to stay within the memory constraints of the host machine.
- * Model paths are configured in ~/.axoniz/config.json under `swarm_models`.
+ * Model paths are configured in ~/.fraziym/axoniz/config.json under `swarm_models`.
  * If no swarm models are configured, the active main model is used for all
  * phases (standard behaviour).
  *

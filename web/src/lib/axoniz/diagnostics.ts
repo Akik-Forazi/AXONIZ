@@ -1,14 +1,14 @@
 /**
  * AXONIZ diagnostic logger — vendored into web so the Next.js
- * API routes can write to ~/.axoniz/logs/*.axolog without depending
- * on the @fraziym/axoniz package.
+ * API routes can write to %LOCALAPPDATA%\FRAZIYM\axoniz\logs\*.axolog
+ * without depending on the @fraziym/axoniz package.
  *
  * The same module exists in the AXONIZ CLI at src/core/diagnostics.ts.
  * They MUST stay in sync. The CLI's `axoniz logs *` commands read the
  * files produced by this module.
  *
  * File format:
- *   ~/.axoniz/logs/YYYY-MM-DD_HH-mm-ss_Day-username.axolog
+ *   %LOCALAPPDATA%\FRAZIYM\axoniz\logs\YYYY-MM-DD_HH-mm-ss_Day-username.axolog
  *
  * Each line is a JSON object (JSON Lines / NDJSON).
  *
@@ -23,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { axonizLocal } from "./paths";
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
@@ -43,8 +44,7 @@ const AXONIZ_VERSION = "V00.01.007-beta-05";
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 function getDiagLogDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "logs");
+  return path.join(axonizLocal(), "logs");
 }
 
 const pad = (n: number, w = 2): string => String(n).padStart(w, "0");

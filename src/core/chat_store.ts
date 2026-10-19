@@ -1,13 +1,13 @@
 /**
  * AXONIZ-ZERO · Chat Store
- * Saves every conversation as a proper JSON file in ~/.axoniz/chats/
+ * Saves every conversation as a proper JSON file in ~/.fraziym/axoniz/chats/
  * Format mirrors how ChatGPT stores conversations — each chat is one file:
  *
- *   ~/.axoniz/chats/<id>.json
+ *   ~/.fraziym/axoniz/chats/<id>.json
  *   { id, title, model, created, updated, mode, messages: [...], pinned }
  *
  * Index file for fast listing:
- *   ~/.axoniz/chats/index.json — array of {id, title, model, created, updated, msg_count}
+ *   ~/.fraziym/axoniz/chats/index.json — array of {id, title, model, created, updated, msg_count}
  *
  * Port of axoniz/core/chat_store.py.
  */

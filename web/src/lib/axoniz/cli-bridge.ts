@@ -60,7 +60,7 @@ export interface AgentConfig {
   nGpuLayers?: number;
 }
 
-/** Load the CLI's canonical config from ~/.axoniz/config.json */
+/** Load the CLI's canonical config from ~/.fraziym/axoniz/config.json */
 export function loadCliConfig(): Record<string, unknown> {
   try {
     const mod = load<{ loadConfig: () => Record<string, unknown> }>("core/config.js");
@@ -71,7 +71,7 @@ export function loadCliConfig(): Record<string, unknown> {
 }
 
 /**
- * Save config to ~/.axoniz/config.json (the CLI's canonical config).
+ * Save config to ~/.fraziym/axoniz/config.json (the CLI's canonical config).
  *
  * THROWS on failure — callers (e.g. /api/axoniz/config/cli POST route)
  * should catch and return a 500 to the client. Previously this swallowed

@@ -1,10 +1,10 @@
 /**
  * AXONIZ persistent DB — stores API keys, provider configs, and other
- * settings at ~/.axoniz/db/ instead of relying on browser localStorage.
+ * settings at ~/.fraziym/axoniz/db/ instead of relying on browser localStorage.
  *
  * Files:
- *   ~/.axoniz/db/config.json   — provider API keys + settings
- *   ~/.axoniz/db/chats/        — chat files (moved from ~/.axoniz/chats/)
+ *   ~/.fraziym/axoniz/db/config.json   — provider API keys + settings
+ *   ~/.fraziym/axoniz/db/chats/        — chat files
  *
  * The browser localStorage store is still used for ephemeral UI state
  * (sidebar collapse, active chat ID, etc.) but API keys and provider
@@ -17,11 +17,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "./paths";
 
 function getDbDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "db");
+  return path.join(axonizHome(), "db");
 }
 
 function getConfigPath(): string {

@@ -7,12 +7,12 @@
  * - Each step: status, duration, tool, result preview
  * - Overall status + total duration
  *
- * Stored at ~/.axoniz/projects/:id/artifacts/:runId.md
+ * Stored at ~/.fraziym/axoniz/projects/:id/artifacts/:runId.md
  * API: GET /api/axoniz/v2/runs/:id/artifact
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "./paths";
 import type { WorkflowRun } from "./v2-schemas";
 import { getRun, listWorkflows } from "./v2-workflows";
 import { getRecentLogs } from "./v2-workflows";
@@ -77,8 +77,8 @@ export function saveArtifact(run: WorkflowRun): string | null {
   try {
     const markdown = generateArtifact(run);
     const dir = run.projectId
-      ? path.join(os.homedir(), ".axoniz", "projects", run.projectId, "artifacts")
-      : path.join(os.homedir(), ".axoniz", "artifacts");
+      ? path.join(axonizHome(), "projects", run.projectId, "artifacts")
+      : path.join(axonizHome(), "artifacts");
     fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, `${run.id}.md`);
     fs.writeFileSync(filePath, markdown, "utf-8");
@@ -94,8 +94,8 @@ export function getArtifact(runId: string): string | null {
   const run = getRun(runId);
   if (!run) return null;
   const dir = run.projectId
-    ? path.join(os.homedir(), ".axoniz", "projects", run.projectId, "artifacts")
-    : path.join(os.homedir(), ".axoniz", "artifacts");
+    ? path.join(axonizHome(), "projects", run.projectId, "artifacts")
+    : path.join(axonizHome(), "artifacts");
   const filePath = path.join(dir, `${runId}.md`);
   if (!fs.existsSync(filePath)) {
     // Generate on-demand if not saved

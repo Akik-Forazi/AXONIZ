@@ -1,4 +1,4 @@
-/** GET /api/axoniz/workflows — list all workflows from ~/.axoniz/workflows.db */
+/** GET /api/axoniz/workflows — list all workflows from ~/.fraziym/axoniz/workflows.db */
 import { NextResponse } from "next/server";
 import { listWorkflows } from "@/lib/axoniz/cli-bridge";
 export const dynamic = "force-dynamic";

@@ -12,7 +12,6 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { v4 as uuid } from "uuid";
 // Auto-import log search indexer (lazy, try/catch in appendLog)
 let _indexLog: ((entry: LogEntry) => void) | null = null;
@@ -24,8 +23,9 @@ async function getIndexLog() {
 }
 import * as yaml from "js-yaml";
 import { WorkflowSchema, type Workflow, type WorkflowStep, type WorkflowRun, type LogEntry } from "./v2-schemas";
+import { axonizHome, axonizLocal } from "./paths";
 
-const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
+const AXONIZ_HOME = axonizHome();
 const WORKFLOWS_DIR = path.join(AXONIZ_HOME, "workflows");
 const TEMPLATES_DIR = path.join(AXONIZ_HOME, "templates");
 const RUNS_DB = path.join(AXONIZ_HOME, "db", "runs.json");
@@ -380,8 +380,7 @@ registerTool("palace", async (args, ctx) => {
   const value = String(args.value ?? "");
   const fs = await import("node:fs");
   const path = await import("node:path");
-  const os = await import("node:os");
-  const palaceDir = path.join(os.homedir(), ".axoniz", "palace");
+  const palaceDir = path.join(axonizHome(), "palace");
   fs.mkdirSync(palaceDir, { recursive: true });
   if (op === "store") {
     fs.writeFileSync(path.join(palaceDir, `${key}.json`), value, "utf-8");
@@ -429,8 +428,8 @@ registerTool("axodex", async (args, ctx) => {
 
 /* ─── Log writer ────────────────────────────────────────────────────────
  * Writes one JSON line per action to:
- *   ~/.axoniz/projects/:id/logs/YYYY-MM-DD.jsonl  (project-scoped)
- *   ~/.axoniz/logs/YYYY-MM-DD.jsonl                (global)
+ *   ~/.fraziym/axoniz/projects/:id/logs/YYYY-MM-DD.jsonl  (project-scoped)
+ *   %LOCALAPPDATA%\FRAZIYM\axoniz\logs\YYYY-MM-DD.jsonl   (global)
  * Plus an in-memory ring buffer for the live event stream.
  */
 const RING_BUFFER_MAX = 200;
@@ -445,7 +444,7 @@ export function appendLog(entry: LogEntry) {
   const dateStr = new Date(entry.ts).toISOString().slice(0, 10);
   const dir = entry.projectId
     ? path.join(AXONIZ_HOME, "projects", entry.projectId, "logs")
-    : path.join(AXONIZ_HOME, "logs");
+    : path.join(axonizLocal(), "logs");
   fs.mkdirSync(dir, { recursive: true });
   const filePath = path.join(dir, `${dateStr}.jsonl`);
   fs.appendFileSync(filePath, JSON.stringify(entry) + "\n", "utf-8");
@@ -519,7 +518,7 @@ export async function runWorkflow(
     data: { trigger },
   });
 
-  // Load secrets (placeholder — full impl would read ~/.axoniz/secrets.json encrypted)
+  // Load secrets (placeholder — full impl would read ~/.fraziym/axoniz/secrets.json encrypted)
   const { loadSecrets } = await import("./v2-secrets");
   const secrets = loadSecrets();
 

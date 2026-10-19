@@ -5,7 +5,7 @@
  *
  * Captures user interactions (clicks, scroll, keyboard shortcuts, navigation,
  * network requests, errors) and forwards them to /api/axoniz/diagnostics/log,
- * which writes them to ~/.axoniz/logs/*.axolog.
+ * which writes them to %LOCALAPPDATA%\FRAZIYM\axoniz\logs\*.axolog.
  *
  * Privacy contract:
  *   - NEVER records raw keystrokes. Only modifier+key combos (e.g. "Ctrl+S").

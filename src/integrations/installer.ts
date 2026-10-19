@@ -19,12 +19,12 @@ import os from "node:os";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { getLogger } from "../core/logger.js";
-import { AXONIZ_HOME } from "../core/config.js";
+import { AXONIZ_LOCAL } from "../core/config.js";
 import { C } from "../core/cli.js"; // console colors
 
 const logger = getLogger();
 
-export const INTEGRATIONS_DIR = path.join(AXONIZ_HOME, "integrations");
+export const INTEGRATIONS_DIR = path.join(AXONIZ_LOCAL, "integrations");
 
 interface NpmIntegrationManifest {
   name: string;
@@ -49,7 +49,7 @@ const REGISTRY: Record<string, NpmIntegrationManifest> = {
  *   1. Registered name (e.g. 'axodex') → run `npm install -g <packageName>`
  *      and verify the binary lands on PATH. One-line, ~5s, no git clone.
  *
- *   2. Raw git URL → fall back to the legacy clone-into-~/.axoniz/integrations/
+ *   2. Raw git URL → fall back to the legacy clone-into-%LOCALAPPDATA%\FRAZIYM\axoniz\integrations\
  *      flow (for custom integrations that aren't on npm yet).
  */
 export function installIntegration(target: string): void {
@@ -207,7 +207,7 @@ function installViaGitClone(repoUrl: string): void {
     }
 
     console.log(
-      `\n  ${C.OK}[+] Successfully installed ${dirName} to ~/.axoniz/integrations/${dirName}${C.R}\n`,
+      `\n  ${C.OK}[+] Successfully installed ${dirName} to ${path.join(INTEGRATIONS_DIR, dirName)}${C.R}\n`,
     );
   } catch (e) {
     console.error(`  ${C.RD}[-] Installation failed: ${String(e)}${C.R}`);

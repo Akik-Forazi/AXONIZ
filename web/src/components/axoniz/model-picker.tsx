@@ -59,7 +59,7 @@ export function ModelPicker() {
   const [launchError, setLaunchError] = useState<string | null>(null);
   const { setLlamacpp, llamacpp } = useAxonizStore();
 
-  // Fetch local .gguf models from ~/.axoniz/models
+  // Fetch local .gguf models from %LOCALAPPDATA%\FRAZIYM\axoniz\models
   useEffect(() => {
     authedFetch("/api/axoniz/models/local")
       .then(r => r.json())
@@ -319,7 +319,7 @@ export function ModelPicker() {
                   );
                 })}
 
-                {/* Local .gguf models from ~/.axoniz/models (llamacpp only) */}
+                {/* Local .gguf models from %LOCALAPPDATA%\FRAZIYM\axoniz\models (llamacpp only) */}
                 {selectedProvider === "llamacpp" && localModels.length > 0 && (
                   <div>
                     <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground">
@@ -371,7 +371,7 @@ export function ModelPicker() {
                 {selectedProvider === "llamacpp" && localModels.length === 0 && test?.status !== "loading" && (
                   <div className="p-4">
                     <div className="rounded-md border border-border bg-secondary/30 p-3 text-[11px] text-muted-foreground">
-                      No .gguf models found in <code className="font-mono text-foreground/80">~/.axoniz/models/</code>.
+                      No .gguf models found in <code className="font-mono text-foreground/80">%LOCALAPPDATA%\FRAZIYM\axoniz\models\</code>.
                       <br /><br />
                       Place .gguf files (optionally in subdirectories) under that path, then re-open this picker.
                     </div>

@@ -1,8 +1,8 @@
 /**
  * AXONIZ unified API route — self-contained, no dist/ imports.
  *
- * Reads config from ~/.axoniz/config.json directly.
- * Scans ~/.axoniz/models for .gguf files.
+ * Reads config from ~/.fraziym/axoniz/config.json directly.
+ * Scans %LOCALAPPDATA%\FRAZIYM\axoniz\models for .gguf files.
  * Uses node:os for system stats.
  * Returns real data or clear errors — no mock data.
  */
@@ -12,13 +12,14 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { requireAuth } from "@/lib/axoniz/auth-guard";
+import { axonizHome, axonizLocal } from "@/lib/axoniz/paths";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
+const AXONIZ_HOME = axonizHome();
 const CONFIG_PATH = path.join(AXONIZ_HOME, "config.json");
-const MODELS_DIR = path.join(AXONIZ_HOME, "models");
+const MODELS_DIR = path.join(axonizLocal(), "models");
 
 function formatModelName(raw: string): string {
   let s = raw.split(/[\\/]/).pop() || raw;

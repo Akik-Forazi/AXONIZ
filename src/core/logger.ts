@@ -7,15 +7,16 @@
  *   - Structured JSON logs for programmatic analysis
  *   - Human-readable logs for debugging
  *   - Captures: agent steps, tool calls, backend interactions, memory ops, errors
- *   - Configurable via ~/.axoniz/config.json under "logging"
+ *   - Configurable via ~/.fraziym/axoniz/config.json under "logging"
  */
 import fs from "node:fs";
 import path from "node:path";
-import { AXONIZ_HOME } from "./config.js";
+import { AXONIZ_LOCAL } from "./config.js";
 
 /* ── Configuration ────────────────────────────────────────────────────────── */
 
-export const LOG_DIR = path.join(AXONIZ_HOME, "logs");
+// Logs are machine-local state → T2 (%LOCALAPPDATA%\FRAZIYM\axoniz\logs).
+export const LOG_DIR = path.join(AXONIZ_LOCAL, "logs");
 export const SESSION_DIR = path.join(LOG_DIR, "sessions");
 export const STRUCTURED_DIR = path.join(LOG_DIR, "structured");
 

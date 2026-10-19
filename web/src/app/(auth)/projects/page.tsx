@@ -7,7 +7,7 @@
  * `C:\Users\me\AppData\Local\some-app`), we scan it, remember what we
  * found (git, package manager, language, framework), and list it here.
  *
- * Each project gets its own workspace under ~/.axoniz/projects/:id/
+ * Each project gets its own workspace under ~/.fraziym/axoniz/projects/:id/
  * with subdirectories for workflows, logs, and the memory palace.
  */
 import { useState, useEffect, useCallback } from "react";
@@ -81,7 +81,7 @@ export default function ProjectsPage() {
   }
 
   async function removeProject(id: string, name: string) {
-    if (!confirm(`Unregister project "${name}"? The folder on disk will not be touched. Logs at ~/.axoniz/projects/${id}/ will be kept.`)) return;
+    if (!confirm(`Unregister project "${name}"? The folder on disk will not be touched. Logs at ~/.fraziym/axoniz/projects/${id}/ will be kept.`)) return;
     try {
       const r = await fetch(`/api/axoniz/v2/projects/${id}`, { method: "DELETE" });
       if (!r.ok) throw new Error("Failed");

@@ -7,13 +7,13 @@
  * - If no grant → auto-allow with a log entry (in v2, we trust
  *   the user's workflows — full UI prompt would require async)
  *
- * Stored at ~/.axoniz/grants.json — simple JSON, mode 0600.
+ * Stored at ~/.fraziym/axoniz/grants.json — simple JSON, mode 0600.
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "./paths";
 
-const GRANTS_PATH = path.join(os.homedir(), ".axoniz", "grants.json");
+const GRANTS_PATH = path.join(axonizHome(), "grants.json");
 
 interface Grant {
   workflow: string;

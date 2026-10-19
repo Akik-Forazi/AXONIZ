@@ -12,7 +12,7 @@ By moving intelligence into the **Code Graph** and the **System Architecture**, 
 ### 1. Autonomous Inference Engine
 - **Llama-Native:** Zero overhead. No Ollama, no LM Studio. Pure `llama.cpp` autonomousty.
 - **Prompt Caching:** Instant responses via permanent KV-cache management.
-- **Autonomous Vault:** Centralized GGUF management in `~/.axoniz/models`.
+- **Autonomous Vault:** Centralized GGUF management in the machine-local vault (`%LOCALAPPDATA%\FRAZIYM\axoniz\models`, `~/Library/Caches/FRAZIYM/axoniz/models`, or `$XDG_CACHE_HOME/fraziym/axoniz/models`).
 - **The Forge:** Built-in HuggingFace downloader to acquire new weights directly.
 
 ### 2. Axodex Graph (Code Intelligence)
@@ -76,8 +76,8 @@ Run the pre-built executable for the absolute experience:
 ### Manual Setup
 1. **Prepare the Vault:**
    ```powershell
-   # Models live here: ~/.axoniz/models
-   # llama.cpp lives here: ~/.axoniz/llama
+   # Models live here: %LOCALAPPDATA%\FRAZIYM\axoniz\models
+   # llama.cpp lives here: %ProgramFiles%\fraziym\axoniz\llama (falls back to %LOCALAPPDATA%\FRAZIYM\axoniz\llama)
    ```
 2. **Boot the System:**
    ```powershell

@@ -6,7 +6,7 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import * as si from "systeminformation";
-import { AXONIZ_HOME } from "./config.js";
+import { AXONIZ_HOME, AXONIZ_LOCAL } from "./config.js";
 
 export interface CheckResult {
   status: "ok" | "warning" | "error";
@@ -97,7 +97,7 @@ export class HealthCheck {
 
   checkDatabase(): CheckResult {
     try {
-      const dbPath = path.join(AXONIZ_HOME, "trajectory.db");
+      const dbPath = path.join(AXONIZ_LOCAL, "trajectory.db");
       if (!fs.existsSync(dbPath)) {
         return { status: "warning", message: "Database not initialized" };
       }

@@ -5,7 +5,8 @@
  * Persistent diagnostic logging system — the .axolog writer.
  *
  * Relationship to the existing AxonizLogger (src/core/logger.ts):
- *   - AxonizLogger writes structured events to ~/.axoniz/logs/structured/*.jsonl
+ *   - AxonizLogger writes structured events to
+ *     %LOCALAPPDATA%\FRAZIYM\axoniz\logs\structured\*.jsonl
  *     (one file per CLI session, used for agent/tool/backend events).
  *   - This module writes a SINGLE append-only .axolog file per USER session
  *     that captures user interactions, navigation, network activity, errors,
@@ -15,9 +16,9 @@
  *     into this module.
  *
  * File format:
- *   ~/.axoniz/logs/YYYY-MM-DD_HH-mm-ss_Day-username.axolog
+ *   %LOCALAPPDATA%\FRAZIYM\axoniz\logs\YYYY-MM-DD_HH-mm-ss_Day-username.axolog
  *
- *   Example: ~/.axoniz/logs/2026-10-14_21-15-30_Wednesday-akik.axolog
+ *   Example: %LOCALAPPDATA%\FRAZIYM\axoniz\logs\2026-10-14_21-15-30_Wednesday-akik.axolog
  *
  * Each line in the file is a JSON object (JSON Lines / NDJSON). A
  * truncated/corrupt trailing line can be detected on read because the
@@ -49,19 +50,18 @@ import path from "node:path";
 import os from "node:os";
 import { randomBytes } from "node:crypto";
 
-import { AXONIZ_HOME } from "./config.js";
+import { fraziymLocal } from "./paths.js";
 import { AXONIZ_VERSION } from "../version.js";
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
 /**
- * Resolve the log directory fresh on each call. AXONIZ_HOME is computed
- * once at module load time from the then-current HOME; if HOME changes
- * at runtime (tests do this), this getter re-reads it.
+ * Resolve the log directory fresh on each call so tests (or callers that set
+ * FRAZIYM_LOCAL at runtime) get the redirected machine-local root.
+ * Diagnostics are machine-local state → T2 (%LOCALAPPDATA%\FRAZIYM\axoniz\logs).
  */
 export function getDiagLogDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "logs");
+  return path.join(fraziymLocal(), "axoniz", "logs");
 }
 
 /** Backward-compat: callers that imported DIAG_LOG_DIR as a constant. */

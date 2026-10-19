@@ -17,6 +17,8 @@
  *    faithful `ask()` semantics.
  */
 import fs from "node:fs";
+import nodePath from "node:path";
+import { AXONIZ_HOME } from "./config.js";
 import { getLogger } from "./logger.js";
 
 const logger = getLogger();
@@ -125,7 +127,7 @@ export class AuditTrail {
   path: string;
 
   constructor(path?: string | null, dbPath?: string | null) {
-    this.path = path || dbPath || "audit.jsonl";
+    this.path = path || dbPath || nodePath.join(AXONIZ_HOME, "audit.jsonl");
   }
 
   /** Append one JSON line. Failures are swallowed (Python bare `except`). */
@@ -327,7 +329,7 @@ export class AuthorityEngine {
 
   constructor(config?: Record<string, unknown> | null, defaultLevel = 3) {
     this.config = config ?? {};
-    const dbPath = (this.config["audit_db"] ?? this.config["db_path"] ?? "axoniz_audit.jsonl") as string;
+    const dbPath = (this.config["audit_db"] ?? this.config["db_path"] ?? nodePath.join(AXONIZ_HOME, "axoniz_audit.jsonl")) as string;
     this.audit = new AuditTrail(dbPath);
     this.learner = new ApprovalLearner();
     this.delivery = new ApprovalDelivery(Number(this.config["approval_timeout"] ?? 30));

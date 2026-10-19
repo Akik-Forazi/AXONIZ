@@ -1,7 +1,7 @@
 /**
  * AXONIZ v2 — secret management.
  *
- * Simple JSON file at ~/.axoniz/secrets.json. Plaintext (no encryption —
+ * Simple JSON file at ~/.fraziym/axoniz/secrets.json. Plaintext (no encryption —
  * the user said no over-engineering). Mode 0600 (owner read/write only).
  *
  * Workflows reference secrets via {{secrets.foo}} — resolved at runtime
@@ -16,9 +16,9 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { axonizHome } from "./paths";
 
-const SECRETS_PATH = path.join(os.homedir(), ".axoniz", "secrets.json");
+const SECRETS_PATH = path.join(axonizHome(), "secrets.json");
 
 export function loadSecrets(): Record<string, string> {
   try {

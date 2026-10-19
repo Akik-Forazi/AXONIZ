@@ -6,7 +6,7 @@
  * This is the ChatGPT-style URL: chatgpt.com/c/<id> = axoniz/chat/s/<id>.
  * The chat ID comes from the URL params, not from the store.
  * ChatSection reads it via useParams() and loads/saves messages
- * from the JSONL file at ~/.axoniz/db/chats/<id>.jsonl.
+ * from the JSONL file at ~/.fraziym/axoniz/db/chats/<id>.jsonl.
  */
 
 import { useParams } from "next/navigation";

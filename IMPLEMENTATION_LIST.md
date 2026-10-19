@@ -70,7 +70,7 @@
 48. ✅ `email` — send email (logs for now, SMTP pending)
 49. ✅ `slack` — incoming webhook URL
 50. ✅ `github` — REST API with token auth
-51. ✅ `palace` — store/read/list from ~/.axoniz/palace/
+51. ✅ `palace` — store/read/list from ~/.fraziym/axoniz/palace/
 52. ✅ `axodex` — placeholder (full impl pending)
 
 ### v2: Triggers
@@ -78,13 +78,13 @@
 54. ✅ `schedule` — built-in cron parser + setInterval (no node-cron dependency)
 
 ### v2: Logs
-55. ✅ JSONL log writer (~/.axoniz/projects/:id/logs/ or ~/.axoniz/logs/)
+55. ✅ JSONL log writer (~/.fraziym/axoniz/projects/:id/logs/ or %LOCALAPPDATA%\FRAZIYM\axoniz\logs/)
 56. ✅ In-memory ring buffer (last 200 entries)
 57. ✅ /logs dashboard page (auto-refresh every 5s, filter, level icons)
 58. ✅ GET /api/axoniz/v2/logs + GET /api/axoniz/v2/projects/:id/logs
 
 ### v2: Secrets
-59. ✅ v2-secrets.ts (~/.axoniz/secrets.json, mode 0600)
+59. ✅ v2-secrets.ts (~/.fraziym/axoniz/secrets.json, mode 0600)
 60. ✅ GET /api/axoniz/v2/secrets (lists keys only, never values)
 61. ✅ POST /api/axoniz/v2/secrets (set key/value)
 62. ✅ DELETE /api/axoniz/v2/secrets/:key
@@ -163,7 +163,7 @@
 ### Sandbox (MEDIUM)
 118. ❌ Approval modes (auto/read-only/full-access)
 119. ❌ Per-tool-call approval prompt
-120. ❌ Grants system (~/.axoniz/grants.json)
+120. ❌ Grants system (~/.fraziym/axoniz/grants.json)
 121. ❌ STOP button per workflow + global STOP ALL
 
 ### Artifacts (MEDIUM)

@@ -1,24 +1,39 @@
 /**
  * AXONIZ-ZERO Configuration
- * Central config: ~/.axoniz/config.json
+ * Central config: ~/.fraziym/axoniz/config.json (T1 HOME)
+ * Machine-local state (models/logs/caches): %LOCALAPPDATA%\FRAZIYM\axoniz (T2)
+ * Installed binaries (llama-server): %ProgramFiles%\fraziym\axoniz (T3, T2 fallback)
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fraziymHome, fraziymLocal, fraziymPrograms } from "./paths.js";
 // NOTE: do NOT import from "./debug.js" here — it would create a circular
 // import chain (logger.ts → config.ts → debug.ts → logger.ts) and crash at
 // startup with "Cannot access 'AXONIZ_HOME' before initialization". If you
 // need to log inside config.ts, use process.stderr.write() directly.
 
-export const AXONIZ_HOME = path.join(os.homedir(), ".axoniz");
-export const MODELS_DIR = path.join(AXONIZ_HOME, "models");
-export const LLAMA_BIN_DIR = path.join(AXONIZ_HOME, "llama");
+/** T1 — user config + data root for Axoniz (`~/.fraziym/axoniz`). */
+export const AXONIZ_HOME = path.join(fraziymHome(), "axoniz");
+/** T2 — machine-local cache/state root for Axoniz (`%LOCALAPPDATA%\FRAZIYM\axoniz`). */
+export const AXONIZ_LOCAL = path.join(fraziymLocal(), "axoniz");
+/** T3 — installed binaries root for Axoniz (`%ProgramFiles%\fraziym\axoniz`). */
+export const AXONIZ_PROGRAMS = path.join(fraziymPrograms(), "axoniz");
+export const MODELS_DIR = path.join(AXONIZ_LOCAL, "models");
+export const VOICE_MODELS_DIR = path.join(AXONIZ_LOCAL, "voice_models");
+/**
+ * llama-server binaries live in T3 when an elevated install put them there,
+ * otherwise fall back to the machine-local T2 copy so non-admin installs work.
+ */
+export const LLAMA_BIN_DIR = fs.existsSync(path.join(AXONIZ_PROGRAMS, "llama"))
+  ? path.join(AXONIZ_PROGRAMS, "llama")
+  : path.join(AXONIZ_LOCAL, "llama");
 export const CONFIG_PATH = path.join(AXONIZ_HOME, "config.json");
 export const MEMORY_PATH = path.join(AXONIZ_HOME, "memory.json");
 export const HISTORY_DIR = path.join(AXONIZ_HOME, "history");
 
 export function ensureDirs(): void {
-  for (const d of [AXONIZ_HOME, MODELS_DIR, HISTORY_DIR]) {
+  for (const d of [AXONIZ_HOME, HISTORY_DIR, MODELS_DIR]) {
     try {
       fs.mkdirSync(d, { recursive: true });
     } catch {
@@ -282,9 +297,10 @@ export function loadConfig(): AxonizConfig {
   // Auto-rehome any stale absolute paths that reference a different user's
   // home directory. This handles the common case where someone renames their
   // Windows user account (e.g. akikf -> user) and every absolute path in
-  // ~/.axoniz/config.json that was stored as `C:\Users\<old_user>\.axoniz\...`
-  // becomes broken. We rewrite them in-place to the current AXONIZ_HOME and
-  // persist the cleaned config back to disk so the rehoming only happens once.
+  // config.json that was stored under a legacy `~/.axoniz` (or another user's
+  // `~/.fraziym/axoniz`) becomes broken. We rewrite them in-place to the
+  // current tier roots and persist the cleaned config back to disk so the
+  // rehoming only happens once.
   const typedCfg = cfg as unknown as AxonizConfig;
   const rehomed = rehomeConfigPaths(typedCfg);
   if (rehomed > 0) {
@@ -300,7 +316,8 @@ export function loadConfig(): AxonizConfig {
 /**
  * Walk every path-shaped field in the config and rewrite absolute paths that
  * reference a stale `C:\Users\<old_user>\.axoniz\...` (or POSIX equivalent
- * `/<old_home>/.axoniz/...`) prefix to use the current AXONIZ_HOME.
+ * `/<old_home>/.axoniz/...`), or another home's `.fraziym/axoniz/...`
+ * prefix, to the current tier roots.
  *
  * Returns the number of paths that were rehomed. The caller persists the
  * config back to disk only when >0 (so we don't churn the file on every load).
@@ -312,7 +329,7 @@ export function loadConfig(): AxonizConfig {
  *   - llm.providers.llamacpp.llama_bin
  *   - llm.providers.llamacpp_server.{model_path, llama_bin}
  *
- * Idempotent: paths already pointing inside the current AXONIZ_HOME are
+ * Idempotent: paths already pointing inside the current tier roots are
  * returned unchanged.
  */
 function rehomeConfigPaths(cfg: AxonizConfig): number {
@@ -366,20 +383,27 @@ function rehomeConfigPaths(cfg: AxonizConfig): number {
 }
 
 /**
- * If `p` is an absolute path that contains `\.axoniz\` (or `/.axoniz/`) under
- * a NON-CURRENT home directory, rewrite it to point inside the current
- * AXONIZ_HOME. Examples:
+ * If `p` is an absolute path that contains a legacy `\.axoniz\` (or `/.axoniz/`)
+ * segment under a NON-CURRENT home directory, or a `.fraziym/axoniz` root from
+ * another home, rewrite it to point inside the current tier roots. Tier
+ * routing for the tail: `models`/`voice_models` → AXONIZ_LOCAL (T2),
+ * `llama` → LLAMA_BIN_DIR (T3 with T2 fallback), everything else → AXONIZ_HOME (T1).
+ *
+ * Examples:
  *
  *   on Windows, current user = "user":
  *     rehomeStalePath("C:\\Users\\akikf\\.axoniz\\models\\x.gguf")
- *       → "C:\\Users\\user\\.axoniz\\models\\x.gguf"
+ *       → "<LOCALAPPDATA>\\FRAZIYM\\axoniz\\models\\x.gguf"
+ *     rehomeStalePath("C:\\Users\\akikf\\.axoniz\\config.json")
+ *       → "C:\\Users\\user\\.fraziym\\axoniz\\config.json"
  *
  *   on POSIX, current $HOME = "/home/alice":
  *     rehomeStalePath("/home/bob/.axoniz/models/x.gguf")
- *       → "/home/alice/.axoniz/models/x.gguf"
+ *       → "$XDG_CACHE_HOME/fraziym/axoniz/models/x.gguf"
  *
- * If the path is already inside the current AXONIZ_HOME, or doesn't contain
- * a `.axoniz` segment at all, it's returned unchanged.
+ * If the path is already inside the current tier roots, or doesn't contain
+ * a legacy `.axoniz` / foreign `.fraziym/axoniz` segment, it's returned
+ * unchanged.
  */
 function rehomeStalePath(p: string): string {
   if (!p || typeof p !== "string") return p;
@@ -390,27 +414,40 @@ function rehomeStalePath(p: string): string {
   const isAbs = /^([A-Za-z]:[\\/]|\\\\|\/)/.test(p);
   if (!isAbs) return p;
 
-  // Split on the `.axoniz` segment. The regex matches a leading separator
-  // (`\` or `/`), then `.axoniz`, then a trailing separator.
-  const m = p.match(/[\\/]\.axoniz[\\/]/);
+  // Match a legacy `.axoniz` segment, or a `.fraziym/axoniz` root that was
+  // written under a DIFFERENT home. The regex matches a leading separator,
+  // the segment(s), then a trailing separator.
+  const m = p.match(/[\\/]\.axoniz[\\/]/) ?? p.match(/[\\/]\.fraziym[\\/]axoniz[\\/]/);
   if (!m) return p;
 
   const matchStart = m.index ?? -1;
   if (matchStart < 0) return p;
-  const matchEnd = matchStart + m[0].length;  // one past the trailing separator
+  const matchEnd = matchStart + m[0].length; // one past the trailing separator
 
-  // Everything after the `.axoniz\` (or `.axoniz/`) segment.
+  // Everything after the matched segment (e.g. `models\qwen.gguf`).
   const tail = p.slice(matchEnd);
   if (!tail) return p;
 
-  // Re-attach to the current AXONIZ_HOME. path.join normalizes separators
-  // for the current OS — so a Windows config with backslash paths produces
-  // a backslash-joined result on Windows, and POSIX config produces
-  // forward-slash-joined on POSIX.
-  const candidate = path.join(AXONIZ_HOME, ...tail.split(/[\\/]/));
+  const parts = tail.split(/[\\/]/);
 
-  // Idempotent: if the input already pointed inside the current home, the
-  // candidate equals the input and we return unchanged.
+  // Tier routing: machine-local payloads → T2, installed binaries → T3/T2
+  // (LLAMA_BIN_DIR already resolves the fallback), user data → T1.
+  const first = parts[0];
+  const tierBase =
+    first === "models" || first === "voice_models"
+      ? AXONIZ_LOCAL
+      : first === "llama"
+        ? LLAMA_BIN_DIR
+        : AXONIZ_HOME;
+
+  // LLAMA_BIN_DIR already ends in `llama`, so drop the duplicated segment.
+  const tailParts = first === "llama" ? parts.slice(1) : parts;
+
+  // path.join normalizes separators for the current OS.
+  const candidate = path.join(tierBase, ...tailParts);
+
+  // Idempotent: if the input already pointed inside the current tier roots,
+  // the candidate equals the input and we return unchanged.
   if (candidate === p) return p;
 
   return candidate;
@@ -560,7 +597,7 @@ function walkMatch(dir: string, entry: string, depth = 0, acc: string[] = []): s
 /** Ordered list of directories to scan for .gguf files. */
 export function getModelSearchDirs(): string[] {
   const home = os.homedir();
-  const dirs = [
+  return [
     MODELS_DIR,
     path.join(home, "lmstudio-community"),
     path.join(home, ".cache", "lm-studio", "models"),
@@ -568,8 +605,4 @@ export function getModelSearchDirs(): string[] {
     path.join(home, "Downloads"),
     ".",
   ];
-  if (process.platform === "win32") {
-    dirs.push("C:\\Users\\akikf\\lmstudio-community");
-  }
-  return dirs;
 }

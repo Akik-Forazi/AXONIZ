@@ -15,14 +15,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import crypto from "node:crypto";
+import { axonizHome } from "@/lib/axoniz/paths";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const ROTATE_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
-const CODE_PATH = path.join(os.homedir(), ".axoniz", "temp-code.json");
+const CODE_PATH = path.join(axonizHome(), "temp-code.json");
 
 interface TempCode {
   code: string;

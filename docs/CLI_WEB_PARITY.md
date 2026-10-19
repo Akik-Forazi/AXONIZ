@@ -14,7 +14,7 @@ The CLI is the authoritative implementation; the web is a frontend.
 | `npm run build:web` | — | ✅ | **PASS** |
 | `npm run dev:all` | `tsc --watch` | `next dev` | **PASS** — concurrent dev |
 | CLI bridge (eval('require')) | dist/core/*.js | cli-bridge.ts | **PASS** |
-| Config: `~/.axoniz/config.json` | loadConfig/saveConfig | GET/POST /api/axoniz/config/cli | **PASS** — redacted on read |
+| Config: `~/.fraziym/axoniz/config.json` | loadConfig/saveConfig | GET/POST /api/axoniz/config/cli | **PASS** — redacted on read |
 
 ## Agent & Chat
 

@@ -12,15 +12,15 @@
  *   - event
  *   - time range
  *
- * Database: ~/.axoniz/db/logsearch.sqlite
+ * Database: ~/.fraziym/axoniz/db/logsearch.sqlite
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import type { LogEntry } from "./v2-schemas";
+import { axonizHome } from "./paths";
 
-const DB_PATH = path.join(os.homedir(), ".axoniz", "db", "logsearch.sqlite");
+const DB_PATH = path.join(axonizHome(), "db", "logsearch.sqlite");
 
 let db: DatabaseSync | null = null;
 

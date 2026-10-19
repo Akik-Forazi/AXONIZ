@@ -1,7 +1,7 @@
 /**
  * GET /api/axoniz/diagnostics/sessions
  *
- * Returns the list of .axolog files in ~/.axoniz/logs/ — mirrors the
+ * Returns the list of .axolog files in %LOCALAPPDATA%\FRAZIYM\axoniz\logs\ — mirrors the
  * CLI `axoniz logs list` command for the dashboard Diagnostics page.
  *
  * Response:
@@ -11,15 +11,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { requireAuth } from "@/lib/axoniz/auth-guard";
+import { axonizLocal } from "@/lib/axoniz/paths";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function getDiagLogDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(home, ".axoniz", "logs");
+  return path.join(axonizLocal(), "logs");
 }
 
 export async function GET(req: NextRequest) {
