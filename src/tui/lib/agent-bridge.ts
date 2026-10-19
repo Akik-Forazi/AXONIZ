@@ -1,6 +1,6 @@
 /**
  * AXONIZ Agent Bridge — loads the real AXONIZ Agent from dist/ and
- * wraps it for the TUI. No mocks, no stubs — real agent.chatStream().
+ * wraps it for the TUI. Supports --test-mode for deterministic testing.
  */
 import path from "node:path";
 import fs from "node:fs";
@@ -43,7 +43,7 @@ export const PROVIDER_CATALOG: ProviderInfo[] = [
   { id: "custom", name: "Custom OpenAI-compatible", category: "cloud", needsApiKey: true, defaultBaseUrl: "" },
 ];
 
-const CLOUD = new Set(["orca", "openrouter", "openai", "anthropic", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity", "gemini"]);
+const CLOUD = new Set(["orca", "openrouter", "openai", "anthropic", "groq", "together", "mistral", "deepseek", "fireworks", "perplexity", "gemini", "test-mock"]);
 
 export function getProviderInfo(agent: any): { provider: string; model: string; baseUrl: string; hasKey: boolean } {
   const cfg = agent.config as Record<string, unknown>;
@@ -60,7 +60,37 @@ export function getProviderInfo(agent: any): { provider: string; model: string; 
   };
 }
 
-export function createAgent(providerOverride?: string): any {
+// ── Inline test mock backend ──
+// Used when --test-mode is passed. Returns pre-scripted tool_call
+// responses simulating what a real LLM would return for a
+// "find and fix the bug" task.
+class InlineTestBackend {
+  name = "test-mock";
+  tools: unknown[] = [];
+  private idx = 0;
+  private responses: any[] = [];
+
+  constructor(workspace: string) {
+    const { textResponse, toolCallResponse } = distRequire("core/backend/types.js");
+    this.responses = [
+      toolCallResponse([{ name: "file_list", args: { path: "." } }]),
+      toolCallResponse([{ name: "file_read", args: { path: "calculator.js" } }]),
+      toolCallResponse([{ name: "file_read", args: { path: "test.js" } }]),
+      toolCallResponse([{ name: "shell_run", args: { command: "node test.js" } }]),
+      toolCallResponse([{ name: "file_edit", args: { path: "calculator.js", old: "return a + b;  // BUG: should be a * b", new: "return a * b;" } }]),
+      toolCallResponse([{ name: "shell_run", args: { command: "node test.js" } }]),
+      textResponse("Found and fixed the bug. multiply was returning a+b instead of a*b. All 5 tests pass."),
+    ];
+  }
+
+  async complete(_m: any, _t?: number): Promise<any> {
+    return this.responses[this.idx++] ?? { kind: "text", text: "done" };
+  }
+  async *streamText(_m: any, _s?: any, _t?: number): AsyncGenerator<string> { yield "mock"; }
+  async healthCheck(): Promise<any> { return { status: "ok", backend: "test-mock", model: "test-model" }; }
+}
+
+export function createAgent(providerOverride?: string, workspaceOverride?: string): any {
   const { loadConfig } = distRequire("core/config.js");
   const config = loadConfig();
 
@@ -75,8 +105,23 @@ export function createAgent(providerOverride?: string): any {
     }
   }
 
+  if (workspaceOverride) {
+    config.workspace = workspaceOverride;
+  }
+
   const { Agent } = distRequire("core/agent.js");
-  return new Agent(config);
+  const agent = new Agent(config);
+
+  // Test mode: inject mock backend (explicit test seam)
+  if (providerOverride === "test-mock") {
+    const mock = new InlineTestBackend(workspaceOverride ?? ".");
+    mock.tools = agent.availableTools;
+    agent.llm = mock;
+    agent.backend = mock;
+    agent.llmLoaded = true;
+  }
+
+  return agent;
 }
 
 export function loadConfig(): Record<string, unknown> {

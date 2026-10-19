@@ -160,15 +160,23 @@ export function App() {
   useEffect(() => {
     const args = process.argv.slice(2);
     let prov: string | undefined;
-    for (let i = 0; i < args.length; i++) if (args[i] === "--provider" && args[i + 1]) { prov = args[i + 1]; break; }
+    let workspace: string | undefined;
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--provider" && args[i + 1]) { prov = args[i + 1]; }
+      if (args[i] === "--workspace" && args[i + 1]) { workspace = args[i + 1]; }
+      if (args[i] === "--test-mode") { prov = "test-mock"; }
+    }
     try {
-      agentRef.current = createAgent(prov);
+      agentRef.current = createAgent(prov, workspace);
       const info = getProviderInfo(agentRef.current);
       setFooter({ provider: info.provider, model: info.model });
-      const meta = PROVIDER_CATALOG.find(p => p.id === info.provider);
-      if (meta?.needsApiKey && !info.hasKey) {
-        const envKey = `${info.provider.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
-        setMessages([{ id: "warn", role: "system", content: `⚠ No API key for ${info.provider}. Set: ${envKey}=<key>` }]);
+      // Skip API key warning in test mode
+      if (prov !== "test-mock") {
+        const meta = PROVIDER_CATALOG.find(p => p.id === info.provider);
+        if (meta?.needsApiKey && !info.hasKey) {
+          const envKey = `${info.provider.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
+          setMessages([{ id: "warn", role: "system", content: `⚠ No API key for ${info.provider}. Set: ${envKey}=<key>` }]);
+        }
       }
     } catch (e) {
       setMessages([{ id: "err", role: "system", content: `Failed to init: ${e instanceof Error ? e.message : String(e)}` }]);
@@ -321,9 +329,9 @@ export function App() {
     }
 
     if (key.return) { submit(input); return; }
-    if (key.backspace || key.delete) { setInput(input.slice(0, -1)); return; }
+    if (key.backspace || key.delete) { setInput(prev => prev.slice(0, -1)); return; }
     if (key.ctrl && ch === "c") { if (input) setInput(""); else exit(); return; }
-    if (ch && !key.ctrl && !key.meta && ch.length === 1) setInput(input + ch);
+    if (ch && !key.ctrl && !key.meta && ch.length === 1) setInput(prev => prev + ch);
   });
 
   if (!isRawModeSupported) {
