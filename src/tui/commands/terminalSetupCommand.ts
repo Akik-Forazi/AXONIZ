@@ -6,7 +6,7 @@
 
 import { CommandKind, type SlashCommand } from './types.js';
 import { terminalSetup } from '../utils/terminalSetup.js';
-import { type MessageActionReturn } from './core-shim.js';
+import { type MessageActionReturn } from '../core-shim.js';
 
 /**
  * Command to configure terminal keybindings for multiline input support.

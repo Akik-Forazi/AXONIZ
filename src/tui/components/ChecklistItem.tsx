@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { checkExhaustive } from './core-shim.js';
+import { checkExhaustive } from '../core-shim.js';
 
 export type ChecklistStatus =
   | 'pending'

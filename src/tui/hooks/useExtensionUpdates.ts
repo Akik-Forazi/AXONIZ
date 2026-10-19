@@ -9,7 +9,7 @@ import {
   checkExhaustive,
   getErrorMessage,
   type GeminiCLIExtension,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   ExtensionUpdateState,
   extensionUpdatesReducer,

@@ -10,7 +10,7 @@ import type {
   LogoutActionReturn,
 } from './types.js';
 import { CommandKind } from './types.js';
-import { clearCachedCredentialFile } from './core-shim.js';
+import { clearCachedCredentialFile } from '../core-shim.js';
 import { SettingScope } from '../../config/settings.js';
 
 const authLoginCommand: SlashCommand = {

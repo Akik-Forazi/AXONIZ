@@ -1,4 +1,4 @@
-import { getBoundingBox, styledCharsWidth, styledLineToString, toStyledCharacters, widestLineFromStyledChars, wordBreakStyledChars, wrapStyledChars } from './core-shim.js';
+import { getBoundingBox, styledCharsWidth, styledLineToString, toStyledCharacters, widestLineFromStyledChars, wordBreakStyledChars, wrapStyledChars } from '../core-shim.js';
 /**
  * @license
  * Copyright 2026 Google LLC

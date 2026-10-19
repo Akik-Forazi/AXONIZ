@@ -14,8 +14,8 @@ import { CommandKind } from './types.js';
 import type {
   HookRegistryEntry,
   MessageActionReturn,
-} from './core-shim.js';
-import { getErrorMessage } from './core-shim.js';
+} from '../core-shim.js';
+import { getErrorMessage } from '../core-shim.js';
 import { SettingScope, isLoadableSettingScope } from '../../config/settings.js';
 import { enableHook, disableHook } from '../../utils/hookSettings.js';
 import { renderHookActionFeedback } from '../../utils/hookUtils.js';

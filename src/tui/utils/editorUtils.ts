@@ -18,7 +18,7 @@ import {
   isTerminalEditor,
   isValidEditorType,
   resolveEditorTypeFromCommand,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 /**
  * Command name substrings used to guess whether an unknown $VISUAL/$EDITOR

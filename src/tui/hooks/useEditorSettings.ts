@@ -10,14 +10,14 @@ import type {
   LoadedSettings,
 } from '../../config/settings.js';
 import { MessageType } from '../types.js';
-import type { EditorType } from './core-shim.js';
+import type { EditorType } from '../core-shim.js';
 import {
   allowEditorTypeInSandbox,
   hasValidEditorCommand,
   getEditorDisplayName,
   coreEvents,
   CoreEvent,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 
 import { SettingPaths } from '../../config/settingPaths.js';

@@ -14,14 +14,14 @@ import type {
   Config,
   GeminiClient,
   CompletionBehavior,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   isBinary,
   ShellExecutionService,
   ExecutionLifecycleService,
   CoreToolCallStatus,
   escapeShellArg,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { type PartListUnion } from '@google/genai';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import { SHELL_COMMAND_NAME } from '../constants.js';

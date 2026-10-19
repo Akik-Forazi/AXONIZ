@@ -43,7 +43,7 @@ import {
   applyInboxMemoryPatch,
   dismissInboxMemoryPatch,
   isProjectSkillPatchTarget,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 type Phase =
   | 'list'

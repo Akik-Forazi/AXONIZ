@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import type {
   ConversationRecord,
   MessageRecord,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   calculateTurnStats,
   calculateRewindImpact,

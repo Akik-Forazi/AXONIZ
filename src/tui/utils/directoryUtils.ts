@@ -7,7 +7,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { opendir } from 'node:fs/promises';
-import { homedir, type WorkspaceContext } from './core-shim.js';
+import { homedir, type WorkspaceContext } from '../core-shim.js';
 
 const MAX_SUGGESTIONS = 50;
 const MATCH_BUFFER_MULTIPLIER = 3;

@@ -23,7 +23,7 @@ import {
   getDisplayString,
   isAutoModel,
   LlmRole,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { QuotaStats } from '../types.js';
 import { QuotaStatsInfo } from './QuotaStatsInfo.js';
 

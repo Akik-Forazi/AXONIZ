@@ -19,7 +19,7 @@ import {
   clearCachedCredentialFile,
   type Config,
   debugLogger,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { AuthState } from '../types.js';
 import { validateAuthMethodWithSettings } from './useAuth.js';

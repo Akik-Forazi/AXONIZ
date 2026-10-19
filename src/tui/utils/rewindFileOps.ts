@@ -7,7 +7,7 @@
 import type {
   ConversationRecord,
   MessageRecord,
-} from './core-shim.js';
+} from '../core-shim.js';
 import fs from 'node:fs/promises';
 import * as Diff from 'diff';
 import {
@@ -15,7 +15,7 @@ import {
   debugLogger,
   getFileDiffFromResultDisplay,
   computeModelAddedAndRemovedLines,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 export interface FileChangeDetail {
   fileName: string;

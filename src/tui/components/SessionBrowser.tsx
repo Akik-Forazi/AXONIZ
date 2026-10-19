@@ -12,7 +12,7 @@ import { Colors } from '../colors.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import path from 'node:path';
-import type { Config } from './core-shim.js';
+import type { Config } from '../core-shim.js';
 import type { SessionInfo } from '../../utils/sessionUtils.js';
 import {
   formatRelativeTime,

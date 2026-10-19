@@ -7,7 +7,7 @@
 import {
   ModelSlashCommandEvent,
   logModelSlashCommand,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   type CommandContext,
   CommandKind,

@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { Box, Text } from 'ink';
-import { type AgentDefinition } from './core-shim.js';
+import { type AgentDefinition } from '../core-shim.js';
 import { theme } from '../semantic-colors.js';
 import {
   RadioButtonSelect,

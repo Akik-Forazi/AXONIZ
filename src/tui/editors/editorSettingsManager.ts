@@ -9,7 +9,7 @@ import {
   hasValidEditorCommand,
   type EditorType,
   EDITOR_DISPLAY_NAMES,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 export interface EditorDisplay {
   name: string;

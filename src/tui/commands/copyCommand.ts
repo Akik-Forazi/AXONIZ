@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import { copyToClipboard } from '../utils/commandUtils.js';
 import {
   CommandKind,

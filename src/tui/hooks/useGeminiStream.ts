@@ -51,7 +51,7 @@ import {
   RECITATION_BLOCKED_MESSAGE,
   OTHER_BLOCKED_MESSAGE,
   TRUE_EMPTY_RESPONSE_MESSAGE,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type {
   CompletedToolCall,
   Config,
@@ -67,7 +67,7 @@ import type {
   ToolCallResponseInfo,
   GeminiErrorEventValue,
   RetryAttemptPayload,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { type Part, type PartListUnion, FinishReason } from '@google/genai';
 import type {
   HistoryItem,

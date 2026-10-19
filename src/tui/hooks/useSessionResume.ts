@@ -8,12 +8,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   coreEvents,
   convertSessionToClientHistory,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type {
   HistoryTurn,
   Config,
   ResumedSessionData,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { HistoryItemWithoutId } from '../types.js';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import { convertSessionToHistoryFormats } from './useSessionBrowser.js';

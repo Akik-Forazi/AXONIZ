@@ -5,7 +5,7 @@
  */
 
 import { useConfig } from '../contexts/ConfigContext.js';
-import type { Config } from './core-shim.js';
+import type { Config } from '../core-shim.js';
 
 // This method is intentionally misleading while we migrate.
 // Once getUseTerminalBuffer() is always enabled we will refactor to remove

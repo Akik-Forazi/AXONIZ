@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { spawnAsync, getAbsoluteGitDir } from './core-shim.js';
+import { spawnAsync, getAbsoluteGitDir } from '../core-shim.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 

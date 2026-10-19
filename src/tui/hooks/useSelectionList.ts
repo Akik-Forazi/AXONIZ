@@ -7,7 +7,7 @@
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import { useKeypress, type Key } from './useKeypress.js';
 import { Command } from '../key/keyMatchers.js';
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import { useKeyMatchers } from './useKeyMatchers.js';
 
 export interface SelectionListItem<T> {

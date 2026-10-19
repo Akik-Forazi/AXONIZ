@@ -17,7 +17,7 @@ import {
 } from '../types.js';
 import { disableSkill, enableSkill } from '../../utils/skillSettings.js';
 
-import { getAdminErrorMessage, getErrorMessage } from './core-shim.js';
+import { getAdminErrorMessage, getErrorMessage } from '../core-shim.js';
 import {
   linkSkill,
   renderSkillActionFeedback,

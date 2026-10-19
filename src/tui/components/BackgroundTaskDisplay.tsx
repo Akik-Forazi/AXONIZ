@@ -15,7 +15,7 @@ import {
   type AnsiOutput,
   type AnsiLine,
   type AnsiToken,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { cpLen, cpSlice, getCachedStringWidth } from '../utils/textUtils.js';
 import { type BackgroundTask } from '../hooks/useExecutionLifecycle.js';
 import { Command } from '../key/keyMatchers.js';

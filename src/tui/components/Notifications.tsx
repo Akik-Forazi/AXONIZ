@@ -20,7 +20,7 @@ import {
   Storage,
   homedir,
   WarningPriority,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 import * as fs from 'node:fs/promises';
 import path from 'node:path';

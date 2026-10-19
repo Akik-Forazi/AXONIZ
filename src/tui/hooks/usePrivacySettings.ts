@@ -11,7 +11,7 @@ import {
   UserTierId,
   getCodeAssistServer,
   debugLogger,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 export interface PrivacyState {
   isLoading: boolean;

@@ -10,7 +10,7 @@ import type {
   CommandContext,
 } from './types.js';
 import { CommandKind } from './types.js';
-import type { MessageActionReturn } from './core-shim.js';
+import type { MessageActionReturn } from '../core-shim.js';
 import {
   DiscoveredMCPTool,
   getMCPDiscoveryState,
@@ -22,7 +22,7 @@ import {
   mcpServerRequiresOAuth,
   CoreEvent,
   coreEvents,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 import { MessageType, type HistoryItemMcpStatus } from '../types.js';
 import {

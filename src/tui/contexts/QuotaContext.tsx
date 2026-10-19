@@ -6,7 +6,7 @@
 
 import { createContext, useContext } from 'react';
 import type { QuotaStats } from '../types.js';
-import type { UserTierId } from './core-shim.js';
+import type { UserTierId } from '../core-shim.js';
 import type {
   ProQuotaDialogRequest,
   ValidationDialogRequest,

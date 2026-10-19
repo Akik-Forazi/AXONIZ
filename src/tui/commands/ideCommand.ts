@@ -11,13 +11,13 @@ import {
   logIdeConnection,
   IdeConnectionEvent,
   IdeConnectionType,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   getIdeInstaller,
   IDEConnectionStatus,
   ideContextStore,
   GEMINI_CLI_COMPANION_EXTENSION_NAME,
-} from './core-shim.js';
+} from '../core-shim.js';
 import path from 'node:path';
 import type {
   CommandContext,

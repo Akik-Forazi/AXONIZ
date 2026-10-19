@@ -34,7 +34,7 @@ import {
   WRITE_FILE_DISPLAY_NAME,
   READ_MANY_FILES_DISPLAY_NAME,
   isFileDiff,
-} from './core-shim.js';
+} from '../../core-shim.js';
 import { buildToolVisibilityContextFromDisplay } from '../../utils/historyUtils.js';
 import { useUIState } from '../../contexts/UIStateContext.js';
 import { getToolGroupBorderAppearance } from '../../utils/borderStyles.js';

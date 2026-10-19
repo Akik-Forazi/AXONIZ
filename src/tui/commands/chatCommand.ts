@@ -18,7 +18,7 @@ import {
   decodeTagName,
   type MessageActionReturn,
   INITIAL_HISTORY_LENGTH,
-} from './core-shim.js';
+} from '../core-shim.js';
 import path from 'node:path';
 import type {
   HistoryItemWithoutId,
@@ -27,7 +27,7 @@ import type {
 } from '../types.js';
 import { MessageType } from '../types.js';
 import { exportHistoryToFile } from '../utils/historyExportUtils.js';
-import { convertToRestPayload } from './core-shim.js';
+import { convertToRestPayload } from '../core-shim.js';
 
 const CHECKPOINT_MENU_GROUP = 'checkpoints';
 

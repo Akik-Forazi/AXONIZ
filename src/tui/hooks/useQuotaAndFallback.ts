@@ -19,7 +19,7 @@ import {
   isOverageEligibleModel,
   getDisplayString,
   type GeminiUserTier,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type UseHistoryManagerReturn } from './useHistoryManager.js';
 import { MessageType } from '../types.js';

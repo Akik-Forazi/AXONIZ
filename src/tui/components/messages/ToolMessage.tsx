@@ -21,7 +21,7 @@ import {
   useFocusHint,
   FocusHint,
 } from './ToolShared.js';
-import { type Config, CoreToolCallStatus, Kind } from './core-shim.js';
+import { type Config, CoreToolCallStatus, Kind } from '../../core-shim.js';
 import { ShellInputPrompt } from '../ShellInputPrompt.js';
 import { SUBAGENT_MAX_LINES } from '../../constants.js';
 import { useToolActions } from '../../contexts/ToolActionsContext.js';

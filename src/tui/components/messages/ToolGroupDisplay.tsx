@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { Box, Text } from 'ink';
-import { CoreToolCallStatus } from './core-shim.js';
+import { CoreToolCallStatus } from '../../core-shim.js';
 import type {
   HistoryItem,
   HistoryItemWithoutId,

@@ -16,7 +16,7 @@ import {
   UserAccountManager,
   debugLogger,
   getVersion,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 export const aboutCommand: SlashCommand = {
   name: 'about',

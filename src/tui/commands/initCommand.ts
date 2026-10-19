@@ -12,7 +12,7 @@ import type {
   SlashCommandActionReturn,
 } from './types.js';
 import { CommandKind } from './types.js';
-import { performInit } from './core-shim.js';
+import { performInit } from '../core-shim.js';
 
 export const initCommand: SlashCommand = {
   name: 'init',

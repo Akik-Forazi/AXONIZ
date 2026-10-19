@@ -16,7 +16,7 @@ import type {
   CommandActionReturn,
   AgentDefinition,
   AgentLoopContext,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { LoadedSettings } from '../../config/settings.js';
 import type { UseHistoryManagerReturn } from '../hooks/useHistoryManager.js';
 import type { SessionStatsState } from '../contexts/SessionContext.js';

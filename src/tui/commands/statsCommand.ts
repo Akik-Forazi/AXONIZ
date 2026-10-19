@@ -14,7 +14,7 @@ import { formatDuration } from '../utils/formatters.js';
 import {
   UserAccountManager,
   getG1CreditBalance,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   type CommandContext,
   type SlashCommand,

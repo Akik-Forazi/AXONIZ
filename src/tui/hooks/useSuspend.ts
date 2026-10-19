@@ -13,7 +13,7 @@ import {
   exitAlternateScreen,
   enableLineWrapping,
   disableLineWrapping,
-} from './core-shim.js';
+} from '../core-shim.js';
 import process from 'node:process';
 import {
   cleanupTerminalOnExit,

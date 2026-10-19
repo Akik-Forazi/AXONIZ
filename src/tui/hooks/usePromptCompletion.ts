@@ -10,7 +10,7 @@ import {
   getResponseText,
   LlmRole,
   type Config,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { Content } from '@google/genai';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { isSlashCommand } from '../utils/commandUtils.js';

@@ -14,7 +14,7 @@ import {
   checkExhaustive,
   type SubagentActivityItem,
   SubagentState,
-} from './core-shim.js';
+} from '../../core-shim.js';
 import {
   SubagentProgressDisplay,
   formatToolArgs,

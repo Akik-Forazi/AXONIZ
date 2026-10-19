@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Text } from 'ink';
 import { type ActiveHook } from '../types.js';
-import { isUserVisibleHook } from './core-shim.js';
+import { isUserVisibleHook } from '../core-shim.js';
 import { GENERIC_WORKING_LABEL } from '../textConstants.js';
 import { theme } from '../semantic-colors.js';
 

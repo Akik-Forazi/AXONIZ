@@ -11,7 +11,7 @@ import {
   INK_NAME_TO_HEX_MAP,
 } from '../themes/color-utils.js';
 import { theme } from '../semantic-colors.js';
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import { convertLatexToUnicode } from './latexToUnicode.js';
 
 // Constants for Markdown parsing

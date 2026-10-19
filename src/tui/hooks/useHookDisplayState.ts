@@ -10,7 +10,7 @@ import {
   CoreEvent,
   type HookStartPayload,
   type HookEndPayload,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { type ActiveHook } from '../types.js';
 import { WARNING_PROMPT_DURATION_MS } from '../constants.js';
 

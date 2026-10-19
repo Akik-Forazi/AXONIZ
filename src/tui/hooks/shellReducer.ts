@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AnsiOutput, CompletionBehavior } from './core-shim.js';
+import type { AnsiOutput, CompletionBehavior } from '../core-shim.js';
 import {
   MAX_SHELL_OUTPUT_SIZE,
   SHELL_OUTPUT_TRUNCATION_BUFFER,

@@ -12,11 +12,11 @@ import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSel
 import { useSettingsStore } from '../contexts/SettingsContext.js';
 import { SettingScope } from '../../config/settings.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
-import { isBinaryAvailable } from './core-shim.js';
+import { isBinaryAvailable } from '../core-shim.js';
 import {
   WhisperModelManager,
   type WhisperModelProgress,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { CliSpinner } from './CliSpinner.js';
 import { WarningMessage } from './messages/WarningMessage.js';
 

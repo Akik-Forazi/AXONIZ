@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import type { PartListUnion, PartUnion } from '@google/genai';
-import type { AnyToolInvocation, Config } from './core-shim.js';
+import type { AnyToolInvocation, Config } from '../core-shim.js';
 import {
   debugLogger,
   getErrorMessage,
@@ -19,7 +19,7 @@ import {
   CoreToolCallStatus,
   resolveAtCommandPath,
   stripLineNumberSuffix,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { Buffer } from 'node:buffer';
 import type {
   HistoryItemToolGroup,

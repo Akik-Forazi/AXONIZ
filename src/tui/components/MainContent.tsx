@@ -5,7 +5,7 @@
  */
 
 import { Box, Static } from 'ink';
-import { CoreToolCallStatus } from './core-shim.js';
+import { CoreToolCallStatus } from '../core-shim.js';
 import { HistoryItemDisplay } from './HistoryItemDisplay.js';
 import { UIStateContext, useUIState } from '../contexts/UIStateContext.js';
 import { useAppContext } from '../contexts/AppContext.js';

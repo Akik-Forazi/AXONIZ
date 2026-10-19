@@ -16,7 +16,7 @@ import {
   type EditorType,
   processSingleFileContent,
   debugLogger,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { theme } from '../semantic-colors.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { AskUserDialog } from './AskUserDialog.js';

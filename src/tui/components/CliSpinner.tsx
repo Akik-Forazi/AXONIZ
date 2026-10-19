@@ -8,7 +8,7 @@ import Spinner from 'ink-spinner';
 import cliSpinners, { type SpinnerName } from 'cli-spinners';
 import { Text } from 'ink';
 import React, { type ComponentProps, useEffect, useState } from 'react';
-import { isTmux } from './core-shim.js';
+import { isTmux } from '../core-shim.js';
 import { debugState } from '../debug.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 

@@ -20,7 +20,7 @@ import {
   PROMPT_COMPLETION_MIN_LENGTH,
   type PromptCompletion,
 } from './usePromptCompletion.js';
-import type { Config } from './core-shim.js';
+import type { Config } from '../core-shim.js';
 import { useCompletion } from './useCompletion.js';
 
 export enum CompletionMode {

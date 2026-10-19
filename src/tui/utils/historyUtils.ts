@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type ToolVisibilityContext } from './core-shim.js';
+import { type ToolVisibilityContext } from '../core-shim.js';
 import { CoreToolCallStatus } from '../types.js';
 import type {
   HistoryItem,

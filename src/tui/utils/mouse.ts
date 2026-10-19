@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { enableMouseEvents, disableMouseEvents } from './core-shim.js';
+import { enableMouseEvents, disableMouseEvents } from '../core-shim.js';
 import {
   SGR_MOUSE_REGEX,
   X11_MOUSE_REGEX,

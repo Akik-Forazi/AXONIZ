@@ -16,7 +16,7 @@ import {
   processSingleFileContent,
   partToString,
   readFileWithEncoding,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { MessageType } from '../types.js';
 import * as path from 'node:path';
 import { copyToClipboard } from '../utils/commandUtils.js';

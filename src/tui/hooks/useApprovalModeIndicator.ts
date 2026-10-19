@@ -9,7 +9,7 @@ import {
   ApprovalMode,
   type Config,
   getAdminErrorMessage,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { useKeypress } from './useKeypress.js';
 import { Command } from '../key/keyMatchers.js';
 import { useKeyMatchers } from './useKeyMatchers.js';

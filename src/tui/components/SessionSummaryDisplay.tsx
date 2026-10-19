@@ -12,7 +12,7 @@ import {
   escapeShellArg,
   isWindows,
   type ShellType,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 interface SessionSummaryDisplayProps {
   duration: string;

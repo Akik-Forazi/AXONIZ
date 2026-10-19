@@ -11,7 +11,7 @@ import {
   debugLogger,
   type Config,
   type TranscriptionProvider,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { MergedSettings } from '../../config/settingsSchema.js';
 import type { Key } from './useKeypress.js';

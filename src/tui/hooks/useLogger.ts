@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Logger, type Config } from './core-shim.js';
+import { Logger, type Config } from '../core-shim.js';
 
 /**
  * Hook to manage the logger instance.

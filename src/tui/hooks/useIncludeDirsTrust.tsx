@@ -5,10 +5,10 @@
  */
 
 import { useEffect } from 'react';
-import { type Config } from './core-shim.js';
+import { type Config } from '../core-shim.js';
 import { loadTrustedFolders } from '../../config/trustedFolders.js';
 import { expandHomeDir, batchAddDirectories } from '../utils/directoryUtils.js';
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import { MultiFolderTrustDialog } from '../components/MultiFolderTrustDialog.js';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import { MessageType, type HistoryItem } from '../types.js';

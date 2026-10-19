@@ -12,7 +12,7 @@ import {
   type Config,
   UserAccountManager,
   AuthType,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { isUltraTier } from '../../utils/tierUtils.js';
 
 interface UserIdentityProps {

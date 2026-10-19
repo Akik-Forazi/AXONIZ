@@ -11,7 +11,7 @@ import {
   debugLogger,
   CoreToolCallStatus,
   type SubagentActivityItem,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   type HistoryItemToolGroup,
   type IndividualToolCallDisplay,

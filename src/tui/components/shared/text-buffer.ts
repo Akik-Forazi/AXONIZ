@@ -16,7 +16,7 @@ import {
   getErrorMessage,
   unescapePath,
   type EditorType,
-} from './core-shim.js';
+} from '../../core-shim.js';
 import {
   toCodePoints,
   cpLen,

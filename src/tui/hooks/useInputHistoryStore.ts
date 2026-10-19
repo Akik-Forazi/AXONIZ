@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import { useState, useCallback } from 'react';
 
 interface Logger {

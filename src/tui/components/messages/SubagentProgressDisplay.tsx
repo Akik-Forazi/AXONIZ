@@ -13,10 +13,10 @@ import {
   type SubagentProgress,
   type SubagentActivityItem,
   SubagentState,
-} from './core-shim.js';
+} from '../../core-shim.js';
 import { TOOL_STATUS } from '../../constants.js';
 import { STATUS_INDICATOR_WIDTH } from './ToolShared.js';
-import { safeJsonToMarkdown } from './core-shim.js';
+import { safeJsonToMarkdown } from '../../core-shim.js';
 
 export interface SubagentProgressDisplayProps {
   progress: SubagentProgress;

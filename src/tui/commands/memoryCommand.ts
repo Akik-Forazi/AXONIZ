@@ -10,7 +10,7 @@ import {
   listMemoryFiles,
   refreshMemory,
   showMemory,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { MessageType } from '../types.js';
 import {
   CommandKind,

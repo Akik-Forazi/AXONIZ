@@ -17,7 +17,7 @@ import {
   isGrepResult,
   isListResult,
   isReadManyFilesResult,
-} from './core-shim.js';
+} from '../../core-shim.js';
 import {
   type IndividualToolCallDisplay,
   type ToolResultDisplay,

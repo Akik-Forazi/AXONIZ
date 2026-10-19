@@ -24,7 +24,7 @@ import {
 import { computeSessionStats } from '../utils/computeStats.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 import type { QuotaStats } from '../types.js';
-import { LlmRole, getDisplayString } from './core-shim.js';
+import { LlmRole, getDisplayString } from '../core-shim.js';
 
 // A more flexible and powerful StatRow component
 interface StatRowProps {

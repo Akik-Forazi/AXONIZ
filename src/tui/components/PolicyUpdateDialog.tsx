@@ -11,7 +11,7 @@ import {
   PolicyIntegrityManager,
   type Config,
   type PolicyUpdateConfirmationRequest,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { theme } from '../semantic-colors.js';
 import {
   RadioButtonSelect,

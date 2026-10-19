@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { tokenLimit } from './core-shim.js';
+import { tokenLimit } from '../core-shim.js';
 
 export function getContextUsagePercentage(
   promptTokenCount: number,

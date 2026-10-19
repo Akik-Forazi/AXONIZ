@@ -10,9 +10,9 @@ import type {
   LoadedSettings,
   LoadedSettingsSnapshot,
   SettingsFile,
-} from '../../config/settings.js';
-import { SettingScope } from '../../config/settings.js';
-import { checkExhaustive } from './core-shim.js';
+} from '../config/settings.js';
+import { SettingScope } from '../config/settings.js';
+import { checkExhaustive } from '../core-shim.js';
 
 export const SettingsContext = React.createContext<LoadedSettings | undefined>(
   undefined,

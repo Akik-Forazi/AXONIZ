@@ -12,12 +12,12 @@ import {
   convertSessionToClientHistory,
   uiTelemetryService,
   loadConversationRecord,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type {
   HistoryTurn,
   Config,
   ResumedSessionData,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   convertSessionToHistoryFormats,
   type SessionInfo,

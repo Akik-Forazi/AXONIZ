@@ -20,7 +20,7 @@ import {
   isHeadlessMode,
   FolderTrustDiscoveryService,
   type FolderDiscoveryResults,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { runExitCleanup } from '../../utils/cleanup.js';
 
 export const useFolderTrust = (

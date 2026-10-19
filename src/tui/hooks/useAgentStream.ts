@@ -27,7 +27,7 @@ import {
   type Logger,
   type Part,
   type ToolCallRequestInfo,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type {
   HistoryItemWithoutId,
   LoopDetectionConfirmationRequest,

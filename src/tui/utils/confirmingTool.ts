@@ -7,7 +7,7 @@
 import {
   CoreToolCallStatus,
   belongsInConfirmationQueue,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   type HistoryItemWithoutId,
   type IndividualToolCallDisplay,

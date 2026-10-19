@@ -10,7 +10,7 @@ import {
   hasRedirection,
   type CoreToolCallStatus,
   type ToolCallRequestInfo,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 export interface MinimalTrackedToolCall {
   status: CoreToolCallStatus;

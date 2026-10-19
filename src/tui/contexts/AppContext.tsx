@@ -5,7 +5,7 @@
  */
 
 import { createContext, useContext } from 'react';
-import type { StartupWarning } from './core-shim.js';
+import type { StartupWarning } from '../core-shim.js';
 
 export interface AppState {
   version: string;

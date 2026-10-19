@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { createContext, useContext, useMemo } from 'react';
-import type { Question } from './core-shim.js';
+import type { Question } from '../core-shim.js';
 
 export interface AskUserState {
   questions: Question[];

@@ -9,7 +9,7 @@ import {
   listExtensions,
   getErrorMessage,
   type ExtensionInstallMetadata,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { ExtensionUpdateInfo } from '../../config/extension.js';
 import {
   emptyIcon,

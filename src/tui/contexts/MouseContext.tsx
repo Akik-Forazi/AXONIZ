@@ -15,7 +15,7 @@ import {
   useRef,
 } from 'react';
 import { ESC } from '../utils/input.js';
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import { appEvents, AppEvent } from '../../utils/events.js';
 import {
   isIncompleteMouseSequence,

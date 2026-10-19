@@ -56,7 +56,7 @@ import {
   coreEvents,
   debugLogger,
   type Config,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { useVoiceMode } from '../hooks/useVoiceMode.js';
 import {
   parseInputForHighlighting,

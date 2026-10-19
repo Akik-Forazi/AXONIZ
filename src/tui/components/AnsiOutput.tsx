@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { Box, Text } from 'ink';
-import type { AnsiLine, AnsiOutput, AnsiToken } from './core-shim.js';
+import type { AnsiLine, AnsiOutput, AnsiToken } from '../core-shim.js';
 
 const DEFAULT_HEIGHT = 24;
 

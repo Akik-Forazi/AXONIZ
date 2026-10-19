@@ -5,7 +5,7 @@
  */
 
 import React, { useContext } from 'react';
-import { type Config } from './core-shim.js';
+import { type Config } from '../core-shim.js';
 
 export const ConfigContext = React.createContext<Config | undefined>(undefined);
 

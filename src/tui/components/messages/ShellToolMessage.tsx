@@ -29,7 +29,7 @@ import {
   type Config,
   ShellExecutionService,
   CoreToolCallStatus,
-} from './core-shim.js';
+} from '../../core-shim.js';
 import {
   calculateShellMaxLines,
   calculateToolContentMaxLines,

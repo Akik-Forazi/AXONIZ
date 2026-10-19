@@ -10,7 +10,7 @@ import {
   coreEvents,
   CoreEvent,
   type ConsoleLogPayload,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 export interface UseErrorCountReturn {
   errorCount: number;

@@ -13,7 +13,7 @@ import {
   FileDiscoveryService,
   type Config,
   type FileSearch,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   MAX_SUGGESTIONS_TO_SHOW,
   type Suggestion,

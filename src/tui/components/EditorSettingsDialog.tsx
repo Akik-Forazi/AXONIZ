@@ -23,7 +23,7 @@ import {
   isEditorAvailable,
   EDITOR_DISPLAY_NAMES,
   coreEvents,
-} from './core-shim.js';
+} from '../core-shim.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 
 interface EditorDialogProps {

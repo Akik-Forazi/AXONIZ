@@ -23,7 +23,7 @@ import {
   type ChatRecordingService,
   type GeminiClient,
   convertSessionToClientHistory,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 /**
  * Helper function to handle the core logic of rewinding a conversation.

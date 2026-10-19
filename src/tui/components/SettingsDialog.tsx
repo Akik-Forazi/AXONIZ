@@ -39,7 +39,7 @@ import {
   type SettingsValue,
   TOGGLE_TYPES,
 } from '../../config/settingsSchema.js';
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 
 import { useSearchBuffer } from '../hooks/useSearchBuffer.js';
 import {

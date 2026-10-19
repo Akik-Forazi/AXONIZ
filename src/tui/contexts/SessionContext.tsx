@@ -18,8 +18,8 @@ import type {
   ModelMetrics,
   RoleMetrics,
   ToolCallStats,
-} from './core-shim.js';
-import { uiTelemetryService } from './core-shim.js';
+} from '../core-shim.js';
+import { uiTelemetryService } from '../core-shim.js';
 
 export enum ToolCallDecision {
   ACCEPT = 'accept',

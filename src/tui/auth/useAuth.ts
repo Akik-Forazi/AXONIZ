@@ -15,8 +15,8 @@ import {
   ProjectIdRequiredError,
   ChangeAuthRequestedError,
   ValidationCancelledError,
-} from './core-shim.js';
-import { getErrorMessage } from './core-shim.js';
+} from '../core-shim.js';
+import { getErrorMessage } from '../core-shim.js';
 import { AuthState } from '../types.js';
 import { validateAuthMethod } from '../../config/auth.js';
 

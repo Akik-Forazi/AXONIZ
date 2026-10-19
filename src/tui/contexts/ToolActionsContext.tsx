@@ -20,7 +20,7 @@ import {
   type ToolConfirmationPayload,
   type SerializableConfirmationDetails,
   debugLogger,
-} from './core-shim.js';
+} from '../core-shim.js';
 import type { IndividualToolCallDisplay } from '../types.js';
 
 type LegacyConfirmationDetails = SerializableConfirmationDetails & {

@@ -13,7 +13,7 @@ import {
   spawnAsync,
   escapePath,
   Storage,
-} from './core-shim.js';
+} from '../core-shim.js';
 
 /**
  * Supported image file extensions based on Gemini API.

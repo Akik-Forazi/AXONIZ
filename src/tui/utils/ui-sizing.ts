@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from './core-shim.js';
+import type { Config } from '../core-shim.js';
 import { isAlternateBufferEnabled } from '../hooks/useAlternateBuffer.js';
 
 export const calculateMainAreaWidth = (

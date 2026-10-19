@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from './core-shim.js';
+import { debugLogger } from '../core-shim.js';
 import clipboardy from 'clipboardy';
 import type { SlashCommand } from '../commands/types.js';
 import fs from 'node:fs';

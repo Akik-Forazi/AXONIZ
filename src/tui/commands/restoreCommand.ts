@@ -14,7 +14,7 @@ import {
   getTruncatedCheckpointNames,
   performRestore,
   type ToolCallData,
-} from './core-shim.js';
+} from '../core-shim.js';
 import {
   type CommandContext,
   type SlashCommand,

@@ -1,4 +1,4 @@
-import { getBoundingBox, styledCharsWidth, styledLineToString, toStyledCharacters, widestLineFromStyledChars, wordBreakStyledChars, wrapStyledChars } from './core-shim.js';
+import { getBoundingBox, styledCharsWidth, styledLineToString, toStyledCharacters, widestLineFromStyledChars, wordBreakStyledChars, wrapStyledChars } from '../../core-shim.js';
 /**
  * @license
  * Copyright 2025 Google LLC
@@ -20,7 +20,7 @@ import {
   ApprovalMode,
   hasRedirection,
   debugLogger,
-} from '../core-shim.js';
+} from '../../core-shim.js';
 import { useToolActions } from '../../contexts/ToolActionsContext.js';
 import {
   RadioButtonSelect,

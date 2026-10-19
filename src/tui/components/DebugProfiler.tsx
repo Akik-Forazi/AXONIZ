@@ -11,7 +11,7 @@ import { theme } from '../semantic-colors.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { debugState } from '../debug.js';
 import { appEvents, AppEvent } from '../../utils/events.js';
-import { coreEvents, CoreEvent, debugLogger } from './core-shim.js';
+import { coreEvents, CoreEvent, debugLogger } from '../core-shim.js';
 
 // Frames that render at least this far before or after an action are considered
 // idle frames.

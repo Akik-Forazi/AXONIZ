@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CoreToolCallStatus } from './core-shim.js';
+import { CoreToolCallStatus } from '../core-shim.js';
 import { isShellTool } from '../components/messages/ToolShared.js';
 import { theme } from '../semantic-colors.js';
 export {
