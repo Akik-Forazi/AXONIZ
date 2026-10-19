@@ -1,133 +1,546 @@
 /**
- * Footer — gemini-cli Footer.tsx pattern.
- *
- * Multi-column row at the bottom with width-fitting. Columns:
- *   workspace · git-branch · sandbox · model-name · tokens · elapsed
- *
- * Drops low-priority columns when terminal is narrow + appends `…` ellipsis
- * (same algorithm as gemini-cli's Footer.tsx).
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
-import React from "react";
-import { Box, Text } from "ink";
 
-export interface FooterData {
-  cwd: string;
-  gitBranch: string | null;
-  model: string;
-  provider: string;
-  tokens: number;
-  elapsedSec: number;
-  contextUsed?: number;  // 0-100
-  isTrusted?: boolean;
+import type React from 'react';
+import { useState, useEffect } from 'react';
+import { Box, Text } from 'ink';
+import { theme } from '../semantic-colors.js';
+import {
+  shortenPath,
+  tildeifyPath,
+  getDisplayString,
+  checkExhaustive,
+  AuthType,
+  UserAccountManager,
+} from './core-shim.js';
+import { ConsoleSummaryDisplay } from './ConsoleSummaryDisplay.js';
+import process from 'node:process';
+import os from 'node:os';
+import { MemoryUsageDisplay } from './MemoryUsageDisplay.js';
+import { ContextUsageDisplay } from './ContextUsageDisplay.js';
+import { QuotaDisplay } from './QuotaDisplay.js';
+import { DebugProfiler } from './DebugProfiler.js';
+import { useUIState } from '../contexts/UIStateContext.js';
+import { useQuotaState } from '../contexts/QuotaContext.js';
+import { useConfig } from '../contexts/ConfigContext.js';
+import { useSettings } from '../contexts/SettingsContext.js';
+import { useVimMode } from '../contexts/VimModeContext.js';
+import { useInputState } from '../contexts/InputContext.js';
+import {
+  ALL_ITEMS,
+  type FooterItemId,
+  deriveItemsFromLegacySettings,
+} from '../../config/footerItems.js';
+import { isDevelopment } from '../../utils/installationInfo.js';
+
+const HOSTNAME = os.hostname();
+
+interface CwdIndicatorProps {
+  targetDir: string;
+  maxWidth: number;
+  debugMode?: boolean;
+  debugMessage?: string;
+  color?: string;
 }
 
-function compactNumber(n: number): string {
-  if (n < 1000) return String(n);
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n).toLowerCase();
+const CwdIndicator: React.FC<CwdIndicatorProps> = ({
+  targetDir,
+  maxWidth,
+  debugMode,
+  debugMessage,
+  color = theme.text.primary,
+}) => {
+  const debugSuffix = debugMode ? ' ' + (debugMessage || '--debug') : '';
+  const availableForPath = Math.max(10, maxWidth - debugSuffix.length);
+  const displayPath = shortenPath(tildeifyPath(targetDir), availableForPath);
+
+  return (
+    <Text color={color}>
+      {displayPath}
+      {debugMode && <Text color={theme.status.error}>{debugSuffix}</Text>}
+    </Text>
+  );
+};
+
+interface SandboxIndicatorProps {
+  isTrustedFolder: boolean | undefined;
 }
 
-function shortPath(p: string, max: number): string {
-  // tildeify + shorten — same as gemini-cli's shortenPath
-  const home = process.env.HOME || process.env.USERPROFILE || "";
-  let s = p;
-  if (home && p.startsWith(home)) s = "~" + p.slice(home.length);
-  if (s.length <= max) return s;
-  const parts = s.split(/[\\/]/);
-  if (parts.length <= 2) return s;
-  return parts[0] + "/.../" + parts[parts.length - 1];
-}
-
-export function Footer({ data, terminalWidth }: { data: FooterData; terminalWidth: number }) {
-  const SEP = " · ";
-  const cols: Array<{ id: string; text: string; minWidth: number; highPriority?: boolean }> = [];
-
-  // 1. workspace (high priority — always shown)
-  cols.push({
-    id: "workspace",
-    text: shortPath(data.cwd, 20),
-    minWidth: 8,
-    highPriority: true,
-  });
-
-  // 2. git-branch (when present)
-  if (data.gitBranch) {
-    cols.push({ id: "git", text: data.gitBranch, minWidth: data.gitBranch.length });
+const SandboxIndicator: React.FC<SandboxIndicatorProps> = ({
+  isTrustedFolder,
+}) => {
+  const config = useConfig();
+  const sandboxEnabled = config.getSandboxEnabled();
+  if (isTrustedFolder === false) {
+    return <Text color={theme.status.warning}>untrusted</Text>;
   }
 
-  // 3. sandbox / trust indicator
-  cols.push({
-    id: "trust",
-    text: data.isTrusted === false ? "untrusted" : "trusted",
-    minWidth: 8,
+  const sandbox = process.env['SANDBOX'];
+  if (sandbox) {
+    return <Text color={theme.status.warning}>current process</Text>;
+  }
+
+  if (sandboxEnabled) {
+    return <Text color={theme.status.warning}>all tools</Text>;
+  }
+
+  return <Text color={theme.status.error}>no sandbox</Text>;
+};
+
+const CorgiIndicator: React.FC = () => (
+  <Text>
+    <Text color={theme.status.error}>▼</Text>
+    <Text color={theme.text.primary}>(´</Text>
+    <Text color={theme.status.error}>ᴥ</Text>
+    <Text color={theme.text.primary}>`)</Text>
+    <Text color={theme.status.error}>▼</Text>
+  </Text>
+);
+
+export interface FooterRowItem {
+  key: string;
+  header: string;
+  element: React.ReactNode;
+  flexGrow?: number;
+  flexShrink?: number;
+  isFocused?: boolean;
+  alignItems?: 'flex-start' | 'center' | 'flex-end';
+}
+
+const COLUMN_GAP = 3;
+
+export const FooterRow: React.FC<{
+  items: FooterRowItem[];
+  showLabels: boolean;
+}> = ({ items, showLabels }) => {
+  const elements: React.ReactNode[] = [];
+
+  items.forEach((item, idx) => {
+    if (idx > 0) {
+      elements.push(
+        <Box
+          key={`sep-${item.key}`}
+          flexGrow={1}
+          flexShrink={1}
+          minWidth={showLabels ? COLUMN_GAP : 3}
+          justifyContent="center"
+          alignItems="center"
+        >
+          {!showLabels && <Text color={theme.ui.comment}> · </Text>}
+        </Box>,
+      );
+    }
+
+    elements.push(
+      <Box
+        key={item.key}
+        flexDirection="column"
+        flexGrow={item.flexGrow ?? 0}
+        flexShrink={item.flexShrink ?? 1}
+        alignItems={item.alignItems}
+        backgroundColor={item.isFocused ? theme.background.focus : undefined}
+      >
+        {showLabels && (
+          <Box height={1}>
+            <Text
+              color={item.isFocused ? theme.text.primary : theme.ui.comment}
+            >
+              {item.header}
+            </Text>
+          </Box>
+        )}
+        <Box height={1}>{item.element}</Box>
+      </Box>,
+    );
   });
 
-  // 4. model (high priority)
-  const modelStr = `${data.provider}/${data.model}`.slice(0, 40);
-  cols.push({
-    id: "model",
-    text: modelStr,
-    minWidth: modelStr.length,
-    highPriority: true,
-  });
+  return (
+    <Box flexDirection="row" flexWrap="nowrap" width="100%">
+      {elements}
+    </Box>
+  );
+};
 
-  // 5. tokens (compact format)
-  if (data.tokens > 0) {
-    cols.push({
-      id: "tokens",
-      text: `${compactNumber(data.tokens)} tokens`,
-      minWidth: 10,
+function isFooterItemId(id: string): id is FooterItemId {
+  return ALL_ITEMS.some((i) => i.id === id);
+}
+
+interface FooterColumn {
+  id: string;
+  header: string;
+  element: (maxWidth: number) => React.ReactNode;
+  width: number;
+  isHighPriority: boolean;
+}
+
+export const Footer: React.FC = () => {
+  const uiState = useUIState();
+  const quotaState = useQuotaState();
+  const { copyModeEnabled } = useInputState();
+  const config = useConfig();
+  const settings = useSettings();
+  const { vimEnabled, vimMode } = useVimMode();
+
+  const authType = config.getContentGeneratorConfig()?.authType;
+  const [email, setEmail] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (authType) {
+      const userAccountManager = new UserAccountManager();
+      setEmail(userAccountManager.getCachedGoogleAccount() ?? undefined);
+    } else {
+      setEmail(undefined);
+    }
+  }, [authType]);
+
+  const {
+    model,
+    targetDir,
+    debugMode,
+    branchName,
+    debugMessage,
+    corgiMode,
+    errorCount,
+    showErrorDetails,
+    promptTokenCount,
+    isTrustedFolder,
+    terminalWidth,
+  } = {
+    model: uiState.currentModel,
+    targetDir: config.getTargetDir(),
+    debugMode: config.getDebugMode(),
+    branchName: uiState.branchName,
+    debugMessage: uiState.debugMessage,
+    corgiMode: uiState.corgiMode,
+    errorCount: uiState.errorCount,
+    showErrorDetails: uiState.showErrorDetails,
+    promptTokenCount: uiState.sessionStats.lastPromptTokenCount,
+    isTrustedFolder: uiState.isTrustedFolder,
+    terminalWidth: uiState.terminalWidth,
+  };
+
+  const quotaStats = quotaState.stats;
+
+  const isFullErrorVerbosity = settings.merged.ui.errorVerbosity === 'full';
+  const showErrorSummary =
+    !showErrorDetails &&
+    errorCount > 0 &&
+    (isFullErrorVerbosity || debugMode || isDevelopment);
+  const displayVimMode = vimEnabled ? vimMode : undefined;
+
+  const items =
+    settings.merged.ui.footer.items ??
+    deriveItemsFromLegacySettings(settings.merged);
+  const showLabels = settings.merged.ui.footer.showLabels !== false;
+  const itemColor = showLabels ? theme.text.primary : theme.ui.comment;
+
+  const potentialColumns: FooterColumn[] = [];
+
+  const addCol = (
+    id: string,
+    header: string,
+    element: (maxWidth: number) => React.ReactNode,
+    dataWidth: number,
+    isHighPriority = false,
+  ) => {
+    potentialColumns.push({
+      id,
+      header: showLabels ? header : '',
+      element,
+      width: Math.max(dataWidth, showLabels ? header.length : 0),
+      isHighPriority,
     });
+  };
+
+  // 1. System Indicators (Far Left, high priority)
+  if (uiState.showDebugProfiler) {
+    addCol('debug', '', () => <DebugProfiler />, 45, true);
+  }
+  if (displayVimMode) {
+    const vimStr = `[${displayVimMode}]`;
+    addCol(
+      'vim',
+      '',
+      () => <Text color={theme.text.accent}>{vimStr}</Text>,
+      vimStr.length,
+      true,
+    );
   }
 
-  // 6. elapsed
-  if (data.elapsedSec > 0) {
-    cols.push({
-      id: "elapsed",
-      text: `${data.elapsedSec}s`,
-      minWidth: 3,
-    });
+  // 2. Main Configurable Items
+  for (const id of items) {
+    if (!isFooterItemId(id)) continue;
+    const itemConfig = ALL_ITEMS.find((i) => i.id === id);
+    const header = itemConfig?.header ?? id;
+
+    switch (id) {
+      case 'workspace': {
+        const fullPath = tildeifyPath(targetDir);
+        const debugSuffix = debugMode ? ' ' + (debugMessage || '--debug') : '';
+        addCol(
+          id,
+          header,
+          (maxWidth) => (
+            <CwdIndicator
+              targetDir={targetDir}
+              maxWidth={maxWidth}
+              debugMode={debugMode}
+              debugMessage={debugMessage}
+              color={itemColor}
+            />
+          ),
+          fullPath.length + debugSuffix.length,
+        );
+        break;
+      }
+      case 'git-branch': {
+        if (branchName) {
+          addCol(
+            id,
+            header,
+            () => <Text color={itemColor}>{branchName}</Text>,
+            branchName.length,
+          );
+        }
+        break;
+      }
+      case 'sandbox': {
+        let str = 'no sandbox';
+        const sandbox = process.env['SANDBOX'];
+        if (isTrustedFolder === false) str = 'untrusted';
+        else if (sandbox) str = 'current process';
+        else if (config.getSandboxEnabled()) str = 'all tools';
+
+        addCol(
+          id,
+          header,
+          () => <SandboxIndicator isTrustedFolder={isTrustedFolder} />,
+          str.length,
+        );
+        break;
+      }
+      case 'model-name': {
+        const str = getDisplayString(model);
+        addCol(
+          id,
+          header,
+          () => <Text color={itemColor}>{str}</Text>,
+          str.length,
+        );
+        break;
+      }
+      case 'context-used': {
+        addCol(
+          id,
+          header,
+          () => (
+            <ContextUsageDisplay
+              promptTokenCount={promptTokenCount}
+              model={model}
+              terminalWidth={terminalWidth}
+            />
+          ),
+          10, // "100% used" is 9 chars
+        );
+        break;
+      }
+      case 'quota': {
+        if (quotaStats?.remaining !== undefined && quotaStats.limit) {
+          addCol(
+            id,
+            header,
+            () => (
+              <QuotaDisplay
+                remaining={quotaStats.remaining}
+                limit={quotaStats.limit}
+                forceShow={true}
+                lowercase={true}
+              />
+            ),
+            9, // "100% used" is 9 chars
+          );
+        }
+        break;
+      }
+      case 'memory-usage': {
+        addCol(
+          id,
+          header,
+          () => (
+            <MemoryUsageDisplay
+              color={itemColor}
+              isActive={!copyModeEnabled && uiState.constrainHeight}
+            />
+          ),
+          10,
+        );
+        break;
+      }
+      case 'session-id': {
+        addCol(
+          id,
+          header,
+          () => (
+            <Text color={itemColor}>
+              {uiState.sessionStats.sessionId.slice(0, 8)}
+            </Text>
+          ),
+          8,
+        );
+        break;
+      }
+      case 'hostname': {
+        addCol(
+          id,
+          header,
+          () => <Text color={itemColor}>{HOSTNAME}</Text>,
+          HOSTNAME.length,
+        );
+        break;
+      }
+      case 'auth': {
+        if (!settings.merged.ui.showUserIdentity) break;
+        if (!authType) break;
+        const displayStr =
+          authType === AuthType.LOGIN_WITH_GOOGLE
+            ? (email ?? 'google')
+            : authType;
+        addCol(
+          id,
+          header,
+          () => (
+            <Text color={itemColor} wrap="truncate-end">
+              {displayStr}
+            </Text>
+          ),
+          displayStr.length,
+        );
+        break;
+      }
+      case 'code-changes': {
+        const added = uiState.sessionStats.metrics.files.totalLinesAdded;
+        const removed = uiState.sessionStats.metrics.files.totalLinesRemoved;
+        if (added > 0 || removed > 0) {
+          const str = `+${added} -${removed}`;
+          addCol(
+            id,
+            header,
+            () => (
+              <Text>
+                <Text color={theme.status.success}>+{added}</Text>{' '}
+                <Text color={theme.status.error}>-{removed}</Text>
+              </Text>
+            ),
+            str.length,
+          );
+        }
+        break;
+      }
+      case 'token-count': {
+        let total = 0;
+        for (const m of Object.values(uiState.sessionStats.metrics.models))
+          total += m.tokens.total;
+        if (total > 0) {
+          const formatter = new Intl.NumberFormat('en-US', {
+            notation: 'compact',
+            maximumFractionDigits: 1,
+          });
+          const formatted = formatter.format(total).toLowerCase();
+          addCol(
+            id,
+            header,
+            () => <Text color={itemColor}>{formatted} tokens</Text>,
+            formatted.length + 7,
+          );
+        }
+        break;
+      }
+      default:
+        checkExhaustive(id);
+        break;
+    }
   }
 
-  // Width-fitting algorithm (gemini-cli Footer.tsx technique)
-  const maxWidth = terminalWidth - 4;
-  const columnsToShow: typeof cols = [];
-  let usedWidth = 0;
+  // 3. Transients
+  if (corgiMode) addCol('corgi', '', () => <CorgiIndicator />, 5);
+  if (showErrorSummary) {
+    addCol(
+      'error-count',
+      '',
+      () => <ConsoleSummaryDisplay errorCount={errorCount} />,
+      12,
+      true,
+    );
+  }
+
+  // --- Width Fitting Logic ---
+  const columnsToRender: FooterColumn[] = [];
   let droppedAny = false;
-  for (const col of cols) {
-    const gap = columnsToShow.length > 0 ? SEP.length : 0;
-    const budgetWidth = col.id === "workspace" ? Math.min(col.minWidth, 20) : col.minWidth;
-    if (col.highPriority || usedWidth + gap + budgetWidth <= maxWidth) {
-      columnsToShow.push(col);
-      usedWidth += gap + budgetWidth;
+  let currentUsedWidth = 2; // Initial padding
+
+  for (const col of potentialColumns) {
+    const gap = columnsToRender.length > 0 ? (showLabels ? COLUMN_GAP : 3) : 0;
+    const budgetWidth = col.id === 'workspace' ? 20 : col.width;
+
+    if (
+      col.isHighPriority ||
+      currentUsedWidth + gap + budgetWidth <= terminalWidth - 2
+    ) {
+      columnsToRender.push(col);
+      currentUsedWidth += gap + budgetWidth;
     } else {
       droppedAny = true;
     }
   }
 
-  const parts = columnsToShow.map((c, i) => {
-    const sep = i > 0 ? <Text color="gray"> · </Text> : null;
-    let content: React.ReactNode;
-    if (c.id === "workspace") content = <Text color="cyan">{c.text}</Text>;
-    else if (c.id === "git") content = <Text color="yellow">{c.text}</Text>;
-    else if (c.id === "trust") content = <Text color={c.text === "trusted" ? "green" : "red"}>{c.text}</Text>;
-    else if (c.id === "model") content = <Text color="magenta">{c.text}</Text>;
-    else if (c.id === "tokens") content = <Text color="white">{c.text}</Text>;
-    else content = <Text color="gray">{c.text}</Text>;
-    return (
-      <React.Fragment key={c.id}>
-        {sep}
-        {content}
-      </React.Fragment>
+  const rowItems: FooterRowItem[] = columnsToRender.map((col, index) => {
+    const isWorkspace = col.id === 'workspace';
+    const isLast = index === columnsToRender.length - 1;
+
+    // Calculate exact space available for growth to prevent over-estimation truncation
+    const otherItemsWidth = columnsToRender
+      .filter((c) => c.id !== 'workspace')
+      .reduce((sum, c) => sum + c.width, 0);
+    const numItems = columnsToRender.length + (droppedAny ? 1 : 0);
+    const numGaps = numItems > 1 ? numItems - 1 : 0;
+    const gapsWidth = numGaps * (showLabels ? COLUMN_GAP : 3);
+    const ellipsisWidth = droppedAny ? 1 : 0;
+
+    const availableForWorkspace = Math.max(
+      20,
+      terminalWidth - 2 - gapsWidth - otherItemsWidth - ellipsisWidth,
     );
+
+    const estimatedWidth = isWorkspace ? availableForWorkspace : col.width;
+
+    return {
+      key: col.id,
+      header: col.header,
+      element: col.element(estimatedWidth),
+      flexGrow: 0,
+      flexShrink: isWorkspace ? 1 : 0,
+      alignItems:
+        isLast && !droppedAny && index > 0 ? 'flex-end' : 'flex-start',
+    };
   });
 
   if (droppedAny) {
-    parts.push(<Text key="ellipsis" color="gray">…</Text>);
+    rowItems.push({
+      key: 'ellipsis',
+      header: '',
+      element: <Text color={theme.ui.comment}>…</Text>,
+      flexGrow: 0,
+      flexShrink: 0,
+      alignItems: 'flex-end',
+    });
   }
 
   return (
-    <Box paddingLeft={1}>
-      {parts}
+    <Box width={terminalWidth} paddingX={1} overflow="hidden" flexWrap="nowrap">
+      <FooterRow items={rowItems} showLabels={showLabels} />
     </Box>
   );
-}
+};

@@ -1,37 +1,41 @@
 /**
- * Tips — startup hints, gemini-cli Tips.tsx pattern.
- * Shows 4 numbered tips for getting started.
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
-import React from "react";
-import { Box, Text } from "ink";
 
-const theme = {
-  primary: "white",
-  secondary: "gray",
-  accent: "magenta",
-  muted: "gray",
-};
+import type React from 'react';
+import { Box, Text } from 'ink';
+import { theme } from '../semantic-colors.js';
+import { type Config } from './core-shim.js';
 
-export function Tips() {
+interface TipsProps {
+  config: Config;
+}
+
+export const Tips: React.FC<TipsProps> = ({ config }) => {
+  const geminiMdFileCount = config.getGeminiMdFileCount();
+
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text color={theme.primary}>Tips for getting started:</Text>
-      <Text color={theme.primary}>
-        {" "}
-        1. <Text color={theme.secondary}>/help</Text> for commands + shortcuts
+      <Text color={theme.text.primary}>Tips for getting started:</Text>
+      {geminiMdFileCount === 0 && (
+        <Text color={theme.text.primary}>
+          1. Create <Text bold>GEMINI.md</Text> files to customize your
+          interactions
+        </Text>
+      )}
+      <Text color={theme.text.primary}>
+        {geminiMdFileCount === 0 ? '2.' : '1.'}{' '}
+        <Text color={theme.text.secondary}>/help</Text> for more information
       </Text>
-      <Text color={theme.primary}>
-        {" "}
-        2. <Text bold>/models</Text> to list models, <Text bold>/switch</Text> to switch providers
+      <Text color={theme.text.primary}>
+        {geminiMdFileCount === 0 ? '3.' : '2.'} Ask coding questions, edit code
+        or run commands
       </Text>
-      <Text color={theme.primary}>
-        {" "}
-        3. <Text bold>/tools</Text> to see what the agent can do, <Text bold>/web</Text> for dashboard
-      </Text>
-      <Text color={theme.primary}>
-        {" "}
-        4. Type <Text color={theme.accent}>@file.txt</Text> to attach, <Text color={theme.accent}>!cmd</Text> for shell
+      <Text color={theme.text.primary}>
+        {geminiMdFileCount === 0 ? '4.' : '3.'} Be specific for the best results
       </Text>
     </Box>
   );
-}
+};

@@ -1,52 +1,59 @@
 /**
- * Header — gemini-cli AppHeader pattern.
- *
- * Layout (mirrors gemini-cli's AppHeader):
- *   ┌─ row ─────────────────────────────────┐
- *   │ ◈  AXONIZ CLI  v0.1.8                 │   ← logo icon + brand text
- *   │                                        │
- *   │ Tips for getting started:              │   ← Tips component
- *   │  1. /help for commands                  │
- *   │  2. /models to list models              │
- *   │  3. /tools to see what the agent can do │
- *   │  4. Type @file.txt to attach            │
- *   └────────────────────────────────────────┘
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
  */
-import React from "react";
-import { Box, Text } from "ink";
-import { Tips } from "./Tips.js";
+
+import type React from 'react';
+import { Box } from 'ink';
+import { ThemedGradient } from './ThemedGradient.js';
+import { shortAsciiLogo, longAsciiLogo, tinyAsciiLogo } from './AsciiArt.js';
+import { getAsciiArtWidth } from '../utils/textUtils.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { useSnowfall } from '../hooks/useSnowfall.js';
 
 interface HeaderProps {
+  customAsciiArt?: string; // For user-defined ASCII art
   version: string;
-  showTips?: boolean;
-  showDetails?: boolean;
+  nightly: boolean;
 }
 
-// AXONIZ logo icon — small block character on the left
-// (mirrors gemini-cli's DEFAULT_ICON ▝▜▄ pattern)
-const LOGO_ICON = "◈";
+export const Header: React.FC<HeaderProps> = ({
+  customAsciiArt,
+  version,
+  nightly,
+}) => {
+  const { columns: terminalWidth } = useTerminalSize();
+  let displayTitle;
+  const widthOfLongLogo = getAsciiArtWidth(longAsciiLogo);
+  const widthOfShortLogo = getAsciiArtWidth(shortAsciiLogo);
 
-export function Header({ version, showTips = true, showDetails = true }: HeaderProps) {
+  if (customAsciiArt) {
+    displayTitle = customAsciiArt;
+  } else if (terminalWidth >= widthOfLongLogo) {
+    displayTitle = longAsciiLogo;
+  } else if (terminalWidth >= widthOfShortLogo) {
+    displayTitle = shortAsciiLogo;
+  } else {
+    displayTitle = tinyAsciiLogo;
+  }
+
+  const artWidth = getAsciiArtWidth(displayTitle);
+  const title = useSnowfall(displayTitle);
+
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={1} paddingLeft={1}>
-      <Box flexDirection="row">
-        <Box flexShrink={0}>
-          <Text color="magenta" bold>{LOGO_ICON}</Text>
+    <Box
+      alignItems="flex-start"
+      width={artWidth}
+      flexShrink={0}
+      flexDirection="column"
+    >
+      <ThemedGradient>{title}</ThemedGradient>
+      {nightly && (
+        <Box width="100%" flexDirection="row" justifyContent="flex-end">
+          <ThemedGradient>v{version}</ThemedGradient>
         </Box>
-        <Box marginLeft={2} flexDirection="column">
-          <Box>
-            <Text bold color="white">AXONIZ CLI</Text>
-            <Text color="gray"> v{version}</Text>
-          </Box>
-          {showDetails && (
-            <>
-              <Box height={1} />
-              <Text color="gray">local-first AI agent · shadow-monarch edition</Text>
-            </>
-          )}
-        </Box>
-      </Box>
-      {showTips && <Tips />}
+      )}
     </Box>
   );
-}
+};
