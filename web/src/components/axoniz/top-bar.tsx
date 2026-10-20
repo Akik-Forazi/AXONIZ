@@ -1,118 +1,131 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Power, Search } from "lucide-react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
-import { useAxonizStore, PROVIDER_CATALOG } from "@/stores/axoniz-store";
+import { useTheme } from "next-themes";
+import { PanelLeft, PanelRight, Sun, Moon, Menu as MenuIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useHealthQuery, useSystemStatsQuery } from "./queries";
+import { useAxonizStore, PROVIDER_CATALOG } from "@/stores/axoniz-store";
+import { useAxonizWorkspaceStore } from "@/stores/axoniz-workspace-store";
+import { cn } from "@/lib/utils";
 
-export function TopBar() {
-  const pathname = usePathname();
-  const {
-    sidebarCollapsed,
-    toggleSidebar,
-    activeProvider,
-    activeModel,
-    username,
-    logout,
-    openModelPicker,
-  } = useAxonizStore();
-  const { data: health } = useHealthQuery();
-  const { data: sysStats } = useSystemStatsQuery();
-  const dataSource = useAxonizStore((s) => s.dataSource);
+export function TopBar({ onHamburgerClick }: { onHamburgerClick?: () => void } = {}) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
-  const online = health?.status === "active";
+  const toggleLeftPanel = useAxonizWorkspaceStore((s) => s.toggleLeftPanel);
+  const leftPanelOpen = useAxonizWorkspaceStore((s) => s.leftPanelOpen);
+  const toggleTerminalPanel = useAxonizWorkspaceStore((s) => s.toggleTerminalPanel);
+  const terminalPanelOpen = useAxonizWorkspaceStore((s) => s.terminalPanelOpen);
+  const workspacePath = useAxonizWorkspaceStore((s) => s.workspacePath);
+  const openModelPicker = useAxonizStore((s) => s.openModelPicker);
+  const activeProvider = useAxonizStore((s) => s.activeProvider);
+  const activeModel = useAxonizStore((s) => s.activeModel);
+
   const providerMeta = PROVIDER_CATALOG.find((p) => p.id === activeProvider);
 
-  // No breadcrumb — the sidebar already shows navigation, the URL bar shows the path.
-  // Showing the route name in the top bar is redundant and wastes space.
-
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-2 px-4 h-12 border-b border-border bg-background/95 backdrop-blur-sm">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleSidebar}
-        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-      >
-        {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-      </Button>
-
-      {/* Wordmark */}
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-md bg-foreground/8 border border-foreground/15 flex items-center justify-center">
-          <span className="text-foreground font-mono text-[10px] font-semibold tracking-tighter">AX</span>
-        </div>
-        <span className="text-sm font-semibold tracking-tight">AXONIZ</span>
-      </div>
-
-      {/* Right */}
-      <div className="ml-auto flex items-center gap-2">
-        {/* Model picker trigger */}
-        <button
-          onClick={openModelPicker}
-          className="inline-flex items-center gap-1.5 px-2 h-7 rounded-md border border-border bg-secondary text-secondary-foreground text-[11px] hover:border-foreground/20 transition-colors"
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${online ? "bg-accent" : "bg-muted-foreground"}`} />
-          <span className="text-muted-foreground">{providerMeta?.name ?? activeProvider}</span>
-          {activeModel && (
-            <span className="font-mono text-foreground/80 max-w-[200px] truncate">
-              {(() => { let m = activeModel.split(/[\\/]/).pop() || activeModel; m = m.replace(/\.(gguf|bin)$/i, ""); m = m.replace(/[-_]/g, " "); m = m.split(" ").map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" "); return m.length > 22 ? m.slice(0, 22) + "…" : m; })()}
-            </span>
-          )}
-          <Search className="w-3 h-3 text-muted-foreground" />
-        </button>
-
-        {/* Source pill */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                className={`inline-flex items-center gap-1.5 px-2 h-6 rounded-md text-[11px] font-mono border ${
-                  online
-                    ? "border-accent/20 bg-accent/5 text-accent"
-                    : "border-border bg-secondary text-muted-foreground"
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${online ? "bg-accent animate-blink" : "bg-muted-foreground"}`} />
-                <span className="hidden sm:inline">{online ? "ONLINE" : "OFFLINE"}</span>
-                <span className={`ml-1 px-1 py-0.5 rounded text-[9px] uppercase ${
-                  dataSource === "live" ? "bg-accent/15 text-accent"
-                  
-                  : "bg-secondary text-muted-foreground"
-                }`}>
-                  {dataSource === "unknown" ? "?" : dataSource}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Backend: {health?.backend ?? "—"} · source: {dataSource}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-
-        {/* CPU */}
-        {sysStats?.cpu && (
-          <Badge variant="outline" className="hidden lg:inline-flex border-border bg-secondary text-secondary-foreground text-[11px] font-mono px-2 h-6">
-            CPU {Math.round(sysStats.cpu.usage * 100)}%
-          </Badge>
+    <header
+      className="flex items-center gap-1 sm:gap-2 h-12 px-2 sm:px-3 glass-panel rounded-none flex-shrink-0 relative z-30 border-t-0 border-x-0 pl-safe pr-safe"
+    >
+      <TooltipProvider>
+        {/* Mobile hamburger (md and below) — opens drawer */}
+        {onHamburgerClick && (
+          <IconButton
+            label="Open menu"
+            onClick={onHamburgerClick}
+            className="md:hidden"
+          >
+            <MenuIcon className="w-4 h-4" />
+          </IconButton>
         )}
 
-        {/* User */}
-        <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border">
-          <span className="hidden sm:inline text-xs text-muted-foreground">{username}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={logout}
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            title="Sign out"
-          >
-            <Power className="w-4 h-4" />
-          </Button>
+        {/* Desktop: left panel toggle (md and up) */}
+        <IconButton
+          label={leftPanelOpen ? "Hide menu bar" : "Show menu bar"}
+          onClick={toggleLeftPanel}
+          active={leftPanelOpen}
+          className="hidden md:inline-flex"
+        >
+          <PanelLeft className="w-4 h-4" />
+        </IconButton>
+      </TooltipProvider>
+
+      {/* Wordmark — compact on mobile */}
+      <div className="flex items-center gap-2 sm:gap-2.5 ml-0.5 sm:ml-1 flex-shrink-0">
+        <div className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center press shadow-lg shadow-primary/20">
+          <span className="font-mono text-[10px] font-bold tracking-tighter">AX</span>
+        </div>
+        <div className="flex flex-col leading-none hidden sm:flex">
+          <span className="text-[13px] font-semibold tracking-tight text-gradient">AXONIZ</span>
+          <span className="text-[9px] text-muted-foreground font-mono tracking-wider uppercase mt-0.5">Chat</span>
         </div>
       </div>
+
+      {/* Breadcrumb — hidden on mobile */}
+      <div className="hidden lg:flex items-center gap-2 ml-3 text-xs text-muted-foreground font-mono truncate">
+        <span className="text-foreground/30">/</span>
+        <span className="truncate" title={workspacePath ?? ""}>
+          {workspacePath ? workspacePath.split("/").slice(-2).join("/") : "loading…"}
+        </span>
+      </div>
+
+      <div className="flex-1" />
+
+      {/* Model selector trigger — compact pill on mobile */}
+      <button
+        onClick={openModelPicker}
+        className="group flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-3 h-8 rounded-lg glass-elevated glass-hover press text-xs relative min-w-0"
+        aria-label="Change model"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-dot glow-accent flex-shrink-0" />
+        <span className="text-muted-foreground hidden sm:inline truncate">{providerMeta?.name ?? "Provider"}</span>
+        <span className="text-foreground font-medium font-mono truncate">{activeModel ?? "—"}</span>
+        <svg className="w-3 h-3 text-muted-foreground group-hover:opacity-100 opacity-50 transition-opacity flex-shrink-0"
+          viewBox="0 0 12 12" fill="none" aria-hidden>
+          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {/* Theme toggle — always visible */}
+      <Button variant="ghost" size="icon" className="h-8 w-8 press flex-shrink-0"
+        onClick={() => setTheme(isDark ? "light" : "dark")} aria-label="Toggle theme">
+        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </Button>
+
+      {/* Terminal toggle — hidden on mobile (use the menu bar drawer instead) */}
+      <IconButton
+        label={terminalPanelOpen ? "Hide terminal" : "Show terminal"}
+        onClick={toggleTerminalPanel}
+        active={terminalPanelOpen}
+        className="hidden lg:inline-flex"
+      >
+        <PanelRight className="w-4 h-4" />
+      </IconButton>
     </header>
+  );
+}
+
+function IconButton({
+  label, onClick, active, children, className,
+}: {
+  label: string; onClick: () => void; active?: boolean; children: React.ReactNode; className?: string;
+}) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" onClick={onClick}
+            className={cn(
+              "h-8 w-8 press transition-colors flex-shrink-0",
+              active ? "bg-secondary text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60",
+              className,
+            )}
+            aria-label={label}>
+            {children}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
