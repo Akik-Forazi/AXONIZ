@@ -89,7 +89,9 @@ export function TopBar({ onHamburgerClick }: { onHamburgerClick?: () => void } =
       {/* Theme toggle — always visible */}
       <Button variant="ghost" size="icon" className="h-8 w-8 press flex-shrink-0"
         onClick={() => setTheme(isDark ? "light" : "dark")} aria-label="Toggle theme">
-        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        {resolvedTheme === undefined
+          ? <span className="w-4 h-4" />
+          : isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </Button>
 
       {/* Terminal toggle — hidden on mobile (use the menu bar drawer instead) */}

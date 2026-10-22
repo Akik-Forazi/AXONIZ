@@ -134,7 +134,9 @@ export function MenuBar({ onNavigate }: { onNavigate?: () => void } = {}) {
           label={isDark ? "Switch to light" : "Switch to dark"}
           onClick={() => setTheme(isDark ? "light" : "dark")}
         >
-          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {resolvedTheme === undefined
+            ? <span className="w-4 h-4" />
+            : isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </MenuIcon>
         <MenuIcon label="Reset layout" onClick={resetLayout}>
           <RotateCcw className="w-4 h-4" />

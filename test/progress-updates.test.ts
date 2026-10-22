@@ -159,33 +159,64 @@ describe("AXONIZ Progress Updates", () => {
   });
 
   describe("3. Stop-using-tools instruction prevents subsequent tool calls", () => {
-    // Test the no-tools regex detection
-    const stopPatterns = /\b(stop|don'?t|no|quit|cease)\b.*\b(tools?|tool)\b|\b(just talk|no tools|stop using|stop calling|without tools?)\b/;
-    const resumePatterns = /\b(use tools?|go ahead|run the tool|you can use tools?|resume tools?|allow tools?)\b/;
+    // Use the SAME phrase-matching logic as the agent source code.
+    const stopPhrases = [
+      "stop using tools", "stop calling tools", "stop tool calls",
+      "don't use tools", "dont use tools", "no more tools",
+      "no tools please", "no tools anymore", "just talk",
+      "just talk to me", "talk to me instead",
+      "answer without tools", "respond without tools", "stop using the tools",
+    ];
+    const resumePhrases = [
+      "you can use tools", "use tools again", "use tools now",
+      "go ahead and use tools", "resume tools", "allow tools", "you may use tools",
+    ];
+
+    function matchesStop(text: string): boolean {
+      const lower = text.toLowerCase();
+      return stopPhrases.some((p) => lower.includes(p)) && !resumePhrases.some((p) => lower.includes(p));
+    }
+    function matchesResume(text: string): boolean {
+      const lower = text.toLowerCase();
+      return resumePhrases.some((p) => lower.includes(p));
+    }
 
     it("should detect 'stop using tools'", () => {
-      assert.ok(stopPatterns.test("please stop using tools"));
-      assert.ok(stopPatterns.test("don't use tools"));
-      assert.ok(stopPatterns.test("no tools"));
-      assert.ok(stopPatterns.test("just talk to me"));
-      assert.ok(stopPatterns.test("stop calling tools"));
+      assert.ok(matchesStop("please stop using tools"));
+      assert.ok(matchesStop("don't use tools"));
+      assert.ok(matchesStop("just talk to me"));
+      assert.ok(matchesStop("stop calling tools"));
+      assert.ok(matchesStop("answer without tools"));
+    });
+
+    // ── CRITICAL: Algorithm descriptions must NOT trigger ──────────────
+    it("should NOT trigger on algorithm descriptions containing 'stop' + 'tool'", () => {
+      assert.ok(!matchesStop("implement a stop condition in the tool registry"));
+      assert.ok(!matchesStop("add a stop signal to the file_write tool"));
+      assert.ok(!matchesStop("the algorithm should stop when the tool returns an error"));
+      assert.ok(!matchesStop("write a stop mechanism for the tool executor"));
+      assert.ok(!matchesStop("implement a graceful stop for the shell_run tool"));
+      assert.ok(!matchesStop("the stop condition checks if the tool has finished"));
+      assert.ok(!matchesStop("add a stop() method to the tool class"));
+      assert.ok(!matchesStop("when the loop stops, the tool should clean up"));
     });
 
     it("should NOT trigger on normal messages", () => {
-      assert.ok(!stopPatterns.test("read the file"));
-      assert.ok(!stopPatterns.test("what's the time?"));
-      assert.ok(!stopPatterns.test("fix the bug in calculator.js"));
+      assert.ok(!matchesStop("read the file"));
+      assert.ok(!matchesStop("what's the time?"));
+      assert.ok(!matchesStop("fix the bug in calculator.js"));
+      assert.ok(!matchesStop("write a function that stops when x > 100"));
     });
 
     it("should detect resume instruction", () => {
-      assert.ok(resumePatterns.test("you can use tools now"));
-      assert.ok(resumePatterns.test("go ahead"));
-      assert.ok(resumePatterns.test("use tools again"));
+      assert.ok(matchesResume("you can use tools now"));
+      assert.ok(matchesResume("use tools again"));
+      assert.ok(matchesResume("you may use tools"));
     });
 
     it("should NOT resume on normal messages", () => {
-      assert.ok(!resumePatterns.test("what's the time?"));
-      assert.ok(!resumePatterns.test("read the file"));
+      assert.ok(!matchesResume("what's the time?"));
+      assert.ok(!matchesResume("read the file"));
     });
   });
 

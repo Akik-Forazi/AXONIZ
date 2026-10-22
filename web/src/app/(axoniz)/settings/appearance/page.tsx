@@ -18,8 +18,8 @@ const TOKENS = [
 ];
 
 export default function AppearancePage() {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   return (
     <ScrollArea className="flex-1 min-h-0">
@@ -33,14 +33,16 @@ export default function AppearancePage() {
         <GlassCard className="mb-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg glass-inset flex items-center justify-center flex-shrink-0">
-              {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              {resolvedTheme === undefined
+                ? <span className="w-4 h-4" />
+                : isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </div>
             <div className="flex-1">
               <div className="text-[13px] font-medium">Theme</div>
               <div className="text-[11px] text-muted-foreground">Light or dark mode — applied globally.</div>
             </div>
             <Switch
-              checked={isDark}
+              checked={resolvedTheme === "dark"}
               onCheckedChange={(v) => setTheme(v ? "dark" : "light")}
               aria-label="Toggle dark theme"
             />
