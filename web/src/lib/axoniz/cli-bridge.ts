@@ -15,6 +15,7 @@
  */
 
 import path from "node:path";
+import os from "node:os";
 
 const DIST = path.join(process.cwd(), "..", "dist");
 
@@ -65,36 +66,117 @@ export function loadCliConfig(): Record<string, unknown> {
   try {
     const mod = load<{ loadConfig: () => Record<string, unknown> }>("core/config.js");
     return mod.loadConfig();
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+  } catch {
+    // dist/ not built -- return empty object so callers (esp. the save route)
+    // don't persist an error sentinel into config.json.
+    return {};
   }
 }
 
 /**
  * Save config to ~/.fraziym/axoniz/config.json (the CLI's canonical config).
  *
+ * Prefers the compiled CLI's own saveConfig(). Falls back to writing the
+ * JSON file directly when dist/ isn't built -- so the Settings -> Providers
+ * Save button works even before 'npm run build' at the project root.
+ *
  * THROWS on failure — callers (e.g. /api/axoniz/config/cli POST route)
- * should catch and return a 500 to the client. Previously this swallowed
- * errors silently, so a broken dist/ or read-only filesystem would
- * appear as a successful save to the user.
+ * should catch and return a 500 to the client.
  */
 export function saveCliConfig(cfg: Record<string, unknown>): void {
-  const mod = load<{ saveConfig: (cfg: Record<string, unknown>) => void }>("core/config.js");
-  mod.saveConfig(cfg);
+  try {
+    const mod = load<{ saveConfig: (cfg: Record<string, unknown>) => void }>("core/config.js");
+    mod.saveConfig(cfg);
+    return;
+  } catch { /* dist/ not built -- fall back to direct file write below */ }
+
+  const fs = dynamicRequire("node:fs");
+  let targetPath: string | null = null;
+  for (const configPath of CONFIG_PATHS()) {
+    try {
+      fs.accessSync(configPath);
+      targetPath = configPath;
+      break;
+    } catch { /* doesn't exist yet -- try the next path */ }
+  }
+  if (!targetPath) targetPath = CONFIG_PATHS()[0];
+  const dir = path.dirname(targetPath);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch { /* best effort */ }
+  fs.writeFileSync(targetPath, JSON.stringify(cfg, null, 2), "utf8");
 }
 
-/** Create an Agent from the CLI's canonical config */
-export function createAgent(config?: Record<string, unknown>) {
-  const mod = load<{ Agent: new (cfg: Record<string, unknown>) => { chatStream: (msg: string) => AsyncGenerator<string>; run: (task: string) => Promise<string>; health: () => Promise<unknown> } }>("core/agent.js");
-  const cfg = config ?? loadCliConfig();
-  return new mod.Agent(cfg);
+/** The subset of the CLI's Agent surface the web layer relies on. */
+export interface AgentInstance {
+  chatStream: (message: string) => AsyncGenerator<string>;
+  run: (task: string) => Promise<string>;
+  health: () => Promise<unknown>;
+  [key: string]: unknown;
+}
+
+/** Candidate config paths, in autodetect order. */
+const CONFIG_PATHS = () => [
+  path.join(os.homedir(), ".fraziym", "axoniz", "config.json"),
+  path.join(os.homedir(), ".axoniz", "config.json"),
+];
+
+/**
+ * Load the CLI's canonical config — preferring the compiled CLI's own
+ * loader, falling back to reading the config file from disk when dist/
+ * isn't built. Never throws: callers merge runtime patches (provider,
+ * model, maxSteps) on top of the result and all deeper access is
+ * optional-chained, so an empty object is a valid "no config" result.
+ */
+export function loadConfigWithAutodetect(): Record<string, unknown> {
+  try {
+    const mod = load<{
+      loadConfigWithAutodetect?: () => Record<string, unknown>;
+      loadConfig: () => Record<string, unknown>;
+    }>("core/config.js");
+    if (typeof mod.loadConfigWithAutodetect === "function") {
+      return mod.loadConfigWithAutodetect();
+    }
+    return mod.loadConfig();
+  } catch {
+    // dist/ not built — read the config file directly instead.
+    for (const configPath of CONFIG_PATHS()) {
+      try {
+        const raw = dynamicRequire("node:fs").readFileSync(configPath, "utf8");
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object") return parsed;
+      } catch { /* missing or unparsable — try the next path */ }
+    }
+    return {};
+  }
+}
+
+/** Create an Agent from the CLI's canonical config.
+ *
+ * Returns null when the compiled CLI is unavailable (dist/ not built) —
+ * callers (agent-stream route) declare `AgentInstance | null` and fall
+ * back to their own lightweight agent paths instead of crashing. */
+export function createAgent(config?: Record<string, unknown>): AgentInstance | null {
+  try {
+    const mod = load<{ Agent: new (cfg: Record<string, unknown>) => AgentInstance }>("core/agent.js");
+    const cfg = config ?? loadCliConfig();
+    return new mod.Agent(cfg);
+  } catch (e) {
+    console.warn(
+      "[cli-bridge] compiled CLI unavailable (dist/ not built?):",
+      e instanceof Error ? e.message : String(e),
+    );
+    return null;
+  }
 }
 
 /** Stream chat tokens from the CLI's Agent.chatStream() */
-export async function* streamAgentChat(message: string, history?: Array<{ role: string; content: string }>): AsyncGenerator<string> {
+export async function* streamAgentChat(
+  message: string,
+  history?: Array<{ role: string; content: string }>,
+  opts?: { config?: Record<string, unknown> }  // optional pre-built config (with provider/model overrides)
+): AsyncGenerator<string> {
   // Try the CLI agent first (requires dist/ to be built)
   try {
-    const agent = createAgent();
+    const agent = opts?.config ? createAgent(opts.config) : createAgent();
     for await (const tok of agent.chatStream(message)) {
       yield tok;
     }
@@ -104,8 +186,8 @@ export async function* streamAgentChat(message: string, history?: Array<{ role: 
     console.warn('[chat] CLI agent unavailable, using direct proxy fallback:', e instanceof Error ? e.message : String(e));
   }
 
-  // Direct HTTP proxy fallback — reads config and proxies to the provider
-  const config = loadCliConfig();
+  // Direct HTTP proxy fallback — use passed config or load from CLI config file
+  const config = opts?.config ?? loadCliConfig();
   const llm = (config as Record<string, unknown>)?.llm as {
     active_provider?: string;
     providers?: Record<string, {
@@ -210,6 +292,9 @@ export async function execAgent(
   config?: Record<string, unknown>,
 ): Promise<{ result: string }> {
   const agent = createAgent(config);
+  if (!agent) {
+    throw new Error("AXONIZ CLI is not built (dist/ missing) — run `npm run build` at the project root.");
+  }
   const result = await agent.run(goal);
   return { result };
 }

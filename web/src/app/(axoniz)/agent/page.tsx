@@ -106,7 +106,7 @@ export default function AgentPage() {
         abortRef.current = null;
       },
       onError: (err) => {
-        finalizeMessage(assistantId, { error: err, content: `Agent execution failed: ${err}` });
+        finalizeMessage(assistantId, { error: err });
         setStreaming(false);
         abortRef.current = null;
       },

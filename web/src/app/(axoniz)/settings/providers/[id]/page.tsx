@@ -67,7 +67,16 @@ export default function ProviderDetailPage({ params }: { params: Promise<{ id: s
         body: JSON.stringify({ provider: meta.id, baseUrl: cfg.baseUrl || meta.defaultBaseUrl, apiKey: cfg.apiKey || undefined }),
       });
       const data = await res.json();
-      setResult({ ok: !!data.ok, latencyMs: data.latencyMs, error: data.error, models: data.models });
+      // /api/axoniz/providers/test returns ModelInfo objects
+      // ({ id, contextLength?, pricing? }) — normalize to id strings here
+      // since this page only renders and selects model ids. Rendering the
+      // raw objects would produce "[object Object]" keys.
+      setResult({
+        ok: !!data.ok,
+        latencyMs: data.latencyMs,
+        error: data.error,
+        models: ((data.models ?? []) as Array<{ id: string }>).map((m) => m.id).filter(Boolean),
+      });
       if (data.ok) toast.success(`${meta.name} reachable`);
       else toast.error(`${meta.name}: ${data.error ?? "test failed"}`);
     } catch (e) {

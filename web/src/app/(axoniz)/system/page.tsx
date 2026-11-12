@@ -7,6 +7,7 @@ import { PageHeader, StatTile, GlassCard, StatusPill, LoadingRow } from "@/compo
 import { useSystemStatsQuery, useAgentStatsQuery } from "@/components/axoniz/queries";
 import { getHealth, type AxonizHealth } from "@/lib/axoniz/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 export default function SystemPage() {
   const [health, setHealth] = useState<AxonizHealth | null>(null);
@@ -44,18 +45,20 @@ export default function SystemPage() {
         />
 
         {/* Health banner */}
-        {hLoad ? <LoadingRow count={1} /> : health && (
-          <GlassCard className="mb-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Activity className="w-4 h-4 text-primary" />
+        {hLoad ? <LoadingRow count={1} /> : (
+          <GlassCard className="mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg glass-inset flex items-center justify-center flex-shrink-0">
+                <Activity className={cn("w-4 h-4", online ? "text-accent" : "text-muted-foreground")} />
               </div>
-              <div>
-                <div className="text-[13px] font-semibold">
-                  {health.backend ?? "—"} · {health.model ?? "—"} · {health.loaded ? "loaded" : "not loaded"}
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold truncate">
+                  {health?.backend ?? "No AXONIZ engine connected"}
                 </div>
-                <div className="text-[11px] text-muted-foreground font-mono">
-                  uptime {(health.uptime_s ?? 0).toFixed(0)}s · drawers {health.palace?.drawers ?? 0} · kg {health.palace?.kg_facts ?? 0}
+                <div className="text-[11px] text-muted-foreground">
+                  {health
+                    ? <span className="font-mono truncate">{health.model ?? "no model"} · {health.loaded ? "loaded" : "not loaded"} · uptime {(health.uptime_s ?? 0).toFixed(0)}s · drawers {health.palace?.drawers ?? 0} · kg {health.palace?.kg_facts ?? 0}</span>
+                    : "Start llama-server or build the CLI to see live health."}
                 </div>
               </div>
             </div>
@@ -63,29 +66,40 @@ export default function SystemPage() {
         )}
 
         {/* Host telemetry */}
-        {sLoad ? <LoadingRow count={4} /> : sysStats && (
+        {sLoad ? <LoadingRow count={4} /> : sysStats ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <StatTile label="CPU" value={sysStats.cpu_percent?.toFixed(0) ?? "—"} unit="%" hint={`${sysStats.cpu_cores ?? 0} cores`} />
             <StatTile label="Memory" value={sysStats.mem_percent?.toFixed(0) ?? "—"} unit="%" hint={`${((sysStats.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${((sysStats.mem_total_mb ?? 0) / 1024).toFixed(1)} GB`} />
-            <StatTile label="Disk" value={sysStats.disk_percent?.toFixed(0) ?? "—"} unit="%" hint={`${sysStats.hostname ?? "—"}`} />
+            <StatTile label="Disk" value={sysStats.disk_percent?.toFixed(0) ?? "—"} hint={sysStats.hostname ?? "—"} />
             <StatTile label="Uptime" value={((sysStats.uptime_s ?? 0) / 60).toFixed(0)} unit="min" hint={sysStats.platform ?? "—"} />
           </div>
+        ) : (
+          <GlassCard className="mb-6"><p className="text-[12px] text-muted-foreground">Host telemetry unavailable — the AXONIZ engine isn't reporting stats.</p></GlassCard>
         )}
 
         {/* Agent stats */}
-        <h2 className="text-[13px] font-semibold uppercase tracking-widest text-muted-foreground font-mono mb-3">Agent Lifetime</h2>
-        {aLoad ? <LoadingRow count={4} /> : agentStats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <StatTile label="Tool calls" value={agentStats.tool_calls ?? 0} />
-            <StatTile label="Tasks done" value={agentStats.tasks_completed ?? 0} />
-            <StatTile label="Messages" value={agentStats.messages_sent ?? 0} />
-            <StatTile label="Tokens" value={((agentStats.tokens_in ?? 0) + (agentStats.tokens_out ?? 0)).toLocaleString()} hint={`${agentStats.tokens_in ?? 0} in · ${agentStats.tokens_out ?? 0} out`} />
-          </div>
-        )}
+        <h2 className="text-[13px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">Agent Lifetime</h2>
+        <div className="mb-6">
+          {aLoad ? <LoadingRow count={1} /> : agentStats ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatTile label="Tool calls" value={agentStats.tool_calls ?? 0} />
+              <StatTile label="Tasks done" value={agentStats.tasks_completed ?? 0} />
+              <StatTile label="Messages" value={agentStats.messages_sent ?? 0} />
+              <StatTile label="Tokens" value={((agentStats.tokens_in ?? 0) + (agentStats.tokens_out ?? 0)).toLocaleString()} hint={`${agentStats.tokens_in ?? 0} in · ${agentStats.tokens_out ?? 0} out`} />
+            </div>
+          ) : (
+            <GlassCard><p className="text-[12px] text-muted-foreground">No lifetime stats yet — counters appear after your first agent run.</p></GlassCard>
+          )}
+        </div>
 
-        {/* Raw payload */}
-        <h2 className="text-[13px] font-semibold uppercase tracking-widest text-muted-foreground font-mono mb-3">Raw</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Raw payload — debug detail, collapsed by default */}
+        <details className="group">
+          <summary className="text-[13px] font-semibold uppercase tracking-widest text-muted-foreground mb-3 cursor-pointer select-none inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
+            Raw
+            <span className="text-[10px] normal-case font-mono text-muted/70 group-open:hidden">show</span>
+            <span className="text-[10px] normal-case font-mono text-muted/70 hidden group-open:inline">hide</span>
+          </summary>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
           <GlassCard>
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono mb-2">health.json</div>
             <pre className="text-[11px] font-mono whitespace-pre-wrap break-words text-foreground/80 max-h-64 overflow-y-auto">
@@ -99,6 +113,7 @@ export default function SystemPage() {
             </pre>
           </GlassCard>
         </div>
+        </details>
 
         <div className="mt-6">
           <Link href="/api/axoniz/metrics" target="_blank" className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground font-mono">

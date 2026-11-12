@@ -12,6 +12,11 @@ export function QueryProvider({ children }: { children: ReactNode }) {
             staleTime: 15_000,
             refetchOnWindowFocus: false,
             retry: 1,
+            // Fail visibly and fast: when the AXONIZ engine is down, pages must
+            // render their honest offline/empty states instead of skeleton limbo.
+            retryDelay: 500,
+            refetchIntervalInBackground: false,
+            networkMode: "online",
           },
         },
       }),

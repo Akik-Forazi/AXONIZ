@@ -21,12 +21,12 @@ export default function SettingsIndexPage() {
 
   return (
     <ScrollArea className="flex-1 min-h-0">
-      <div className="max-w-4xl mx-auto p-3 sm:p-4 lg:p-6 pb-16">
+      <div className="max-w-3xl mx-auto p-3 sm:p-4 lg:p-6 pb-16">
         <PageHeader
           title="Settings"
           description={`${configured} of ${Object.keys(providers).length} providers configured.`}
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {CARDS.map((c) => {
             const Icon = c.icon;
             return (

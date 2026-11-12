@@ -4,11 +4,18 @@ allowBuilds:
 onlyBuiltDependencies:
   - better-sqlite3
   - node-llama-cpp
-  - onnxruntime-node
   - esbuild
   - sharp
   - msedge-tts
   - chromadb
+# onnxruntime-node's postinstall downloads its binaries from api.nuget.org /
+# its own CDN, which is unreachable on this network (registry.npmjs.org works
+# via proxy; these direct-connect endpoints ETIMEDOUT). Skip the build script:
+# the package still ships types so typecheck passes, and runtime embedding
+# features (chromadb optional path) degrade gracefully until the CDN is
+# reachable.
+ignoredBuiltDependencies:
+  - onnxruntime-node
 # CUDA/Vulkan llama.cpp variants are unnecessary on this host and their
 # tarballs are large enough to time out on a degraded connection.
 ignoredOptionalDependencies:

@@ -65,7 +65,7 @@ export function TopBar({ onHamburgerClick }: { onHamburgerClick?: () => void } =
       <div className="hidden lg:flex items-center gap-2 ml-3 text-xs text-muted-foreground font-mono truncate">
         <span className="text-foreground/30">/</span>
         <span className="truncate" title={workspacePath ?? ""}>
-          {workspacePath ? workspacePath.split("/").slice(-2).join("/") : "loading…"}
+          {workspacePath ? workspacePath.split("/").slice(-2).join("/") : "no workspace — connect a folder to begin"}
         </span>
       </div>
 
@@ -89,9 +89,7 @@ export function TopBar({ onHamburgerClick }: { onHamburgerClick?: () => void } =
       {/* Theme toggle — always visible */}
       <Button variant="ghost" size="icon" className="h-8 w-8 press flex-shrink-0"
         onClick={() => setTheme(isDark ? "light" : "dark")} aria-label="Toggle theme">
-        {resolvedTheme === undefined
-          ? <span className="w-4 h-4" />
-          : isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </Button>
 
       {/* Terminal toggle — hidden on mobile (use the menu bar drawer instead) */}

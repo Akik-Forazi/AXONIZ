@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { info, warn, error as logError } from "../core/debug.js";
-import { resolveCommand } from "../tools/_internal.js";
+import { FileTools, ShellTools, WebTools, CodeTools, AxodexTools, ComputerTools, resolveCommand } from "@fraziym/mcp/tools";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..");

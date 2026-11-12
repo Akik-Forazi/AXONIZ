@@ -99,6 +99,10 @@ export function useMemoryQuery() {
     queryKey: ["axoniz", "memory"],
     queryFn: () => axonizClient.memory(),
     staleTime: 60_000,
+    // Memory comes from the AXONIZ engine; when it is down this must hard-fail
+    // so Palace renders its real empty state instead of infinite skeletons.
+    retry: 1,
+    retryDelay: 500,
   });
 }
 

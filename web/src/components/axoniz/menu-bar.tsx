@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   MessageSquare, Bot, Boxes, Anvil, Network, BrainCircuit,
   Search, Gauge, Activity, Settings, Sun, Moon, PanelLeftClose,
-  RotateCcw, TerminalSquare, Target,
+  RotateCcw, TerminalSquare, Target, Braces,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ const WORKSPACE_NAV: NavItem[] = [
   { href: "/forge", label: "Forge", icon: Anvil },
   { href: "/war-room", label: "War Room", icon: Network },
   { href: "/palace", label: "Palace", icon: BrainCircuit },
-  { href: "/axodex", label: "Axodex", icon: Search },
+  { href: "/axodex", label: "Axodex", icon: Braces },
   { href: "/search", label: "Absolute Search", icon: Search },
 ];
 
@@ -134,9 +134,7 @@ export function MenuBar({ onNavigate }: { onNavigate?: () => void } = {}) {
           label={isDark ? "Switch to light" : "Switch to dark"}
           onClick={() => setTheme(isDark ? "light" : "dark")}
         >
-          {resolvedTheme === undefined
-            ? <span className="w-4 h-4" />
-            : isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </MenuIcon>
         <MenuIcon label="Reset layout" onClick={resetLayout}>
           <RotateCcw className="w-4 h-4" />

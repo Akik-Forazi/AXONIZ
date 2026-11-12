@@ -16,12 +16,6 @@ import crypto from "node:crypto";
 import { ChatHistory } from "./history.js";
 import { debug, error, info, warn, getLogger } from "./debug.js";
 import { WorkspaceIndexer, GitTools, TokenCounter } from "./extras.js";
-import { FileTools } from "../tools/file_tools.js";
-import { ShellTools } from "../tools/shell_tools.js";
-import { WebTools } from "../tools/web_tools.js";
-import { CodeTools } from "../tools/code_tools.js";
-import { AxodexTools } from "../tools/axodex_tools.js";
-import { ComputerTools } from "../tools/computer_tools.js";
 import { UnifiedMemory } from "../integrations/unified_memory.js";
 import {
   TrajectoryStore,
@@ -49,7 +43,7 @@ import {
   type CompletionResult,
 } from "./backend/index.js";
 import type { AxonizConfig } from "./config.js";
-import { detectNoToolsIntent } from "./no_tools_phrases.js";
+import { FileTools, ShellTools, WebTools, CodeTools, AxodexTools, ComputerTools, resolveCommand } from "@fraziym/mcp/tools";
 
 export { Memory };
 
@@ -291,18 +285,6 @@ export type TokenCallback = (token: string) => void;
 export type ToolCallCallback = (name: string, args: Record<string, unknown>) => void;
 export type ToolResultCallback = (name: string, result: string) => void;
 
-/**
- * Fires after every tool exec() gate with a concise, user-facing summary.
- * Status values: "started" | "approval_required" | "succeeded" | "failed" | "cancelled"
- * `summary` is always one short sentence (≤120 chars). `next` is optional.
- */
-export type ProgressCallback = (
-  tool: string,
-  status: "started" | "approval_required" | "succeeded" | "failed" | "cancelled",
-  summary: string,
-  next?: string,
-) => void;
-
 /** A tool implementation: zero-arg or single-args-object, sync or async. */
 export type ToolFn = (args?: Record<string, unknown>) => string | Promise<string>;
 
@@ -390,10 +372,6 @@ export class Agent {
   onToolCall: ToolCallCallback | null = null;
   onToolResult: ToolResultCallback | null = null;
   onDone: TokenCallback | null = null;
-  /** Concise progress after every tool gate. See ProgressCallback. */
-  onProgress: ProgressCallback | null = null;
-  /** When true, tool_calls from the LLM are suppressed — user asked to stop. */
-  private _noToolsMode = false;
 
   constructor(kwargs: Record<string, unknown> = {}) {
     const drop = new Set(["web_port", "_home", "_models_dir"]);
@@ -1063,7 +1041,6 @@ export class Agent {
       const decision = authority.check(name, args, this.trajSessionId ?? "");
       if (!decision.approved) {
         const blocked = `[AUTHORITY BLOCKED] '${name}' denied: ${decision.reason}`;
-        this.onProgress?.(name, "cancelled", `${name} denied by authority — I won't retry without a reason.`);
         this.onToolResult?.(name, blocked);
         return blocked;
       }
@@ -1106,13 +1083,11 @@ export class Agent {
           notes: `BLOCKED: ${check.reason}`,
         });
       }
-      this.onProgress?.(name, "cancelled", `${name} blocked — risk ${Math.round(check.risk * 100)}% exceeds threshold. I won't proceed without your approval.`);
       this.onToolResult?.(name, blockedMsg);
       return blockedMsg;
     }
 
     // 2. Execute with timing
-    this.onProgress?.(name, "started", `Executing ${name}…`);
     const t0 = Date.now();
     let result: string;
     let success: boolean;
@@ -1129,8 +1104,6 @@ export class Agent {
           `HINT: Use 'axodex_smart_read' for architectural context or 'file_read' with line ranges.`;
       }
       success = true;
-      const summary = result.split("\n")[0].replace(/^── .* ──/, "").trim().slice(0, 120) || `${name} completed`;
-      this.onProgress?.(name, "succeeded", summary);
     } catch (e) {
       if (e instanceof TypeError) {
         result = `[ERROR] Bad args for '${name}': ${errText(e)}`;
@@ -1138,7 +1111,6 @@ export class Agent {
         result = `[ERROR] '${name}' failed: ${errText(e)}`;
       }
       success = false;
-      this.onProgress?.(name, "failed", `${name} failed: ${errText(e).slice(0, 100)}`);
     }
     const durationMs = Date.now() - t0;
 
@@ -1407,36 +1379,6 @@ export class Agent {
       msgs = (await this.compressor.compressSemantic(msgs as never, this as never)) as ChatMessage[];
     }
 
-      // ── No-tools mode detection ──────────────────────────────────────────
-      // Multi-language, multi-accent phrase detection. Uses exact phrase
-      // matching (not regex) to avoid false positives on algorithm
-      // descriptions. Covers 30+ languages with romanized variants.
-      // See src/core/no_tools_phrases.ts for the full phrase list.
-      const lastUser = [...msgs].reverse().find((m) => m.role === "user");
-      if (lastUser) {
-        const intent = detectNoToolsIntent(lastUser.content);
-        if (intent === "stop") {
-          if (!this._noToolsMode) {
-            this._noToolsMode = true;
-            debug("[Agent] No-tools mode activated — user asked to stop using tools");
-          }
-        }
-        if (intent === "resume") {
-          if (this._noToolsMode) {
-            this._noToolsMode = false;
-            debug("[Agent] No-tools mode deactivated — user authorized tool use");
-          }
-        }
-      }
-      // If no-tools mode is active, append a system instruction to suppress tools.
-      if (this._noToolsMode && msgs.length > 0 && msgs[0].role === "system") {
-        msgs = msgs.map((m, i) =>
-          i === 0
-            ? { ...m, content: m.content + "\n\nIMPORTANT: The user has asked you to STOP using tools. Respond conversationally in plain text only. Do NOT request any tool calls. Do NOT ask for permission to use tools." }
-            : m,
-        );
-      }
-
       let response: CompletionResult;
       const llmT0 = Date.now();
       try {
@@ -1472,17 +1414,6 @@ export class Agent {
         this.costTracker.recordLLMCall(tokensIn, tokensOut, Date.now() - llmT0, model);
       } catch (e) {
         debug(`[CostTracker] LLM record failed: ${errText(e)}`);
-      }
-
-      // ── No-tools mode enforcement ────────────────────────────────────────
-      // If the user said "stop using tools" but the LLM still emitted
-      // tool_calls, suppress them and treat the response as text.
-      if (this._noToolsMode && isToolCallResponse(response)) {
-        const suppressed = (response as { text?: string }).text ?? "";
-        const text = suppressed || "I'll respond without tools as you asked. What would you like to discuss?";
-        this.history.append("assistant", text, { step });
-        this.onToken?.(text);
-        return text;
       }
 
       if (isToolCallResponse(response)) {
@@ -1738,7 +1669,6 @@ export class Agent {
     this.abortFlag = null;
     this.trajSessionId = null;
     this.stepCounter = 0;
-    this._noToolsMode = false;
     this.corrector.reset();
     this.history.clearSession();
   }

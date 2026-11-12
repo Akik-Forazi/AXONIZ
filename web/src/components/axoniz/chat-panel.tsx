@@ -143,7 +143,7 @@ export function ChatPanel() {
         abortRef.current = null;
       },
       onError: (err) => {
-        finalizeMessage(assistantId, { error: err, content: `Generation failed: ${err}` });
+        finalizeMessage(assistantId, { error: err });
         setStreaming(false);
         abortRef.current = null;
         pushTerminalLine({
@@ -230,12 +230,7 @@ export function ChatPanel() {
               <kbd className="px-1.5 py-0.5 rounded glass-inset text-[9px]">⇧↵</kbd>
               <span>newline</span>
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-accent" />
-              <span>{activeProvider}</span>
-              <span className="text-foreground/30">·</span>
-              <span className="text-foreground/80">{activeModel ?? "—"}</span>
-            </span>
+            <span className="text-muted/70">AXONIZ</span>
           </div>
         </div>
       </div>
@@ -251,10 +246,10 @@ function EmptyState() {
     { title: "Run tests", prompt: "Run the existing test suite and report pass/fail counts." },
   ];
   return (
-    <div className="max-w-3xl mx-auto px-3 sm:px-4 py-8 sm:py-12 lg:py-16">
-      <div className="flex flex-col items-center text-center mb-10">
-        <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mb-4 shadow-xl shadow-primary/30 glow-primary">
-          <Sparkles className="w-6 h-6" />
+    <div className="max-w-3xl mx-auto px-3 sm:px-4 flex flex-col justify-center min-h-full py-6">
+      <div className="flex flex-col items-center text-center mb-8">
+        <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mb-4 shadow-lg shadow-primary/25 glow-primary">
+          <Sparkles className="w-5 h-5" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-gradient mb-2">Chat</h1>
         <p className="text-[13px] text-muted-foreground max-w-md text-balance leading-relaxed">
@@ -268,11 +263,11 @@ function EmptyState() {
             onClick={() => window.dispatchEvent(new CustomEvent("axoniz:example", { detail: ex.prompt }))}
             className="text-left p-3.5 rounded-xl glass-panel glass-hover press group"
           >
-            <div className="text-[12px] font-medium mb-1 flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-accent" />
-              {ex.title}
+            <div className="text-[12px] font-medium mb-1 flex items-center justify-between gap-2">
+              <span>{ex.title}</span>
+              <span className="text-muted-foreground/0 group-hover:text-muted-foreground/70 transition-colors">→</span>
             </div>
-            <div className="text-[11px] text-muted-foreground font-mono line-clamp-2">{ex.prompt}</div>
+            <div className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{ex.prompt}</div>
           </button>
         ))}
       </div>

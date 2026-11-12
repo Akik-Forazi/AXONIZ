@@ -24,7 +24,6 @@ import {
   type AxonizConfig,
 } from "./config.js";
 import { debug, error as logError, getLogger } from "./debug.js";
-import { resolveCommand } from "../tools/_internal.js";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +36,7 @@ export const VERSION = _pkg.version;
 // Both are kept in sync via tests/version.test.ts. The CLI banner shows
 // the FRAZIYM version because that's the canonical identity.
 import { AXONIZ_VERSION } from "../version.js";
+import { FileTools, ShellTools, WebTools, CodeTools, AxodexTools, ComputerTools, resolveCommand } from "@fraziym/mcp/tools";
 export { AXONIZ_VERSION };
 
 /* ── Colour ───────────────────────────────────────────────────────────────── */
